@@ -1,16 +1,18 @@
 package com.creedpdf.orbitalrailgun.client.screen;
 
-import com.creedpdf.orbitalrailgun.client.hud.RailgunHud;
+import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.client.network.ClientPackets;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
+import com.creedpdf.orbitalrailgun.registry.ModSounds;
 import com.creedpdf.orbitalrailgun.util.RailgunConfig;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.sound.PositionedSoundInstance;
-import net.minecraft.sound.SoundEvents;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
@@ -25,24 +27,22 @@ import java.util.function.BooleanSupplier;
 /**
  * Sci-fi fire-control console.
  *
- * <p>This is a plain client {@link Screen}, not a ScreenHandler: there is no inventory to sync,
- * and every value it shows (state, charge, target, aim) is already on the client-side entity via
- * TrackedData. Buttons send small C2S command packets that the server validates. That avoids a
- * dependency on owo-lib/Cloth Config while keeping full control over the look.</p>
+ * <p>The static art (brushed gunmetal, bevelled wells, hazard frames, oscilloscope grid) is the
+ * custom texture {@code textures/gui/fire_control.png}, painted by tools/textures/build_textures.py
+ * with every well at the coordinates used below. This class draws the live parts on top: text,
+ * capacitor segments, the waveform and the buttons.</p>
  *
- * <p>Buttons are custom-drawn (see {@link ConsoleButton}) instead of vanilla ButtonWidgets so the
- * panel can use hazard stripes, pulsing fills and progress-filled states.</p>
+ * <p>It is a plain client {@link Screen}, not a ScreenHandler: there is no inventory, and every
+ * value shown is already on the client-side entity via TrackedData. Buttons send small C2S
+ * packets that the server validates.</p>
  */
 public class RailgunControlScreen extends Screen {
-    private static final int W = 320, H = 214;
+    private static final Identifier PANEL = RailgunMod.id("textures/gui/fire_control.png");
+    private static final int W = 336, H = 232;
 
-    private static final int C_BG = 0xE6070910;
-    private static final int C_PANEL = 0xFF0E1118;
-    private static final int C_GRID = 0x22FF3030;
     private static final int C_RED = 0xFFFF3030;
-    private static final int C_RED_DIM = 0xFF7A1616;
     private static final int C_TEXT = 0xFFD8D8D8;
-    private static final int C_MUTED = 0xFF7C828C;
+    private static final int C_MUTED = 0xFF8A909A;
     private static final int C_AMBER = 0xFFFFB020;
     private static final int C_GREEN = 0xFF40FF80;
 
@@ -68,32 +68,33 @@ public class RailgunControlScreen extends Screen {
         String sy = fieldY != null ? fieldY.getText() : Integer.toString(initial.getY());
         String sz = fieldZ != null ? fieldZ.getText() : Integer.toString(initial.getZ());
 
-        fieldX = coordField(left + 28, top + 44, sx);
-        fieldY = coordField(left + 28, top + 64, sy);
-        fieldZ = coordField(left + 28, top + 84, sz);
+        fieldX = coordField(left + 33, top + 49, sx);
+        fieldY = coordField(left + 33, top + 71, sy);
+        fieldZ = coordField(left + 33, top + 93, sz);
         setInitialFocus(fieldX);
 
         buttons.clear();
-        buttons.add(new ConsoleButton(left + 10, top + 106, 68, 16, "SET TARGET", C_RED,
+        buttons.add(new ConsoleButton(left + 9, top + 111, 77, 20, "SET TARGET", C_RED,
                 () -> !isLocked(), this::submitTarget));
-        buttons.add(new ConsoleButton(left + 82, top + 106, 68, 16, "PAINT", C_AMBER,
+        buttons.add(new ConsoleButton(left + 89, top + 111, 77, 20, "PAINT", C_AMBER,
                 () -> !isLocked(), this::paintTarget));
-        buttons.add(new ConsoleButton(left + 208, top + 160, 102, 19, "ABORT", C_AMBER,
+        buttons.add(new ConsoleButton(left + 212, top + 171, 117, 25, "ABORT", C_AMBER,
                 () -> railgun.getState() == RailgunState.CHARGING, () -> ClientPackets.sendAbort(railgun.getId())));
-        buttons.add(new ConsoleButton(left + 208, top + 183, 102, 19, "RECALL", C_MUTED,
+        buttons.add(new ConsoleButton(left + 212, top + 199, 117, 25, "RECALL", C_MUTED,
                 () -> railgun.getState() != RailgunState.FIRING, () -> {
                     ClientPackets.sendRecall(railgun.getId());
                     close();
                 }));
-        buttons.add(new FireButton(left + 10, top + 160, 192, 42));
+        buttons.add(new FireButton(left + 12, top + 174, 193, 47));
     }
 
     private TextFieldWidget coordField(int x, int y, String value) {
-        TextFieldWidget field = new TextFieldWidget(textRenderer, x, y, 120, 16, Text.empty());
+        TextFieldWidget field = new TextFieldWidget(textRenderer, x, y, 126, 12, Text.empty());
+        field.setDrawsBackground(false); // the panel texture provides the recessed well
         field.setMaxLength(9);
         field.setTextPredicate(s -> s.matches("-?\\d{0,8}"));
         field.setText(value);
-        field.setEditableColor(0xFFFF6060);
+        field.setEditableColor(0xFFFF6A5A);
         addDrawableChild(field);
         return field;
     }
@@ -136,6 +137,9 @@ public class RailgunControlScreen extends Screen {
     public void tick() {
         super.tick();
         ticks++;
+        fieldX.tick();
+        fieldY.tick();
+        fieldZ.tick();
         if (inputErrorTicks > 0) inputErrorTicks--;
         double max = RailgunConfig.MAX_INTERACT_DISTANCE;
         if (railgun.isRemoved() || client == null || client.player == null
@@ -158,7 +162,7 @@ public class RailgunControlScreen extends Screen {
                         click(1.0f);
                         b.action.run();
                     } else {
-                        click(0.5f);
+                        click(0.6f);
                     }
                     return true;
                 }
@@ -178,7 +182,7 @@ public class RailgunControlScreen extends Screen {
     }
 
     private void click(float pitch) {
-        if (client != null) client.getSoundManager().play(PositionedSoundInstance.master(SoundEvents.UI_BUTTON_CLICK, pitch));
+        if (client != null) client.getSoundManager().play(PositionedSoundInstance.master(ModSounds.UI_CLICK, pitch));
     }
 
     // ---- Rendering ----------------------------------------------------------------------------
@@ -188,91 +192,76 @@ public class RailgunControlScreen extends Screen {
         renderBackground(ctx);
         float time = ticks + delta;
 
-        // Frame
-        ctx.fill(left, top, left + W, top + H, C_BG);
-        for (int gx = left + 8; gx < left + W; gx += 16) ctx.fill(gx, top + 22, gx + 1, top + H - 2, C_GRID);
-        for (int gy = top + 30; gy < top + H; gy += 16) ctx.fill(left + 2, gy, left + W - 2, gy + 1, C_GRID);
-        ctx.drawBorder(left, top, W, H, C_RED_DIM);
-        RailgunHud.bracket(ctx, left, top, W, H, C_RED);
+        RenderSystem.enableBlend();
+        ctx.drawTexture(PANEL, left, top, 0, 0, W, H, 512, 512);
+        RenderSystem.disableBlend();
 
         // Header
-        ctx.fill(left + 1, top + 1, left + W - 1, top + 20, 0xFF1A0608);
-        ctx.drawText(textRenderer, ">> ARES-9 ORBITAL RAILGUN // FIRE CONTROL", left + 8, top + 6, C_RED, false);
+        ctx.drawText(textRenderer, Text.translatable("gui.orbital_railgun.header"), left + 9, top + 9, C_RED, false);
         boolean blink = ((int) (time / 10)) % 2 == 0;
-        ctx.fill(left + W - 14, top + 7, left + W - 8, top + 13, blink ? C_GREEN : 0xFF0F3A1C);
-        ctx.drawText(textRenderer, "LINK", left + W - 42, top + 6, C_MUTED, false);
+        ctx.fill(left + W - 20, top + 9, left + W - 13, top + 16, blink ? C_GREEN : 0xFF0F3A1C);
 
-        // ---- Left column: targeting ------------------------------------------------------
-        sectionLabel(ctx, left + 10, top + 30, "TARGET COORDINATES");
-        ctx.drawText(textRenderer, "X", left + 14, top + 48, C_RED, false);
-        ctx.drawText(textRenderer, "Y", left + 14, top + 68, C_RED, false);
-        ctx.drawText(textRenderer, "Z", left + 14, top + 88, C_RED, false);
+        // ---- Left column: targeting --------------------------------------------------------
+        ctx.drawText(textRenderer, "TARGET COORDINATES", left + 10, top + 31, C_MUTED, false);
+        for (int i = 0; i < 3; i++) {
+            ctx.drawCenteredTextWithShadow(textRenderer, new String[]{"X", "Y", "Z"}[i], left + 18, top + 48 + i * 22, 0xFFFFD0C8);
+        }
         if (inputErrorTicks > 0) {
-            ctx.drawText(textRenderer, "INVALID INPUT", left + 10, top + 126, C_AMBER, false);
+            ctx.drawText(textRenderer, "INVALID INPUT", left + 14, top + 139, C_AMBER, false);
         } else if (railgun.hasTarget()) {
             BlockPos t = railgun.getTarget();
-            ctx.drawText(textRenderer, String.format(Locale.ROOT, "LOCK %d %d %d", t.getX(), t.getY(), t.getZ()),
-                    left + 10, top + 126, C_RED, false);
+            ctx.drawText(textRenderer, String.format(Locale.ROOT, "LOCK  %d %d %d", t.getX(), t.getY(), t.getZ()),
+                    left + 14, top + 139, C_RED, false);
             double range = Math.sqrt(railgun.getBlockPos().getSquaredDistance(t));
             ctx.drawText(textRenderer, String.format(Locale.ROOT, "RANGE %.0fm / %.0fm", range, RailgunConfig.MAX_FIRE_RANGE),
-                    left + 10, top + 138, C_MUTED, false);
+                    left + 14, top + 150, C_MUTED, false);
         } else {
-            ctx.drawText(textRenderer, "NO TARGET LOCKED", left + 10, top + 126, C_MUTED, false);
+            ctx.drawText(textRenderer, "NO TARGET LOCKED", left + 14, top + 139, C_MUTED, false);
         }
 
-        // ---- Right column: status / capacitor --------------------------------------------
-        int rx = left + 166, rw = 144;
+        // ---- Right column: status / capacitor ---------------------------------------------
+        int rx = left + 176, rw = 150;
         RailgunState state = railgun.getState();
-        sectionLabel(ctx, rx, top + 30, "SYSTEM STATUS");
         ctx.getMatrices().push();
-        ctx.getMatrices().translate(rx, top + 42, 0);
-        ctx.getMatrices().scale(1.5f, 1.5f, 1f);
+        ctx.getMatrices().translate(rx + 5, top + 45, 0);
+        ctx.getMatrices().scale(1.4f, 1.4f, 1f);
         ctx.drawText(textRenderer, Text.translatable(state.translationKey()), 0, 0, stateColor(state, time), true);
         ctx.getMatrices().pop();
 
         float charge = railgun.getCharge();
-        sectionLabel(ctx, rx, top + 60, "CAPACITOR");
+        ctx.drawText(textRenderer, "CAPACITOR", rx, top + 60, C_MUTED, false);
         String pct = String.format(Locale.ROOT, "%3d%%", (int) (charge * 100));
         ctx.drawText(textRenderer, pct, rx + rw - textRenderer.getWidth(pct), top + 60, C_TEXT, false);
-        int segs = 24, segW = rw / segs;
+        int segs = 25, segW = (rw - 2) / segs;
         int lit = (int) Math.ceil(charge * segs);
         for (int i = 0; i < segs; i++) {
-            int sx = rx + i * segW;
-            int color = i < lit ? lerpColor(0xFF801010, 0xFFFF5040, (float) i / segs) : 0xFF1E1012;
-            ctx.fill(sx, top + 72, sx + segW - 1, top + 84, color);
+            int sx = rx + 1 + i * segW;
+            int color = i < lit ? lerpColor(0xFF901414, 0xFFFF6048, (float) i / segs) : 0xFF22100F;
+            ctx.fill(sx, top + 71, sx + segW - 1, top + 84, color);
         }
 
         // Oscilloscope: capacitor waveform. Amplitude and frequency follow the charge.
-        int ox = rx, oy = top + 90, ow = rw, oh = 36;
-        ctx.fill(ox, oy, ox + ow, oy + oh, C_PANEL);
-        ctx.drawBorder(ox, oy, ow, oh, C_RED_DIM);
-        ctx.fill(ox + 1, oy + oh / 2, ox + ow - 1, oy + oh / 2 + 1, 0x33FF3030);
-        float amp = 1.5f + charge * (oh / 2f - 3f);
+        int ox = rx, oy = top + 90, ow = rw, oh = 39;
+        float amp = 2f + charge * (oh / 2f - 4f);
         int prevY = oy + oh / 2;
         for (int px = 1; px < ow - 1; px++) {
             float phase = px * (0.12f + charge * 0.35f) - time * (0.25f + charge);
-            float noise = state == RailgunState.FIRING ? MathHelper.sin(px * 1.7f + time * 5f) * 4f : 0f;
+            float noise = state == RailgunState.FIRING ? MathHelper.sin(px * 1.7f + time * 5f) * 5f : 0f;
             int py = oy + oh / 2 + (int) (MathHelper.sin(phase) * amp + noise);
             py = MathHelper.clamp(py, oy + 1, oy + oh - 2);
-            ctx.fill(ox + px, Math.min(prevY, py), ox + px + 1, Math.max(prevY, py) + 1, C_RED);
+            ctx.fill(ox + px, Math.min(prevY, py), ox + px + 1, Math.max(prevY, py) + 1, 0xFF50FF80);
             prevY = py;
         }
 
-        // Barrel orientation readout
         float az = (float) Math.toDegrees(railgun.getAimYawRad(delta));
         float el = (float) Math.toDegrees(railgun.getAimPitchRad(delta));
-        ctx.drawText(textRenderer, String.format(Locale.ROOT, "AZ %+07.2f  EL %+06.2f", az, el), rx, top + 132, C_MUTED, false);
+        ctx.drawText(textRenderer, String.format(Locale.ROOT, "AZ %+07.2f   EL %+06.2f", az, el), rx + 4, top + 137, C_MUTED, false);
         ctx.drawText(textRenderer, String.format(Locale.ROOT, "POS %d %d %d", railgun.getBlockX(), railgun.getBlockY(), railgun.getBlockZ()),
-                rx, top + 144, C_MUTED, false);
+                rx + 4, top + 149, C_MUTED, false);
 
         // Text fields (children) then custom buttons on top
         super.render(ctx, mouseX, mouseY, delta);
         for (ConsoleButton b : buttons) b.render(ctx, mouseX, mouseY, time);
-    }
-
-    private void sectionLabel(DrawContext ctx, int x, int y, String label) {
-        ctx.fill(x, y + 3, x + 3, y + 6, C_RED);
-        ctx.drawText(textRenderer, label, x + 6, y, C_MUTED, false);
     }
 
     private int stateColor(RailgunState state, float time) {
@@ -286,14 +275,15 @@ public class RailgunControlScreen extends Screen {
     }
 
     private static int lerpColor(int a, int b, float t) {
-        int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
-        int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
-        return 0xFF000000 | ((int) (ar + (br - ar) * t) << 16) | ((int) (ag + (bg - ag) * t) << 8) | (int) (ab + (bb - ab) * t);
+        int aa = (a >>> 24) & 0xFF, ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
+        int ba = (b >>> 24) & 0xFF, br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
+        return ((int) (aa + (ba - aa) * t) << 24) | ((int) (ar + (br - ar) * t) << 16)
+                | ((int) (ag + (bg - ag) * t) << 8) | (int) (ab + (bb - ab) * t);
     }
 
     // ---- Widgets ------------------------------------------------------------------------------
 
-    /** Minimal custom-drawn button. */
+    /** Button drawn translucently over a well in the panel texture. */
     private class ConsoleButton {
         final int x, y, w, h;
         final String label;
@@ -313,14 +303,15 @@ public class RailgunControlScreen extends Screen {
         void render(DrawContext ctx, int mx, int my, float time) {
             boolean on = enabled.getAsBoolean();
             boolean hover = on && isHovered(mx, my);
-            ctx.fill(x, y, x + w, y + h, hover ? 0xFF2A0C0E : C_PANEL);
-            ctx.drawBorder(x, y, w, h, on ? accent : 0xFF2A2E36);
-            if (hover) ctx.fill(x + 1, y + h - 2, x + w - 1, y + h - 1, accent);
+            if (hover) ctx.fill(x + 1, y + 1, x + w - 1, y + h - 1, (accent & 0x00FFFFFF) | 0x38000000);
+            if (on) {
+                ctx.fill(x + 2, y + h - 3, x + w - 2, y + h - 2, hover ? accent : (accent & 0x00FFFFFF) | 0x80000000);
+            }
             ctx.drawCenteredTextWithShadow(textRenderer, label, x + w / 2, y + (h - 8) / 2, on ? C_TEXT : 0xFF4A4F58);
         }
     }
 
-    /** The big FIRE button: hazard-striped, pulsing when armed, fills with charge progress. */
+    /** The big FIRE button: pulses when armed, fills with charge progress, flashes when firing. */
     private class FireButton extends ConsoleButton {
         FireButton(int x, int y, int w, int h) {
             super(x, y, w, h, "FIRE", C_RED,
@@ -334,11 +325,12 @@ public class RailgunControlScreen extends Screen {
             boolean armed = enabled.getAsBoolean();
             boolean hover = armed && isHovered(mx, my);
 
-            float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
-            int bg = armed ? lerpColor(0xFF3A0608, 0xFF7A0E10, hover ? 1f : pulse) : C_PANEL;
-            ctx.fill(x, y, x + w, y + h, bg);
+            if (armed) {
+                float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
+                int a = (int) (0x30 + (hover ? 0x70 : 0x50 * pulse));
+                ctx.fill(x, y, x + w, y + h, (a << 24) | 0xE01818);
+            }
 
-            // Progress fill while charging / firing / cooling down.
             float fill = switch (state) {
                 case CHARGING -> railgun.getCharge();
                 case FIRING -> 1f;
@@ -346,17 +338,9 @@ public class RailgunControlScreen extends Screen {
                 default -> 0f;
             };
             if (fill > 0f) {
-                int fillColor = state == RailgunState.FIRING ? 0xFFFFE0D0 : state == RailgunState.COOLDOWN ? 0xFF4A3A20 : 0xFFB01818;
-                ctx.fill(x + 1, y + 1, x + 1 + (int) ((w - 2) * MathHelper.clamp(fill, 0f, 1f)), y + h - 1, fillColor);
+                int fillColor = state == RailgunState.FIRING ? 0xE0FFE0D0 : state == RailgunState.COOLDOWN ? 0x90604020 : 0xC0C01818;
+                ctx.fill(x, y, x + (int) (w * MathHelper.clamp(fill, 0f, 1f)), y + h, fillColor);
             }
-
-            // Hazard stripes along top and bottom edges.
-            for (int sx = x; sx < x + w; sx += 8) {
-                int c = ((sx - x) / 8) % 2 == 0 ? (armed ? C_AMBER : 0xFF3A3220) : 0xFF101010;
-                ctx.fill(sx, y, Math.min(sx + 8, x + w), y + 3, c);
-                ctx.fill(sx, y + h - 3, Math.min(sx + 8, x + w), y + h, c);
-            }
-            ctx.drawBorder(x, y, w, h, armed ? C_RED : 0xFF2A2E36);
 
             String text = switch (state) {
                 case CHARGING -> String.format(Locale.ROOT, "CHARGING %d%%", (int) (railgun.getCharge() * 100));
@@ -365,8 +349,8 @@ public class RailgunControlScreen extends Screen {
                 case IDLE -> railgun.hasTarget() ? "FIRE" : "NO TARGET";
                 default -> "OFFLINE";
             };
-            float scale = text.length() <= 6 ? 2f : 1.4f;
-            int textColor = state == RailgunState.FIRING ? 0xFF300000 : armed ? 0xFFFFFFFF : 0xFF6A6F78;
+            float scale = text.length() <= 6 ? 2.4f : 1.5f;
+            int textColor = state == RailgunState.FIRING ? 0xFF300000 : armed ? 0xFFFFFFFF : 0xFF7A808A;
             ctx.getMatrices().push();
             ctx.getMatrices().translate(x + w / 2f, y + h / 2f - 4 * scale, 0);
             ctx.getMatrices().scale(scale, scale, 1f);

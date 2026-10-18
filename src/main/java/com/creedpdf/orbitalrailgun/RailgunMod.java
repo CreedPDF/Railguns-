@@ -3,6 +3,7 @@ package com.creedpdf.orbitalrailgun;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.item.RailgunRemoteItem;
 import com.creedpdf.orbitalrailgun.network.ModPackets;
+import com.creedpdf.orbitalrailgun.registry.ModParticles;
 import com.creedpdf.orbitalrailgun.registry.ModSounds;
 import com.creedpdf.orbitalrailgun.util.DeploymentScheduler;
 import net.fabricmc.api.ModInitializer;
@@ -47,7 +48,7 @@ public final class RailgunMod implements ModInitializer {
             Registries.ENTITY_TYPE,
             id("railgun"),
             FabricEntityTypeBuilder.<RailgunEntity>create(SpawnGroup.MISC, RailgunEntity::new)
-                    .dimensions(EntityDimensions.fixed(3.5f, 3.3f))
+                    .dimensions(EntityDimensions.fixed(10.0f, 8.5f))
                     // Large tracking range so the beam stays visible from afar; update every
                     // tick so the high-speed orbital drop is smooth on clients.
                     .trackRangeChunks(16)
@@ -64,6 +65,7 @@ public final class RailgunMod implements ModInitializer {
     @Override
     public void onInitialize() {
         ModSounds.init();
+        ModParticles.init();
         ModPackets.registerServerReceivers();
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(RAILGUN_REMOTE));

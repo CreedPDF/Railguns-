@@ -227,8 +227,8 @@ def preview_material(name, atlas, glow):
     nt.links.new(gtex.outputs["Alpha"], mult.inputs[1])
     nt.links.new(mult.outputs["Vector"], bsdf.inputs["Emission Color"])
     bsdf.inputs["Emission Strength"].default_value = 3.0
-    bsdf.inputs["Metallic"].default_value = 0.55
-    bsdf.inputs["Roughness"].default_value = 0.45
+    bsdf.inputs["Metallic"].default_value = 0.15
+    bsdf.inputs["Roughness"].default_value = 0.6
     return mat
 
 
@@ -1140,6 +1140,9 @@ def setup_camera_and_lights():
     key = link(bpy.data.objects.new("key", bpy.data.lights.new("key", "SUN")))
     key.data.energy = 3.5
     key.rotation_euler = (math.radians(50), math.radians(10), math.radians(-35))
+    fill = link(bpy.data.objects.new("fill", bpy.data.lights.new("fill", "SUN")))
+    fill.data.energy = 1.2
+    fill.rotation_euler = (math.radians(60), 0, math.radians(110))
     rim = link(bpy.data.objects.new("rim", bpy.data.lights.new("rim", "SUN")))
     rim.data.energy = 1.5
     rim.data.color = (0.65, 0.75, 1.0)
@@ -1230,7 +1233,7 @@ def main():
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
         pose(rg_bones, "animation.railgun.deploy", 3.0)
-        render(os.path.join(out, "railgun_deployed.png"), cam, target, (31.0, 25.0, 16.0), (0.0, 5.0, 4.5), 1100, lens=32)
+        render(os.path.join(out, "railgun_deployed.png"), cam, target, (24.0, 21.0, 11.0), (0.0, 7.0, 5.0), 1100, lens=30)
         render(os.path.join(assets, "icon.png"), cam, target, (26.0, 22.0, 14.0), (0.0, 6.0, 5.0), 128, samples=32, lens=30)
         pose(rg_bones, "animation.railgun.falling", 0.0)
         render(os.path.join(out, "railgun_folded.png"), cam, target, (24.0, -18.0, 14.0), (0.0, 1.0, 3.0), 900, lens=32)

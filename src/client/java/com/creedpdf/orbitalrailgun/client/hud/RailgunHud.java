@@ -11,8 +11,10 @@ import net.minecraft.text.Text;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
+import com.mojang.blaze3d.systems.RenderSystem;
 
 import java.util.Locale;
 
@@ -31,13 +33,23 @@ public final class RailgunHud {
 
     private static final int RED = 0xFFFF3030;
     private static final int RED_DIM = 0xFF8A1A1A;
-    private static final int PANEL_BG = 0xC0080A0E;
 
     @Nullable private static BlockPos landing;
     private static long countdownEnd;
     private static int countdownTotal;
     private static int lastBeepSecond = -1;
     private static float flash;
+    private static final Identifier PANEL = RailgunMod.id("textures/gui/hud_countdown.png");
+
+    // Camera shake: random yaw/pitch offsets that are undone the next tick, so the view never drifts.
+    private static float shake;
+    private static float shakeYaw, shakePitch;
+    private static final java.util.Random SHAKE_RANDOM = new java.util.Random();
+
+    /** Adds camera shake (0..~2). Used for landings, firing and nearby impacts. */
+    public static void shake(float strength) {
+        shake = Math.max(shake, strength);
+    }
 
     public static void startCountdown(BlockPos landingPos, int ticks) {
         MinecraftClient client = MinecraftClient.getInstance();
@@ -55,6 +67,20 @@ public final class RailgunHud {
 
     public static void tick(MinecraftClient client) {
         flash = Math.max(0f, flash - 0.06f);
+        if (client.player != null && !client.isPaused()) {
+            client.player.setYaw(client.player.getYaw() - shakeYaw);
+            client.player.setPitch(client.player.getPitch() - shakePitch);
+            shakeYaw = shakePitch = 0f;
+            if (shake > 0.01f) {
+                shakeYaw = (SHAKE_RANDOM.nextFloat() - 0.5f) * 2.4f * shake;
+                shakePitch = (SHAKE_RANDOM.nextFloat() - 0.5f) * 1.8f * shake;
+                client.player.setYaw(client.player.getYaw() + shakeYaw);
+                client.player.setPitch(MathHelper.clamp(client.player.getPitch() + shakePitch, -90f, 90f));
+                shake *= 0.9f;
+            } else {
+                shake = 0f;
+            }
+        }
         if (landing == null || client.world == null) return;
 
         long remaining = countdownEnd - client.world.getTime();
@@ -93,29 +119,28 @@ public final class RailgunHud {
         boolean released = remaining <= 0;
         boolean blink = (client.world.getTime() / 5) % 2 == 0;
 
-        int w = 230, h = 58;
-        int x = (sw - w) / 2, y = 10;
-        ctx.fill(x, y, x + w, y + h, PANEL_BG);
-        ctx.drawBorder(x, y, w, h, RED_DIM);
-        bracket(ctx, x, y, w, h, RED);
+        int w = 240, h = 64;
+        int x = (sw - w) / 2, y = 8;
+        RenderSystem.enableBlend();
+        ctx.drawTexture(PANEL, x, y, 0, 0, w, h, 256, 64);
+        RenderSystem.disableBlend();
 
         Text title = Text.translatable(released ? "hud.orbital_railgun.released" : "hud.orbital_railgun.inbound");
-        ctx.drawCenteredTextWithShadow(font, title, sw / 2, y + 5, released || blink ? RED : RED_DIM);
+        ctx.drawCenteredTextWithShadow(font, title, sw / 2, y + 4, released || blink ? RED : RED_DIM);
 
         String clock = released ? "IMPACT" : String.format(Locale.ROOT, "T-%05.2f", Math.max(0f, remaining / 20f));
         ctx.getMatrices().push();
-        ctx.getMatrices().translate(sw / 2f, y + 17, 0);
+        ctx.getMatrices().translate(sw / 2f, y + 18, 0);
         ctx.getMatrices().scale(2f, 2f, 1f);
         ctx.drawText(font, clock, -font.getWidth(clock) / 2, 0, 0xFFFFFFFF, true);
         ctx.getMatrices().pop();
 
-        int barX = x + 8, barY = y + 38, barW = w - 16;
-        ctx.fill(barX, barY, barX + barW, barY + 4, 0xFF1A0505);
-        ctx.fill(barX, barY, barX + (int) (barW * progress), barY + 4, RED);
+        int barX = x + 9, barY = y + 41, barW = w - 18;
+        ctx.fill(barX, barY, barX + (int) (barW * progress), barY + 5, RED);
 
         double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(landing));
         String info = String.format(Locale.ROOT, "LZ %d %d %d   |   %.0fm", landing.getX(), landing.getY(), landing.getZ(), dist);
-        ctx.drawCenteredTextWithShadow(font, info, sw / 2, y + 46, 0xFFB0B0B0);
+        ctx.drawCenteredTextWithShadow(font, info, sw / 2, y + 51, 0xFFB0B0B0);
     }
 
     private static void renderTargetingReadout(DrawContext ctx, MinecraftClient client, TextRenderer font, int sw, int sh, float tickDelta) {

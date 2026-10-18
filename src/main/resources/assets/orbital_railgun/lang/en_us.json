@@ -3,7 +3,6 @@
   "item.orbital_railgun.railgun_remote.tooltip.1": "Right-click a block to call down a railgun platform.",
   "item.orbital_railgun.railgun_remote.tooltip.2": "Requires a clear sky above the landing zone.",
   "entity.orbital_railgun.railgun": "Orbital Railgun",
-
   "gui.orbital_railgun.title": "Orbital Railgun Fire Control",
   "gui.orbital_railgun.state.falling": "IN DESCENT",
   "gui.orbital_railgun.state.deploying": "DEPLOYING",
@@ -11,10 +10,8 @@
   "gui.orbital_railgun.state.charging": "CHARGING",
   "gui.orbital_railgun.state.firing": "FIRING",
   "gui.orbital_railgun.state.cooldown": "COOLING",
-
   "hud.orbital_railgun.inbound": "ORBITAL DROP INBOUND",
   "hud.orbital_railgun.released": "PLATFORM RELEASED",
-
   "message.orbital_railgun.no_lock": "NO TARGET LOCK",
   "message.orbital_railgun.target_locked": "Target locked: %s %s %s",
   "message.orbital_railgun.denied.no_lock": "Uplink denied: no valid target",
@@ -23,17 +20,19 @@
   "message.orbital_railgun.denied.pending": "A drop is already inbound",
   "message.orbital_railgun.denied.busy": "Railgun is busy",
   "message.orbital_railgun.denied.no_target": "No target locked",
-
   "death.attack.orbital_railgun.beam": "%1$s was vaporized by an orbital railgun",
   "death.attack.orbital_railgun.beam.player": "%1$s was vaporized by %2$s's orbital railgun",
-
   "subtitles.orbital_railgun.ui.uplink": "Uplink confirmed",
   "subtitles.orbital_railgun.ui.countdown_beep": "Countdown beeps",
   "subtitles.orbital_railgun.ui.denied": "Uplink denied",
-  "subtitles.orbital_railgun.railgun.land": "Railgun lands",
+  "subtitles.orbital_railgun.ui.click": "Console click",
+  "subtitles.orbital_railgun.ui.target_lock": "Target locked",
+  "subtitles.orbital_railgun.railgun.reentry": "Railgun re-enters atmosphere",
+  "subtitles.orbital_railgun.railgun.land": "Railgun slams down",
   "subtitles.orbital_railgun.railgun.deploy": "Railgun deploys",
-  "subtitles.orbital_railgun.railgun.charge": "Railgun charges",
+  "subtitles.orbital_railgun.railgun.charge_loop": "Railgun charges",
   "subtitles.orbital_railgun.railgun.fire": "Railgun fires",
-  "subtitles.orbital_railgun.railgun.impact": "Railgun impact",
-  "subtitles.orbital_railgun.railgun.power_down": "Railgun powers down"
+  "subtitles.orbital_railgun.railgun.impact": "Orbital impact",
+  "subtitles.orbital_railgun.railgun.power_down": "Railgun powers down",
+  "gui.orbital_railgun.header": "ARES-9 ORBITAL RAILGUN // FIRE CONTROL"
 }

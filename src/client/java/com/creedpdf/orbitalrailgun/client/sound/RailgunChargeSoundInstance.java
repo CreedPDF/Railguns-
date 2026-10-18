@@ -23,7 +23,7 @@ public class RailgunChargeSoundInstance extends MovingSoundInstance {
         this.volume = 0.4f;
         this.pitch = 0.5f;
         this.x = railgun.getX();
-        this.y = railgun.getY() + 2.0;
+        this.y = railgun.getY() + 7.0;
         this.z = railgun.getZ();
     }
 
@@ -34,10 +34,10 @@ public class RailgunChargeSoundInstance extends MovingSoundInstance {
             return;
         }
         float charge = railgun.getCharge();
-        this.volume = 0.4f + 1.8f * charge;
+        this.volume = 1.0f + 4.0f * charge;
         this.pitch = 0.5f + 1.5f * charge * charge;
         this.x = railgun.getX();
-        this.y = railgun.getY() + 2.0;
+        this.y = railgun.getY() + 7.0;
         this.z = railgun.getZ();
     }
 

@@ -55,12 +55,13 @@ public final class DeploymentScheduler {
         BlockPos landing = drop.landing;
         world.getChunk(landing); // make sure the landing chunk is loaded before spawning into it
 
-        double spawnY = Math.min(landing.getY() + RailgunConfig.DROP_HEIGHT, world.getTopY() - 6);
+        double spawnY = Math.max(landing.getY() + 20, Math.min(landing.getY() + RailgunConfig.DROP_HEIGHT, world.getTopY() - 10));
         RailgunEntity railgun = RailgunMod.RAILGUN.create(world);
         if (railgun == null) return;
 
         railgun.refreshPositionAndAngles(landing.getX() + 0.5, spawnY, landing.getZ() + 0.5, 0f, 0f);
         railgun.setOwnerUuid(drop.owner);
+        railgun.setLandY(landing.getY());
         railgun.setState(RailgunState.FALLING);
         railgun.setVelocity(0, -RailgunConfig.DROP_START_SPEED, 0);
         world.spawnEntity(railgun);

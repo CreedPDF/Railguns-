@@ -111,7 +111,7 @@ public final class ModPackets {
         BlockPos landing = target.up();
         if (world.isOutOfHeightLimit(landing)) { deny(player, "no_lock"); return; }
         // Clear sky: nothing motion-blocking above the landing column.
-        if (world.getTopY(Heightmap.Type.MOTION_BLOCKING, landing.getX(), landing.getZ()) > landing.getY()) {
+        if (world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, landing.getX(), landing.getZ()) > landing.getY()) {
             deny(player, "no_sky");
             return;
         }
@@ -133,6 +133,7 @@ public final class ModPackets {
         if (railgun.getWorld().isOutOfHeightLimit(target)) { deny(player, "out_of_range"); return; }
 
         railgun.setTarget(target);
+        player.playSound(ModSounds.UI_TARGET_LOCK, SoundCategory.PLAYERS, 1.0f, 1.0f);
         player.sendMessage(Text.translatable("message.orbital_railgun.target_locked",
                 target.getX(), target.getY(), target.getZ()).formatted(Formatting.RED), true);
     }

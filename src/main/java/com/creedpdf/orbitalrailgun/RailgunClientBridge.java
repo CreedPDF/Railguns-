@@ -22,6 +22,9 @@ public interface RailgunClientBridge {
     /** Send a deploy request for the block the player is looking at. */
     default void requestDeploy(BlockPos target) {}
 
+    /** Starts the looping re-entry roar that follows a falling platform (client only). */
+    default void startReentrySound(RailgunEntity railgun) {}
+
     /** Called on the client whenever the synced state of a railgun changes. */
     default void onStateChanged(RailgunEntity railgun, RailgunState newState) {}
 }
