@@ -174,7 +174,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base, 70, 6.0, 1.0, 0.06);
         RailgunFx.burst(world, ModParticles.DEBRIS, base.add(0, 1, 0), 90, 5.0, 1.0, 0.45);
         RailgunFx.burst(world, ModParticles.EMBER, base.add(0, 1, 0), 50, 5.0, 1.0, 0.3);
-        Random r = getRandom();
+        Random r = this.random;
         for (int i = 0; i < 48; i++) {
             double a = i / 48.0 * Math.PI * 2;
             Vec3d dir = new Vec3d(Math.cos(a), 0, Math.sin(a));
@@ -258,9 +258,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
             Vec3d muzzle = getMuzzlePos(1f);
             Vec3d pivot = getPos().add(0, RailgunConfig.PIVOT_Y, 0);
             for (int i = 0; i < 3; i++) {
-                double f = 0.2 + getRandom().nextDouble() * 0.5;
+                double f = 0.2 + this.random.nextDouble() * 0.5;
                 Vec3d p = pivot.lerp(muzzle, f).add(0, 1.5, 0);
-                RailgunFx.launch(world, ModParticles.PLASMA_SMOKE, p, new Vec3d(0, 0.12 + getRandom().nextDouble() * 0.08, 0));
+                RailgunFx.launch(world, ModParticles.PLASMA_SMOKE, p, new Vec3d(0, 0.12 + this.random.nextDouble() * 0.08, 0));
             }
         }
         if (t >= RailgunConfig.COOLDOWN_TICKS) {
@@ -285,7 +285,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), 140, 2.5, 1.5, 0.9);
         RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 100, 3.0, 2.0, 0.8);
         RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 120, 2.0, 2.0, 1.2);
-        Random r = getRandom();
+        Random r = this.random;
         for (int i = 0; i < 64; i++) {
             double a = i / 64.0 * Math.PI * 2;
             Vec3d dir = new Vec3d(Math.cos(a), 0, Math.sin(a));
