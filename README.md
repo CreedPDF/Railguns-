@@ -74,20 +74,41 @@ body → two halos) plus spheres and rings. Additive blending sums the shells in
 with soft falloff, which reads as a volumetric glow without post-processing. See the Javadoc in
 both classes for the full explanation.
 
-## Replacing the placeholder model
-The repo ships generated placeholder assets (`tools/generate_placeholder_assets.py`). To use your
-Blender/Blockbench export, replace:
-- `assets/orbital_railgun/geo/railgun.geo.json`
-- `assets/orbital_railgun/animations/railgun.animation.json`
-- `assets/orbital_railgun/textures/entity/railgun.png` (+ optional `railgun_glowmask.png`)
+## Models (built in Blender, headless)
+Every model, texture and animation is produced by `tools/blender/build_models.py`, run in
+Blender 4.2 LTS with no UI:
 
-Keep these contracts or update the code:
+```bash
+tools/blender/build.sh /path/to/blender     # or just `tools/blender/build.sh` if blender is on PATH
+```
+
+What the script does:
+1. **Models** the railgun platform and the uplink remote as box geometry parented to Empties
+   (the Empties become GeckoLib bones). Symmetric and repeated parts use **Mirror** and
+   **Array** modifiers (vents, capacitor banks, rails, coil frames, radiator fins).
+2. **Bakes textures** with Cycles: procedural materials (noise + Voronoi panel seams + glow
+   gradients) are baked into a pixel atlas with per-face UVs, plus a glowmask for the emissive
+   coils and lights.
+3. **Animates** `falling`, `deploy`, `idle`, `charge`, `fire` as Blender Actions on the bone
+   Empties, then exports them by reading the Actions back.
+4. **Exports** `geo/railgun.geo.json`, `animations/railgun.animation.json`, the entity texture
+   and glowmask, a **3D item model** for the remote, and renders `icon.png`.
+5. Saves `build/blender/orbital_railgun_models.blend` and preview renders
+   (`railgun_deployed.png`, `railgun_folded.png`, `remote.png`).
+
+CI runs this before building the jar. On `main` it commits the regenerated assets back to the
+repo, and the renders and `.blend` are attached to every run as the `blender-output` artifact.
+If the Blender step fails, the build continues with the assets already in the repo and shows a
+warning.
+
+To edit by hand, open the `.blend`, change the modelling objects or Actions, and port the change
+into `build_models.py` (the script is the source of truth). Contracts the Java code relies on:
 - Bone **`turret`**: yaw pivot, at `PIVOT_Y` (2.5 blocks = 40 px) above the origin.
-- Bone **`barrel`**: child of turret, pitch pivot, barrel pointing toward −Z (north in Blockbench),
-  muzzle `BARREL_LENGTH` (3.5 blocks) from the pivot.
-- Animations: `animation.railgun.falling`, `.deploy` (3 s, hold last frame), `.idle`, `.charge`,
-  `.fire`.
-- If the barrel aims mirrored, flip `YAW_SIGN` / `PITCH_SIGN` in `RailgunModel`.
+- Bone **`barrel`**: child of turret, pitch pivot, pointing toward −Z (north), muzzle
+  `BARREL_LENGTH` (3.5 blocks) from the pivot.
+- Animation names as above; `deploy` is 3 s and holds its last frame.
+- Only axis-aligned boxes: GeckoLib and vanilla item models can't use arbitrary meshes. The
+  exporter refuses anything else.
 
 ### Custom sounds
 `sounds.json` points at vanilla files so it works out of the box. Put `.ogg` files in
