@@ -1,11 +1,105 @@
 {
-  "ui.uplink":            { "subtitle": "subtitles.orbital_railgun.ui.uplink",          "sounds": [{ "name": "minecraft:block/beacon/power_select", "pitch": 1.4 }] },
-  "ui.countdown_beep":    { "subtitle": "subtitles.orbital_railgun.ui.countdown_beep",  "sounds": [{ "name": "minecraft:note/bit", "volume": 0.8 }] },
-  "ui.denied":            { "subtitle": "subtitles.orbital_railgun.ui.denied",          "sounds": [{ "name": "minecraft:note/bass", "pitch": 0.6 }] },
-  "railgun.land":         { "subtitle": "subtitles.orbital_railgun.railgun.land",       "sounds": [{ "name": "minecraft:random/explode1", "pitch": 0.6 }, { "name": "minecraft:random/explode2", "pitch": 0.6 }] },
-  "railgun.deploy":       { "subtitle": "subtitles.orbital_railgun.railgun.deploy",     "sounds": [{ "name": "minecraft:block/beacon/activate", "pitch": 0.8 }] },
-  "railgun.charge_loop":  { "subtitle": "subtitles.orbital_railgun.railgun.charge",     "sounds": [{ "name": "minecraft:block/beacon/ambient" }] },
-  "railgun.fire":         { "subtitle": "subtitles.orbital_railgun.railgun.fire",       "sounds": [{ "name": "minecraft:item/trident/thunder1", "attenuation_distance": 128 }, { "name": "minecraft:item/trident/thunder2", "attenuation_distance": 128 }] },
-  "railgun.impact":       { "subtitle": "subtitles.orbital_railgun.railgun.impact",     "sounds": [{ "name": "minecraft:random/explode3", "attenuation_distance": 128 }, { "name": "minecraft:random/explode4", "attenuation_distance": 128 }] },
-  "railgun.power_down":   { "subtitle": "subtitles.orbital_railgun.railgun.power_down", "sounds": [{ "name": "minecraft:block/beacon/deactivate" }] }
+  "ui.click": {
+    "subtitle": "subtitles.orbital_railgun.ui.click",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_click"
+      }
+    ]
+  },
+  "ui.countdown_beep": {
+    "subtitle": "subtitles.orbital_railgun.ui.countdown_beep",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_countdown_beep"
+      }
+    ]
+  },
+  "ui.denied": {
+    "subtitle": "subtitles.orbital_railgun.ui.denied",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_denied"
+      }
+    ]
+  },
+  "ui.target_lock": {
+    "subtitle": "subtitles.orbital_railgun.ui.target_lock",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_target_lock"
+      }
+    ]
+  },
+  "ui.uplink": {
+    "subtitle": "subtitles.orbital_railgun.ui.uplink",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_uplink"
+      }
+    ]
+  },
+  "railgun.reentry": {
+    "subtitle": "subtitles.orbital_railgun.railgun.reentry",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_reentry",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "railgun.land": {
+    "subtitle": "subtitles.orbital_railgun.railgun.land",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_land",
+        "attenuation_distance": 128
+      }
+    ]
+  },
+  "railgun.deploy": {
+    "subtitle": "subtitles.orbital_railgun.railgun.deploy",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_deploy",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "railgun.charge_loop": {
+    "subtitle": "subtitles.orbital_railgun.railgun.charge_loop",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_charge_loop",
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "railgun.fire": {
+    "subtitle": "subtitles.orbital_railgun.railgun.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_fire",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "railgun.impact": {
+    "subtitle": "subtitles.orbital_railgun.railgun.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_impact",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "railgun.power_down": {
+    "subtitle": "subtitles.orbital_railgun.railgun.power_down",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_power_down",
+        "attenuation_distance": 48
+      }
+    ]
+  }
 }

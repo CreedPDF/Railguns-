@@ -102,11 +102,16 @@ def srgb(hex_color):
 # =============================================================================================
 
 # Material "kinds" used by the modelling objects. GLOW kinds become emissive (glowmask).
+# (seam, shade, light) in sRGB hex. The paint pass below adds the fine detail per kind.
 PALETTE = {
-    "concrete": ("#4a4844", "#7d7a74", "#a29e96"),  # seam, shade, light
-    "paint": ("#7c8086", "#bfc3c8", "#e6e8eb"),    # off-white armour panels
+    "concrete": ("#55534e", "#86837c", "#a8a49c"),
+    "paint": ("#8a8e94", "#c4c8cd", "#e4e6e9"),   # off-white armour panels
+    "steel": ("#3b4048", "#5d646e", "#7c838d"),
     "hull": ("#2f343c", "#4c535e", "#68717e"),
-    "dark": ("#101215", "#1e2126", "#2c3038"),
+    "dark": ("#101215", "#1c1f24", "#2a2e35"),
+    "vent": ("#0c0d10", "#181a1f", "#25282e"),
+    "glass": ("#0a0f16", "#142030", "#25364c"),
+    "hazard": ("#2a2000", "#c89a14", "#e2b628"),
     "glow": ("#5a0000", "#c8120c", "#ff4a30"),
     "amber": ("#5a3000", "#d68a10", "#ffc040"),
 }
@@ -291,17 +296,16 @@ def make_part(name, bone, kind, boxes, mirror=(), array=None):
     return obj
 
 
-def make_rot_part(name, bone, kind, center_xz, y0, side, height, angle=45.0):
+def make_rot_part(name, bone, kind, center_xz, y0, size_x, size_z, height, angle):
     """
-    A square box rotated around the vertical axis (Bedrock cube "rotation"). Used for the
-    octagonal concrete tiers and turntable: an upright square plus a 45-degree square = an
-    octagon. Only squares are rotated, which keeps the result identical whichever sign convention
+    A box rotated around the vertical axis (Bedrock cube "rotation"), centred on center_xz.
+    Used in pairs at +45/-45 (= 135) degrees, a set that is identical whichever sign convention
     the renderer uses for Y rotation.
     """
     pivot = Vector(bone["pivot_mc"])
-    h = side / 2.0
+    hx, hz = size_x / 2.0, size_z / 2.0
     bm = bmesh.new()
-    lo, hi = Vector((-h / 16, -h / 16, 0)), Vector((h / 16, h / 16, height / 16))
+    lo, hi = Vector((-hx / 16, -hz / 16, 0)), Vector((hx / 16, hz / 16, height / 16))
     v = [bm.verts.new((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
     for quad in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
         bm.faces.new([v[i] for i in quad])
@@ -316,52 +320,110 @@ def make_rot_part(name, bone, kind, center_xz, y0, side, height, angle=45.0):
     obj["kind"] = kind
     obj["export"] = True
     obj["rot_y"] = angle
-    obj["cube_mc"] = [center_xz[0] - h, y0, center_xz[1] - h, side, height, side]
+    obj["cube_mc"] = [center_xz[0] - hx, y0, center_xz[1] - hz, size_x, height, size_z]
     return obj
 
 
+TAN22 = math.tan(math.radians(22.5))
+
+
 def octagon(name, bone, kind, y0, width, height, center_xz=(0, 0)):
-    """Chamfered octagon slab = square + 45-degree square (82% size so corners are cut, not pointy)."""
-    make_part(f"{name}_sq", bone, kind, [([center_xz[0] - width / 2, y0, center_xz[1] - width / 2],
-                                          [width, height, width])])
-    make_rot_part(f"{name}_rot", bone, kind, center_xz, y0, round(width * 0.82, 2), height)
-
-
-def leg_boxes(direction):
     """
-    Perimeter anchor block cluster (the chunky concrete blocks around the bunker in the
-    reference), authored for the north side and rotated in 90-degree steps around Y.
+    Regular octagon slab of the given flat-to-flat width, built as the union of four rectangles
+    (width x width*tan(22.5)) at 0, 90, 45 and 135 degrees. Their top faces are staggered by
+    0.15 px so overlapping tops never z-fight.
     """
-    north = [
-        ("concrete", [[-25, 0, -40], [21, 8, 13]]),
-        ("concrete", [[4, 0, -40], [21, 8, 13]]),
-        ("concrete", [[-22, 8, -37], [15, 3, 8]]),
-        ("concrete", [[7, 8, -37], [15, 3, 8]]),
-        ("concrete", [[-4, 0, -36], [8, 5, 8]]),
-        ("dark", [[-3, 0, -43], [6, 3, 4]]),
-        ("amber", [[-1, 5, -36.5], [2, 1, 1]]),
-    ]
+    cx, cz = center_xz
+    a = width / 2.0
+    b = round(a * TAN22, 3)
+    make_part(f"{name}_a", bone, kind, [([cx - a, y0, cz - b], [width, height, 2 * b])])
+    make_part(f"{name}_b", bone, kind, [([cx - b, y0, cz - a], [2 * b, height + 0.15, width])])
+    make_rot_part(f"{name}_c", bone, kind, center_xz, y0, width, 2 * b, height + 0.3, 45.0)
+    make_rot_part(f"{name}_d", bone, kind, center_xz, y0, width, 2 * b, height + 0.45, -45.0)
 
-    def rot(o, s):
+
+def rot4(boxes, direction):
+    """Rotates boxes authored for the north side (-Z) to n/s/e/w in 90-degree steps around Y."""
+    out = []
+    for kind, (o, sz) in boxes:
         x0, y0, z0 = o
-        x1, z1 = x0 + s[0], z0 + s[2]
+        x1, z1 = x0 + sz[0], z0 + sz[2]
         if direction == "n":
-            return o, s
-        if direction == "s":
-            return [x0, y0, -z1], s
-        if direction == "e":
-            return [-z1, y0, x0], [s[2], s[1], s[0]]
-        return [z0, y0, x0], [s[2], s[1], s[0]]  # west
+            out.append((kind, (o, sz)))
+        elif direction == "s":
+            out.append((kind, ([x0, y0, -z1], sz)))
+        elif direction == "e":
+            out.append((kind, ([-z1, y0, x0], [sz[2], sz[1], sz[0]])))
+        else:
+            out.append((kind, ([z0, y0, -x1], [sz[2], sz[1], sz[0]])))
+    return out
 
-    return [(kind, rot(o, s)) for kind, (o, s) in north]
+
+def parts4(prefix, bone_for, boxes):
+    """Creates one part per box for each of the four sides."""
+    for d in ("n", "s", "e", "w"):
+        bone = bone_for(d)
+        for i, (kind, (o, sz)) in enumerate(rot4(boxes, d)):
+            make_part(f"{prefix}_{d}_{i}", bone, kind, [(o, sz)])
+
+
+# Outrigger arm + foot (north side; the leg bone pivots at the bunker edge so the deploy
+# animation can scale it out from 12% to full length).
+OUTRIGGER = [
+    ("steel", [[-6, 4, -114], [12, 8, 30]]),
+    ("paint", [[-7, 12, -112], [14, 2, 24]]),
+    ("dark", [[-2.5, 14, -108], [5, 5, 18]]),
+    ("steel", [[-3.5, 14, -92], [7, 7, 6]]),
+    ("steel", [[-15, 0, -128], [30, 4, 16]]),
+    ("dark", [[-12, 4, -126], [24, 3, 12]]),
+    ("hazard", [[-15, 4, -129], [30, 1.5, 1.5]]),
+    ("dark", [[-14, 0, -129.5], [4, 3, 2]]),
+    ("dark", [[10, 0, -129.5], [4, 3, 2]]),
+    ("amber", [[-1.5, 12, -115], [3, 2, 2]]),
+    ("glow", [[-6.6, 7, -110], [0.6, 1, 18]]),
+    ("glow", [[6, 7, -110], [0.6, 1, 18]]),
+]
+
+# Blast door + frame on each face of the middle tier (apothem 75).
+BLAST_DOOR = [
+    ("dark", [[-16, 14, -76.5], [32, 19, 1.5]]),
+    ("steel", [[-0.5, 14, -77], [1, 19, 0.5]]),
+    ("steel", [[-20, 33, -77.5], [40, 3, 2.5]]),
+    ("steel", [[-20, 14, -77.5], [4, 19, 2.5]]),
+    ("steel", [[16, 14, -77.5], [4, 19, 2.5]]),
+    ("hazard", [[-16, 14, -79], [32, 1.5, 3]]),
+    ("amber", [[-3, 36, -76.5], [6, 1.5, 2]]),
+    ("glow", [[-12, 28, -77.1], [8, 1, 0.6]]),
+    ("glow", [[4, 28, -77.1], [8, 1, 0.6]]),
+]
+
+# Vent bank on each face of the upper tier (apothem 61) and pipes on the foundation ledge.
+TIER3_VENTS = [
+    ("vent", [[-22, 38, -62], [44, 7, 1]]),
+    ("steel", [[-23, 37, -62.5], [46, 1, 1.5]]),
+    ("steel", [[-23, 45, -62.5], [46, 1, 1.5]]),
+]
+LEDGE_PIPES = [
+    ("steel", [[-34, 14, -86], [68, 4, 4]]),
+    ("dark", [[-30, 14, -87], [3, 6, 6]]),
+    ("dark", [[-1.5, 14, -87], [3, 6, 6]]),
+    ("dark", [[27, 14, -87], [3, 6, 6]]),
+]
 
 
 def build_railgun():
     """
-    Railgun emplacement modelled after the concept sketch: an octagonal two-tier concrete bunker
-    ringed by chunky anchor blocks, a dark turntable ring, a yoke with white armoured cheek
-    plates, and a long rectangular white barrel housing with an open slot exposing the glowing
-    accelerator core, plus a boxy breech at the rear.
+    Heavy orbital railgun emplacement (roughly 11 blocks across, barrel ~19 blocks long).
+
+      base      three-tier octagonal concrete fortress, hazard deck, blast doors, vent banks,
+                ledge pipes, four floodlight towers
+      leg_*     hydraulic outriggers with foot pads (deploy outward)
+      turret    turntable with glowing ring, armoured hull, side skirts, control cab, exhaust
+                stacks, ladder, rails, capacitor tanks, massive yoke cheeks with trunnion hubs
+      barrel    segmented white armour walls, glowing accelerator rail core, conductor rails,
+                energy lines, roof, breech block with fins and couplings, muzzle brake
+      vents     cooling fins on the barrel roof (rise when charging / firing)
+      coils     glowing accelerator coil frames around the open front of the barrel
 
     Returns {bone_name: empty} in parent-before-child order.
     """
@@ -373,64 +435,118 @@ def build_railgun():
 
     bone("root", None, [0, 0, 0])
     bone("base", "root", [0, 0, 0])
-    for d, pivot in (("n", [0, 2, -27]), ("s", [0, 2, 27]), ("e", [27, 2, 0]), ("w", [-27, 2, 0])):
+    for d, pivot in (("n", [0, 6, -88]), ("s", [0, 6, 88]), ("e", [88, 6, 0]), ("w", [-88, 6, 0])):
         bone(f"leg_{d}", "base", pivot)
-    bone("turret", "root", [0, 40, 0])
-    bone("barrel", "turret", [0, 40, 0])
-    bone("coils", "barrel", [0, 40, 0])
+    bone("turret", "root", [0, 56, 0])
+    bone("barrel", "turret", [0, 120, 0])
+    bone("vents", "barrel", [0, 120, 0])
+    bone("coils", "barrel", [0, 120, 0])
     B = bones
+    base, tur, bar = B["base"], B["turret"], B["barrel"]
 
-    # ---- Concrete bunker -------------------------------------------------------------------
-    octagon("bunker_low", B["base"], "concrete", 0, 54, 8)
-    octagon("bunker_high", B["base"], "concrete", 8, 42, 6)
-    octagon("bunker_deck", B["base"], "dark", 14, 32, 2)
-    make_part("bunker_lip", B["base"], "concrete", [([-27.5, 7, -27.5], [55, 1, 2])], mirror=("z",))
-    make_part("bunker_lip_side", B["base"], "concrete", [([-27.5, 7, -25.5], [2, 1, 51])], mirror=("x",))
-    make_part("bunker_cracks", B["base"], "dark", [([-13, 13.9, -21.1], [6, 0.2, 0.2])], mirror=("x", "z"))
-    make_part("bunker_lights", B["base"], "glow", [([-1, 10, -21.2], [2, 2, 0.2])], mirror=("z",))
-    make_part("bunker_lights_side", B["base"], "glow", [([-21.2, 10, -1], [0.2, 2, 2])], mirror=("x",))
+    # ---- Fortress ---------------------------------------------------------------------------
+    octagon("found", base, "concrete", 0, 176, 14)
+    octagon("tier2", base, "concrete", 14, 150, 22)
+    octagon("tier2_band", base, "dark", 27, 152, 2)
+    octagon("tier3", base, "concrete", 36, 122, 10)
+    octagon("tier3_cap", base, "steel", 46, 125, 2)
+    octagon("deck", base, "hazard", 48, 100, 4)
+    parts4("door", lambda d: base, BLAST_DOOR)
+    parts4("t3vent", lambda d: base, TIER3_VENTS)
+    parts4("pipes", lambda d: base, LEDGE_PIPES)
 
-    # ---- Anchor block clusters (deploy outward) ----------------------------------------------
-    for d in ("n", "s", "e", "w"):
-        for i, (kind, (o, s)) in enumerate(leg_boxes(d)):
-            make_part(f"leg_{d}_{i}", B[f"leg_{d}"], kind, [(o, s)])
+    # Floodlight towers on the diagonal ledges.
+    make_part("tower_foot", base, "dark", [([55, 14, 55], [7, 2, 7])], mirror=("x", "z"))
+    make_part("tower_pole", base, "steel", [([57, 16, 57], [3, 46, 3])], mirror=("x", "z"))
+    make_part("tower_brace", base, "steel", [([56, 30, 56], [5, 1.5, 5])], mirror=("x", "z"))
+    make_part("tower_head", base, "dark", [([53, 62, 53], [9, 5, 9])], mirror=("x", "z"))
+    make_part("tower_lamp", base, "amber", [([54, 61, 54], [7, 1, 7])], mirror=("x", "z"))
+    make_part("tower_beacon", base, "glow", [([57.5, 67, 57.5], [2, 2, 2])], mirror=("x", "z"))
 
-    # ---- Turret: turntable + yoke ------------------------------------------------------------
-    octagon("turntable_ring", B["turret"], "dark", 16, 30, 3)
-    octagon("turntable_top", B["turret"], "paint", 19, 25, 2)
-    make_part("turntable_glow", B["turret"], "glow", [([-1, 17, -15.2], [2, 1, 0.2])], mirror=("z",))
-    make_part("yoke_column", B["turret"], "dark", [([-7, 21, -7], [14, 10, 14])])
-    make_part("yoke_core", B["turret"], "hull", [([-5, 31, -5], [10, 4, 10])])
-    make_part("yoke_cheeks", B["turret"], "paint", [([-14, 23, -9], [5, 22, 18])], mirror=("x",))
-    make_part("yoke_cheek_bevel", B["turret"], "paint", [([-13, 21, -7], [4, 2, 14])], mirror=("x",))
-    make_part("yoke_hubs", B["turret"], "dark", [([-15, 36, -4], [1, 8, 8])], mirror=("x",))
-    make_part("yoke_hub_glow", B["turret"], "glow", [([-15.5, 39, -1], [0.5, 2, 2])], mirror=("x",))
-    make_part("yoke_pistons", B["turret"], "hull", [([-12, 21, 9], [3, 12, 3])], mirror=("x",))
+    # ---- Outriggers -------------------------------------------------------------------------
+    parts4("outrigger", lambda d: B[f"leg_{d}"], OUTRIGGER)
 
-    # ---- Barrel housing (points to -Z / north): long, slim, slotted -------------------------
-    make_part("barrel_walls", B["barrel"], "paint", [([-9, 34, -62], [5, 12, 70])], mirror=("x",))
-    make_part("barrel_floor", B["barrel"], "paint", [([-9, 32, -60], [18, 2, 68])])
-    make_part("barrel_roof", B["barrel"], "paint", [([-9, 46, -24], [18, 2, 32])])
-    make_part("barrel_roof_vents", B["barrel"], "dark", [([-6, 47.6, -20], [12, 0.5, 2])], array=(4, [0, 0, 6]))
-    make_part("barrel_slot_core", B["barrel"], "dark", [([-4, 34, -62], [8, 3, 38])])
-    make_part("barrel_rail_core", B["barrel"], "glow", [([-1.5, 38.5, -61], [3, 3, 56])])
-    make_part("barrel_wall_grooves", B["barrel"], "dark", [([-9.2, 42, -58], [0.2, 1, 32])], mirror=("x",))
-    make_part("barrel_wall_panels", B["barrel"], "hull", [([-9.4, 36, -20], [0.4, 7, 14])], mirror=("x",))
-    make_part("barrel_wall_glow", B["barrel"], "glow", [([-9.5, 44, -18], [0.5, 1, 10])], mirror=("x",))
-    make_part("barrel_muzzle_top", B["barrel"], "dark", [([-10, 46, -66], [20, 3, 4])])
-    make_part("barrel_muzzle_bottom", B["barrel"], "dark", [([-10, 31, -66], [20, 3, 4])])
-    make_part("barrel_muzzle_sides", B["barrel"], "dark", [([-10, 34, -66], [4, 12, 4])], mirror=("x",))
-    make_part("barrel_breech", B["barrel"], "paint", [([-11, 32, 8], [22, 15, 10])])
-    make_part("barrel_breech_cap", B["barrel"], "dark", [([-9, 34, 18], [18, 11, 3])])
-    make_part("barrel_breech_fins", B["barrel"], "hull", [([-8, 35, 21], [16, 1, 2])], array=(4, [0, 3, 0]))
-    make_part("barrel_breech_light", B["barrel"], "amber", [([-1, 47, 10], [2, 1, 2])])
-    make_part("barrel_sensor", B["barrel"], "dark", [([-3, 48, -8], [6, 3, 8])])
-    make_part("barrel_sensor_eye", B["barrel"], "glow", [([-2, 49, -8.5], [4, 1, 0.5])])
+    # ---- Turret -----------------------------------------------------------------------------
+    octagon("tt_ring", tur, "dark", 52, 88, 6)
+    octagon("tt_glow", tur, "glow", 54.5, 90, 1.5)
+    octagon("tt_plate", tur, "steel", 58, 80, 4)
+    make_part("hull_low", tur, "paint", [([-34, 62, -40], [68, 22, 80])])
+    make_part("hull_mid", tur, "paint", [([-30, 84, -34], [60, 8, 68])])
+    make_part("hull_top", tur, "paint", [([-26, 92, -28], [52, 3, 56])])
+    make_part("hull_front_vent", tur, "vent", [([-24, 66, -40.6], [48, 12, 0.6])])
+    make_part("hull_front_trim", tur, "hazard", [([-34, 62, -41], [68, 2.5, 1])])
+    make_part("hull_rear_grille", tur, "vent", [([-22, 66, 40], [44, 14, 1])])
+    make_part("skirts", tur, "paint", [([-38, 64, -36], [4, 18, 72])], mirror=("x",))
+    make_part("skirt_trim", tur, "dark", [([-38.5, 62, -36], [4.5, 2, 72])], mirror=("x",))
+    make_part("skirt_plates", tur, "steel", [([-38.6, 67, -32], [0.6, 11, 26])], mirror=("x",), array=(2, [0, 0, 36]))
+    make_part("skirt_glow", tur, "glow", [([-38.7, 80, -30], [0.7, 1, 60])], mirror=("x",))
+    make_part("exhaust", tur, "dark", [([-18, 84, 34], [8, 16, 6])], array=(3, [14, 0, 0]))
+    make_part("exhaust_heat", tur, "glow", [([-17, 99.9, 35], [6, 0.4, 4])], array=(3, [14, 0, 0]))
+    make_part("cab", tur, "paint", [([-30, 95, -32], [16, 11, 14])])
+    make_part("cab_roof", tur, "dark", [([-31, 106, -33], [18, 2, 16])])
+    make_part("cab_window_front", tur, "glass", [([-28, 99, -32.5], [12, 5, 0.5])])
+    make_part("cab_window_side", tur, "glass", [([-30.5, 99, -30], [0.5, 5, 10])])
+    make_part("cab_light", tur, "amber", [([-23, 108, -26], [2, 1.5, 2])])
+    make_part("ladder_rails", tur, "steel", [([38, 62, 18], [1.2, 30, 1]), ([38, 62, 27], [1.2, 30, 1])])
+    make_part("ladder_rungs", tur, "steel", [([38, 64, 19], [1.2, 1, 8])], array=(7, [0, 4, 0]))
+    make_part("rail_bars", tur, "steel", [([-27, 100, -12], [1, 1, 40])], mirror=("x",))
+    make_part("rail_posts", tur, "steel", [([-27, 95, -12], [1, 5, 1])], mirror=("x",), array=(3, [0, 0, 19.5]))
+    # Capacitor tanks (vertical octagonal prisms) behind the yoke.
+    for side in (-1, 1):
+        cx = side * 20
+        octagon(f"tank{side}", tur, "steel", 95, 12, 20, (cx, 22))
+        octagon(f"tank_band{side}", tur, "glow", 101, 12.8, 1.5, (cx, 22))
+        octagon(f"tank_band2{side}", tur, "glow", 108, 12.8, 1.5, (cx, 22))
+        octagon(f"tank_cap{side}", tur, "dark", 115, 9, 2, (cx, 22))
+    # Yoke
+    make_part("cheeks", tur, "paint", [([-30, 95, -18], [10, 41, 36])], mirror=("x",))
+    make_part("cheek_bevel", tur, "paint", [([-29, 136, -14], [8, 4, 28])], mirror=("x",))
+    make_part("cheek_plates", tur, "steel", [([-30.6, 99, -14], [0.6, 10, 28])], mirror=("x",))
+    make_part("cheek_hazard", tur, "hazard", [([-30, 128, -18.6], [10, 4, 0.6])], mirror=("x",))
+    make_part("hubs", tur, "dark", [([-33, 112, -8], [3, 16, 16])], mirror=("x",))
+    make_part("hub_caps", tur, "steel", [([-34, 115, -5], [1, 10, 10])], mirror=("x",))
+    make_part("hub_glow", tur, "glow", [([-34.6, 118, -2], [0.6, 4, 4])], mirror=("x",))
+    make_part("cables", tur, "dark", [([-12, 95, 26], [6, 19, 6])], mirror=("x",))
 
-    # ---- Accelerator coils: square frames around the core, spin about the barrel axis --------
-    for z in (-56, -48, -40):
-        make_part(f"coil_{-z}_tb", B["coils"], "glow", [([-3, 43, z], [6, 1, 2]), ([-3, 36, z], [6, 1, 2])])
-        make_part(f"coil_{-z}_s", B["coils"], "glow", [([-3, 37, z], [1, 6, 2])], mirror=("x",))
+    # ---- Barrel (points to -Z / north) ---------------------------------------------------------
+    make_part("wall_under", bar, "dark", [([-17, 109, -300], [9, 24, 322])], mirror=("x",))
+    make_part("wall_armour", bar, "paint", [([-18, 108, -300], [10, 26, 34])], mirror=("x",), array=(9, [0, 0, 36]))
+    make_part("floor", bar, "paint", [([-16, 104, -296], [32, 4, 318])])
+    make_part("keel", bar, "dark", [([-6, 100, -280], [12, 4, 296])])
+    make_part("slot_bed", bar, "dark", [([-8, 108, -300], [16, 6, 322])])
+    make_part("rail_core", bar, "glow", [([-3, 117, -298], [6, 6, 318])])
+    make_part("conductors", bar, "steel", [([-8, 114, -298], [3, 12, 318])], mirror=("x",))
+    make_part("roof", bar, "paint", [([-18, 134, -150], [36, 4, 172])])
+    make_part("conduit", bar, "steel", [([-18.8, 127, -292], [0.8, 3, 312])], mirror=("x",))
+    make_part("energy_line", bar, "glow", [([-18.6, 122, -282], [0.6, 1, 270])], mirror=("x",))
+    make_part("groove", bar, "dark", [([-18.4, 113, -296], [0.4, 1, 316])], mirror=("x",))
+    make_part("sensor", bar, "dark", [([-6, 138, -24], [12, 6, 14])])
+    make_part("sensor_lens", bar, "glow", [([-3, 140, -24.6], [6, 3, 0.6])])
+    # Muzzle brake
+    make_part("muzzle_top", bar, "dark", [([-22, 134, -312], [44, 6, 14])])
+    make_part("muzzle_bottom", bar, "dark", [([-22, 100, -312], [44, 8, 14])])
+    make_part("muzzle_sides", bar, "dark", [([-22, 108, -312], [8, 26, 14])], mirror=("x",))
+    make_part("muzzle_vents", bar, "vent", [([-22.6, 112, -310], [0.6, 18, 10])], mirror=("x",))
+    make_part("muzzle_rim_tb", bar, "glow", [([-14, 108, -312.6], [28, 1.5, 0.6]), ([-14, 132.5, -312.6], [28, 1.5, 0.6])])
+    make_part("muzzle_rim_s", bar, "glow", [([-14, 109.5, -312.6], [1.5, 23, 0.6])], mirror=("x",))
+    make_part("muzzle_hazard", bar, "hazard", [([-22, 140, -312], [44, 1, 14])])
+    # Breech
+    make_part("breech", bar, "paint", [([-24, 100, 22], [48, 40, 34])])
+    make_part("breech_cap", bar, "dark", [([-20, 104, 56], [40, 32, 4])])
+    make_part("breech_fins", bar, "steel", [([-18, 106, 60], [36, 2, 3])], array=(7, [0, 4, 0]))
+    make_part("breech_lights", bar, "amber", [([-22, 140, 26], [4, 2, 4])], mirror=("x",))
+    make_part("breech_hazard", bar, "hazard", [([-24.6, 128, 24], [0.6, 6, 30])], mirror=("x",))
+    make_part("couplings", bar, "dark", [([-28, 108, 30], [4, 12, 18])], mirror=("x",))
+    make_part("coupling_glow", bar, "glow", [([-28.6, 112, 36], [0.6, 4, 6])], mirror=("x",))
+
+    # ---- Cooling fins (vents bone) and accelerator coils (coils bone) -------------------------
+    make_part("fins", B["vents"], "steel", [([-16, 138, -140], [32, 6, 2])], array=(12, [0, 0, 10]))
+    make_part("fin_tips", B["vents"], "glow", [([-14, 144, -140], [28, 0.5, 2])], array=(12, [0, 0, 10]))
+    for i in range(5):
+        z = -280 + i * 30
+        make_part(f"coil{i}_tb", B["coils"], "glow", [([-21, 134, z], [42, 3, 4]), ([-21, 101, z], [42, 3, 4])])
+        make_part(f"coil{i}_s", B["coils"], "glow", [([-21, 104, z], [3, 30, 4])], mirror=("x",))
+        make_part(f"coil{i}_mount", B["coils"], "dark", [([-23, 114, z + 0.5], [2, 10, 3])], mirror=("x",))
     return bones
 
 
@@ -535,7 +651,11 @@ def face_corners(lo, hi):
 
 
 def pack_faces(boxes, texels_per_px, start_size):
-    """Shelf-packs every face of every box. Adds box['rects'][face] = (u, v, w, h) in texels."""
+    """
+    Skyline bottom-left packer for every face of every box. For each face (tallest first) it
+    finds the x position where the face sits lowest on the current skyline. Much denser than
+    shelf packing when there are long thin faces. Adds box['rects'][face] = (u, v, w, h).
+    """
     items = []
     for bi, box in enumerate(boxes):
         size = [box["max"][k] - box["min"][k] for k in range(3)]
@@ -547,19 +667,22 @@ def pack_faces(boxes, texels_per_px, start_size):
 
     tex = start_size
     while True:
-        x = y = shelf = 0
+        sky = np.zeros(tex, dtype=np.int64)
         placed = {}
-        fits = True
+        ok = True
         for th, tw, bi, face in items:
-            if x + tw > tex:
-                x, y, shelf = 0, y + shelf, 0
-            if y + th > tex or tw > tex:
-                fits = False
+            if tw > tex:
+                ok = False
                 break
+            tops = np.lib.stride_tricks.sliding_window_view(sky, tw).max(axis=1)
+            x = int(np.argmin(tops))
+            y = int(tops[x])
+            if y + th > tex:
+                ok = False
+                break
+            sky[x:x + tw] = y + th
             placed[(bi, face)] = (x, y, tw, th)
-            x += tw
-            shelf = max(shelf, th)
-        if fits:
+        if ok:
             break
         tex *= 2
     for (bi, face), rect in placed.items():
@@ -609,6 +732,126 @@ def build_bake_objects(boxes, bones, tex, kinds, offset=Vector((0, 0, 0))):
     return objs
 
 
+# =============================================================================================
+# Texture paint pass (per face, on top of the Cycles bake)
+# =============================================================================================
+
+def _hex01(h):
+    h = h.lstrip("#")
+    return np.array([int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4)])
+
+
+SIDE_FACES = {"north", "south", "east", "west"}
+
+
+def paint_faces(td, boxes, seed=7):
+    """
+    Hand-painting in code. td is the atlas as [row(top->bottom), col, rgba] in sRGB 0..1.
+    For every face rectangle it adds, depending on the material kind:
+      - bevels: dark 1-texel outline + light top/left inner edge
+      - armour panel seams with highlight lip, rivets in panel corners, per-panel tint
+      - concrete formwork joints, cracks (random walks), speckle and rain streaks
+      - brushed-metal rows and corner bolts on steel
+      - slatted grilles on vents, reflections on glass, stripes on hazard
+      - vertical grime gradient on side faces; hot-centre gradient on glowing parts
+    """
+    r = np.random.default_rng(seed)
+    for bi, b in enumerate(boxes):
+        kind = b["kind"]
+        for face, (u, v, w, h) in b["rects"].items():
+            R = td[v:v + h, u:u + w, :3]
+            side = face in SIDE_FACES
+            yy, xx = np.mgrid[0:h, 0:w]
+
+            if kind in GLOW_KINDS:
+                cy, cx = (h - 1) / 2, (w - 1) / 2
+                d = np.maximum(np.abs(yy - cy) / max(cy, 0.5), np.abs(xx - cx) / max(cx, 0.5))
+                hot = np.clip(1 - d, 0, 1) ** 1.5
+                R[:] = R * (0.75 + 0.25 * hot[..., None]) + hot[..., None] * 0.35 * np.array([1, 0.85, 0.75])
+                np.clip(R, 0, 1, out=R)
+                continue
+
+            if kind == "hazard":
+                stripe = ((xx + yy + u + v) // 4) % 2 == 0
+                R[:] = np.where(stripe[..., None], _hex01("#e0b020"), _hex01("#17161a"))
+                R[:] *= (0.85 + 0.15 * r.random((h, w)))[..., None]
+
+            if kind == "paint" and w >= 6 and h >= 6:
+                P = 16
+                ox, oy = (u * 7 + bi) % P, (v * 5 + bi) % P
+                pcol = (xx + ox) // P
+                prow = (yy + oy) // P
+                tint = 1 + (((pcol * 7 + prow * 13 + bi) % 5) - 2) * 0.018
+                R[:] *= tint[..., None]
+                seam_x = (xx + ox) % P == 0
+                seam_y = (yy + oy) % P == 0
+                lip_x = (xx + ox) % P == 1
+                lip_y = (yy + oy) % P == 1
+                R[seam_x | seam_y] *= 0.68
+                R[(lip_x | lip_y) & ~(seam_x | seam_y)] = np.minimum(R[(lip_x | lip_y) & ~(seam_x | seam_y)] * 1.07, 1)
+                mx, my = (xx + ox) % P, (yy + oy) % P
+                rivet = ((mx == 3) | (mx == P - 3)) & ((my == 3) | (my == P - 3))
+                R[rivet] *= 0.55
+                if side and w >= 20 and h >= 10 and r.random() < 0.35:
+                    band = slice(2, 4)
+                    R[band, 2:-2] = _hex01("#a3221c")
+                for _ in range(max(1, (w * h) // 600)):
+                    sx, sy = r.integers(0, w), r.integers(0, h)
+                    ln = r.integers(2, 6)
+                    R[sy, sx:sx + ln] *= 0.8 if r.random() < 0.5 else 1.1
+
+            if kind == "concrete":
+                R[:] *= (0.93 + 0.07 * r.random((h, w)))[..., None]
+                R[r.random((h, w)) < 0.025] *= 0.7
+                if side:
+                    R[(yy + v) % 12 == 0] *= 0.86
+                    for _ in range(max(1, w // 10)):
+                        sx = r.integers(0, w)
+                        ln = r.integers(h // 3, h + 1)
+                        R[:ln, sx] *= 0.9
+                else:
+                    R[((xx + u) % 24 == 0) | ((yy + v) % 24 == 0)] *= 0.84
+                for _ in range((w * h) // 900):
+                    y0, x0 = r.integers(0, h), r.integers(0, w)
+                    for _k in range(r.integers(6, 18)):
+                        R[y0, x0] *= 0.55
+                        y0 = int(np.clip(y0 + r.integers(-1, 2), 0, h - 1))
+                        x0 = int(np.clip(x0 + r.integers(0, 2) * (1 if r.random() < 0.5 else -1), 0, w - 1))
+
+            if kind in ("steel", "hull"):
+                R[:] *= (0.94 + 0.12 * r.random((h, 1)))[..., None]  # brushed rows
+                if w >= 8 and h >= 8:
+                    for (by, bx) in ((2, 2), (2, w - 3), (h - 3, 2), (h - 3, w - 3)):
+                        R[by, bx] *= 0.5
+                        R[by - 1, bx] = np.minimum(R[by - 1, bx] * 1.3, 1)
+
+            if kind == "vent" and h >= 3:
+                R[yy % 3 == 0] = np.minimum(R[yy % 3 == 0] * 1.9 + 0.04, 1)
+                R[yy % 3 == 2] *= 0.35
+
+            if kind == "dark" and w * h > 64:
+                R[((xx + u) % 8 == 0) & ((yy + v) % 8 == 0)] *= 1.8
+
+            if kind == "glass":
+                refl = ((xx - yy * 0.8) % max(w, 6)) < 2
+                R[refl] = np.minimum(R[refl] + 0.18, 1)
+
+            # Grime: side faces darken toward the bottom; tops get a faint edge AO.
+            if side and h >= 4 and kind not in ("glass",):
+                g = 1 - 0.22 * (yy / max(h - 1, 1)) ** 2
+                R[:] *= g[..., None]
+
+            # Bevel: dark outline, light inner top/left edge.
+            if w >= 3 and h >= 3:
+                lift = 1.45 if kind in ("dark", "vent") else 1.12
+                R[1, 1:-1] = np.minimum(R[1, 1:-1] * lift, 1)
+                R[1:-1, 1] = np.minimum(R[1:-1, 1] * (1 + (lift - 1) * 0.6), 1)
+                edge = 1.6 if kind in ("dark", "vent") else 0.7
+                for sl in ((0, slice(None)), (-1, slice(None)), (slice(None), 0), (slice(None), -1)):
+                    R[sl] = np.clip(R[sl] * edge, 0, 1)
+            np.clip(R, 0, 1, out=R)
+
+
 def assign_materials(objs, mats):
     for o in objs:
         o.data.materials.clear()
@@ -638,6 +881,9 @@ def bake(objs, boxes, kinds, tex, label):
     atlas.pixels.foreach_get(color)
     color = color.reshape(tex, tex, 4)  # row 0 = bottom of the image in Blender
     color[..., 3] = 1.0
+    td = np.ascontiguousarray(color[::-1])  # top-down, matching the UV rects
+    paint_faces(td, boxes)
+    color = np.ascontiguousarray(td[::-1])
 
     mask = np.zeros((tex, tex), dtype=bool)
     for b in boxes:
@@ -702,8 +948,8 @@ def export_geo(bones, boxes, tex, path):
             "description": {
                 "identifier": "geometry.railgun",
                 "texture_width": tex, "texture_height": tex,
-                "visible_bounds_width": 8, "visible_bounds_height": 6,
-                "visible_bounds_offset": [0, 2, 0],
+                "visible_bounds_width": 44, "visible_bounds_height": 14,
+                "visible_bounds_offset": [0, 6, 0],
             },
             "bones": out_bones,
         }],
@@ -748,37 +994,41 @@ def export_item_model(boxes, tex, path, texture_id):
 # =============================================================================================
 
 FOLD = 0.12
+LEG_FOLD = {"leg_n": [1, 1, FOLD], "leg_s": [1, 1, FOLD], "leg_e": [FOLD, 1, 1], "leg_w": [FOLD, 1, 1]}
+LEG_OVER = {"leg_n": [1, 1, 1.05], "leg_s": [1, 1, 1.05], "leg_e": [1.05, 1, 1], "leg_w": [1.05, 1, 1]}
+ONE = [1, 1, 1]
 ANIMATIONS = {
-    # name: (length_s, loop, {bone: {"scale"/"position"/"rotation": {time_s: [x,y,z] in MC space}}})
+    # name: (length_s, loop, {bone: {"scale"/"position": {time_s: [x,y,z] in MC space}}})
+    # Only position and scale are keyframed (sign-convention safe in GeckoLib); turret yaw and
+    # barrel pitch are applied procedurally by RailgunModel.
     "animation.railgun.falling": (1.0, True, {
-        **{b: {"scale": {0.0: s, 1.0: s}} for b, s in (
-            ("leg_n", [1, 1, FOLD]), ("leg_s", [1, 1, FOLD]), ("leg_e", [FOLD, 1, 1]), ("leg_w", [FOLD, 1, 1]))},
-        "turret": {"position": {0.0: [0, -18, 0], 1.0: [0, -18, 0]}},
-        "barrel": {"scale": {0.0: [1, 1, 0.35], 1.0: [1, 1, 0.35]}},
-        "coils": {"rotation": {0.0: [0, 0, 0], 1.0: [0, 0, 90]}},
+        **{b: {"scale": {0.0: s, 1.0: s}} for b, s in LEG_FOLD.items()},
+        "turret": {"position": {0.0: [0, -34, 0], 1.0: [0, -34, 0]}},
+        "barrel": {"scale": {0.0: [1, 1, 0.38], 1.0: [1, 1, 0.38]}},
+        "vents": {"position": {0.0: [0, -4, 0], 1.0: [0, -4, 0]}},
+        "coils": {"scale": {0.0: [0.9, 0.9, 1], 0.5: [0.95, 0.95, 1], 1.0: [0.9, 0.9, 1]}},
     }),
     "animation.railgun.deploy": (3.0, "hold_on_last_frame", {
-        **{b: {"scale": {0.0: s, 0.2: s, 0.8: o, 1.0: [1, 1, 1]}} for b, s, o in (
-            ("leg_n", [1, 1, FOLD], [1, 1, 1.06]), ("leg_s", [1, 1, FOLD], [1, 1, 1.06]),
-            ("leg_e", [FOLD, 1, 1], [1.06, 1, 1]), ("leg_w", [FOLD, 1, 1], [1.06, 1, 1]))},
-        "turret": {"position": {0.0: [0, -18, 0], 1.0: [0, -18, 0], 1.8: [0, 1, 0], 2.0: [0, 0, 0]}},
-        "barrel": {"scale": {0.0: [1, 1, 0.35], 2.0: [1, 1, 0.35], 2.7: [1, 1, 1.04], 3.0: [1, 1, 1]}},
-        "coils": {"rotation": {0.0: [0, 0, 0], 3.0: [0, 0, 270]}},
+        **{b: {"scale": {0.0: s, 0.25: s, 0.85: LEG_OVER[b], 1.05: ONE}} for b, s in LEG_FOLD.items()},
+        "turret": {"position": {0.0: [0, -34, 0], 1.0: [0, -34, 0], 1.75: [0, 2, 0], 1.95: [0, 0, 0]}},
+        "barrel": {"scale": {0.0: [1, 1, 0.38], 1.9: [1, 1, 0.38], 2.6: [1, 1, 1.03], 2.8: ONE}},
+        "vents": {"position": {0.0: [0, -4, 0], 2.6: [0, -4, 0], 2.9: [0, 1, 0], 3.0: [0, 0, 0]}},
+        "coils": {"scale": {0.0: [0.9, 0.9, 1], 2.5: [0.9, 0.9, 1], 2.8: [1.12, 1.12, 1], 3.0: ONE}},
     }),
     "animation.railgun.idle": (4.0, True, {
-        "coils": {"rotation": {0.0: [0, 0, 0], 4.0: [0, 0, 90]},
-                  "scale": {0.0: [1, 1, 1], 2.0: [1.03, 1.03, 1], 4.0: [1, 1, 1]}},
+        "coils": {"scale": {0.0: ONE, 2.0: [1.025, 1.025, 1], 4.0: ONE}},
+        "vents": {"position": {0.0: [0, 0, 0], 2.0: [0, 0.4, 0], 4.0: [0, 0, 0]}},
     }),
     "animation.railgun.charge": (0.5, True, {
-        "coils": {"rotation": {0.0: [0, 0, 0], 0.5: [0, 0, 90]},
-                  "scale": {0.0: [1.04, 1.04, 1], 0.25: [1.12, 1.12, 1], 0.5: [1.04, 1.04, 1]}},
-        "turret": {"position": {0.0: [0, 0, 0], 0.25: [0, -0.3, 0], 0.5: [0, 0, 0]}},
+        "coils": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.12, 1.12, 1], 0.5: [1.04, 1.04, 1]}},
+        "vents": {"position": {0.0: [0, 2.5, 0], 0.25: [0, 3.2, 0], 0.5: [0, 2.5, 0]}},
+        "turret": {"position": {0.0: [0, 0, 0], 0.125: [0, -0.35, 0], 0.25: [0, 0, 0], 0.375: [0, -0.2, 0], 0.5: [0, 0, 0]}},
     }),
-    "animation.railgun.fire": (1.5, False, {
-        "barrel": {"scale": {0.0: [1, 1, 1], 0.05: [1, 1, 0.82], 0.6: [1, 1, 0.95], 1.5: [1, 1, 1]}},
-        "coils": {"rotation": {0.0: [0, 0, 0], 0.5: [0, 0, 270], 1.5: [0, 0, 360]},
-                  "scale": {0.0: [1.25, 1.25, 1], 1.5: [1, 1, 1]}},
-        "turret": {"position": {0.0: [0, 0, 0], 0.05: [0, -1.5, 0], 0.5: [0, 0, 0]}},
+    "animation.railgun.fire": (1.8, False, {
+        "barrel": {"position": {0.0: [0, 0, 0], 0.05: [0, 0, 16], 0.25: [0, 0, 12], 0.9: [0, 0, 0]}},
+        "turret": {"position": {0.0: [0, 0, 0], 0.05: [0, -3, 0], 0.3: [0, 0.5, 0], 0.6: [0, 0, 0]}},
+        "vents": {"position": {0.0: [0, 3, 0], 0.08: [0, 6, 0], 1.3: [0, 6, 0], 1.8: [0, 0, 0]}},
+        "coils": {"scale": {0.0: [1.35, 1.35, 1], 0.4: [1.1, 1.1, 1], 1.8: ONE}},
     }),
 }
 
@@ -896,7 +1146,7 @@ def setup_camera_and_lights():
     rim.rotation_euler = (math.radians(70), 0, math.radians(160))
 
     ground = bpy.data.meshes.new("ground")
-    ground.from_pydata([(-30, -30, 0), (30, -30, 0), (30, 30, 0), (-30, 30, 0)], [], [(0, 1, 2, 3)])
+    ground.from_pydata([(-60, -60, 0), (60, -60, 0), (60, 60, 0), (-60, 60, 0)], [], [(0, 1, 2, 3)])
     gobj = link(bpy.data.objects.new("ground", ground))
     gmat = bpy.data.materials.new("ground")
     gmat.use_nodes = True
@@ -956,7 +1206,7 @@ def main():
     print(f"[railgun] {len(rg_boxes)} cubes, {rg_tex}px atlas, {len(ANIMATIONS)} animations")
 
     # ---------------- Remote ----------------
-    offset = Vector((40, 0, 0))  # keep it away from the railgun in the scene
+    offset = Vector((120, 0, 0))  # keep it away from the railgun in the scene
     rm_bones = build_remote(offset)
     rm_boxes = extract_boxes(rm_bones, offset=offset)
     rm_tex = pack_faces(rm_boxes, texels_per_px=2, start_size=32)
@@ -980,16 +1230,19 @@ def main():
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
         pose(rg_bones, "animation.railgun.deploy", 3.0)
-        render(os.path.join(out, "railgun_deployed.png"), cam, target, (8.5, 8.0, 5.4), (0, 0.6, 1.6), 900)
-        render(os.path.join(assets, "icon.png"), cam, target, (7.0, 6.8, 4.6), (0, 0.6, 1.7), 128, samples=32)
+        render(os.path.join(out, "railgun_deployed.png"), cam, target, (31.0, 25.0, 16.0), (0.0, 5.0, 4.5), 1100, lens=32)
+        render(os.path.join(assets, "icon.png"), cam, target, (26.0, 22.0, 14.0), (0.0, 6.0, 5.0), 128, samples=32, lens=30)
         pose(rg_bones, "animation.railgun.falling", 0.0)
-        render(os.path.join(out, "railgun_folded.png"), cam, target, (8.5, 8.0, 5.4), (0, 0.4, 1.2), 900)
+        render(os.path.join(out, "railgun_folded.png"), cam, target, (24.0, -18.0, 14.0), (0.0, 1.0, 3.0), 900, lens=32)
+        pose(rg_bones, "animation.railgun.deploy", 3.0)
+        render(os.path.join(out, "railgun_side.png"), cam, target, (-30.0, 4.0, 9.0), (0.0, 6.0, 5.5), 1100, lens=30)
+        render(os.path.join(out, "railgun_closeup.png"), cam, target, (13.0, -9.0, 11.0), (0.0, 0.0, 6.5), 1100, lens=30)
         reset_pose(rg_bones)
 
         set_visible(rg_bake, False)
         set_visible(rm_bake, True)
-        ground.location = (40, 0, -0.01)
-        render(os.path.join(out, "remote.png"), cam, target, (41.3, 1.5, 0.9), (40.5, -0.47, 0.5), 700, lens=60)
+        ground.location = (120, 0, -0.01)
+        render(os.path.join(out, "remote.png"), cam, target, (121.3, 1.5, 0.9), (120.5, -0.47, 0.5), 700, lens=60)
         set_visible(rg_bake, True)
         ground.location = (0, 0, 0)
 
