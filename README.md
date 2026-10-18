@@ -12,7 +12,7 @@ is made by this repo's own tools (Blender, numpy, synthesized audio). No vanilla
 | Fabric API | 0.92.x+1.20.1 |
 | GeckoLib | 4.2 – 4.4.x (Fabric, 1.20.1) |
 
-Two small client mixins (two-handed tablet in first and third person); no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
+Three small client mixins (two-handed tablet in first and third person, camera fly-in to the control panel); no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
 layers, so it works alongside Sodium.
 
 ## Gameplay
@@ -21,15 +21,22 @@ layers, so it works alongside Sodium.
 2. Aim at open ground and right-click: the tablet rises and the view **zooms into its display**.
    On the *Orbital Drop* page press **CALL DOWN**. A HUD countdown runs, then a compact pod
    re-enters in a plasma sheath and lands with its rail pointing straight up, retracted.
-3. Walk up to the pod and right-click its **panel** (`[ RETRACT PANEL ]` hologram). The cover slides
-   away and the pod transforms: it sinks while the fortress rises, the stairs fold out, the turret
+3. Walk up to the pod and right-click its **panel**: the camera flies up to the physical panel on
+   the pod and its screen becomes the UI. Press **DEPLOY RAILGUN**; the cover slides away and the
+   pod transforms: it sinks while the fortress rises, the stairs fold out, the turret
    grows, the rail lowers and extends, and the ground clamps lift and **slam** into the ground.
 4. Raise the tablet again for *Fire Control*: type X/Y/Z or **PAINT** the block you were aiming
    at, **SET**, then **FIRE** (from any distance; deployed railguns keep their chunk loaded). The
    tablet lowers so you can watch. No beam is visible until the shot.
-5. To pack up, use the console at the foot of the stairs: `[ RETRACT ]`, then `[ CONFIRM RETRACT ]`.
-   It folds back into a pod. Use the panel again (`[ RETURN TO ORBIT ]`) and it **launches back
-   into the sky** on its thrusters.
+5. To pack up, right-click the console at the foot of the stairs (the camera zooms into it):
+   **RETRACT RAILGUN**, then **CONFIRM RETRACT**. It folds back into its pod (the transformation
+   in reverse). Use the pod's panel again, **RETURN TO ORBIT**, and it **launches back into the
+   sky** on its thrusters.
+
+The deployed emplacement has real collision: when it finishes deploying it fills its footprint
+with invisible collider blocks following a heightfield exported from the Blender model
+(`orbital_railgun_collision.json`), so you can climb the stairs and stand on each tier. They are
+removed when it packs up.
 
 One railgun per player. Creative players can sneak-punch a railgun to remove it instantly.
 Tuning (ranges, timings, blast power, block damage) lives in `RailgunConfig.java`.

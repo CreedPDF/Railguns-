@@ -19,6 +19,9 @@ public interface RailgunClientBridge {
     /** Opens the uplink tablet (zoom-in UI). {@code aimed} is the block the player looked at, if any. */
     default void openTablet(@org.jetbrains.annotations.Nullable BlockPos aimed) {}
 
+    /** Zooms the view into the railgun's physical control panel. */
+    default void openPanel(RailgunEntity railgun) {}
+
     /** Camera shake for the local player, scaled by distance to the railgun. */
     default void shake(RailgunEntity railgun, float strength) {}
 

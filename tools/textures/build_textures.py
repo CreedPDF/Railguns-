@@ -444,8 +444,48 @@ def tablet_display():
     img.save(A / "textures/gui/tablet_display.png")
 
 
+def panel_display():
+    """
+    The railgun's physical control panel seen up close: heavy steel housing with bolts and a
+    hazard-striped surround, a recessed screen. Screen area: x 40..472, y 36..252 of 512x288
+    (keep in sync with PanelScreen).
+    """
+    W, H = 512, 288
+    base = periodic_noise(H, W, 40, 60, 4)
+    steel = np.dstack([58 + base * 22, 62 + base * 23, 70 + base * 25, np.full((H, W), 255.0)])
+    steel[..., :3] += (periodic_noise(H, W, 2, 160, 2)[..., None] - 0.5) * 10
+    img = Image.fromarray(np.clip(steel, 0, 255).astype(np.uint8), "RGBA")
+    d = ImageDraw.Draw(img)
+    hazard(img, (0, 0, W - 1, 13), 14)
+    hazard(img, (0, H - 14, W - 1, H - 1), 14)
+    d.rectangle([0, 14, W - 1, H - 15], outline=(20, 22, 26, 255), width=2)
+    for x in range(24, W, 48):
+        for y in (22, H - 23):
+            d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(150, 156, 166, 255), outline=(16, 16, 20, 255))
+            d.line([(x - 3, y - 3), (x + 3, y + 3)], fill=(40, 40, 46, 255))
+    for y in range(40, H - 40, 20):
+        for x in (18, W - 19):
+            d.rectangle([x - 6, y, x + 6, y + 3], fill=(22, 24, 28, 255))
+    sx0, sy0, sx1, sy1 = 40, 36, 472, 252
+    d.rectangle([sx0 - 6, sy0 - 6, sx1 + 6, sy1 + 6], fill=(14, 15, 18, 255), outline=(110, 116, 126, 255))
+    sw, sh = sx1 - sx0, sy1 - sy0
+    yy = np.linspace(0, 1, sh)[:, None]
+    disp = np.dstack([np.broadcast_to(16 + 12 * (1 - yy), (sh, sw)), np.broadcast_to(6 + 6 * (1 - yy), (sh, sw)),
+                      np.broadcast_to(6 + 6 * (1 - yy), (sh, sw)), np.full((sh, sw), 255.0)]).copy()
+    disp[::2, :, :3] *= 0.8
+    grid = np.zeros((sh, sw), bool)
+    grid[:, ::24] = True
+    grid[::24, :] = True
+    disp[grid, 0] += 22
+    disp[grid, 1] += 6
+    img.paste(Image.fromarray(np.clip(disp, 0, 255).astype(np.uint8), "RGBA"), (sx0, sy0))
+    d.rectangle([sx0 - 1, sy0 - 1, sx1, sy1], outline=(4, 4, 6, 255))
+    img.save(A / "textures/gui/panel_display.png")
+
+
 def main():
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)
+    panel_display()
     tablet_display()
     beam_textures()
     particles()

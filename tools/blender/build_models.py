@@ -1053,6 +1053,66 @@ def export_item_model(boxes, tex, path, texture_id):
 
 
 # =============================================================================================
+# Collision heightfield (consumed by the mod to place invisible collider blocks)
+# =============================================================================================
+
+COLLISION_BONES = {"base", "stairs"}
+TURRET_COLLISION_RADIUS = 36.0   # px, the turret hull footprint (it rotates, so a disc)
+TURRET_COLLISION_TOP = 95.0      # px, hull roof
+
+
+def _inside(box, mx, mz):
+    x0, _, z0 = box["min"]
+    x1, _, z1 = box["max"]
+    if "rot_y" in box:
+        px, _, pz = box["rot_pivot"]
+        a = math.radians(box["rot_y"])
+        dx, dz = mx - px, mz - pz
+        # rotate the point into the box's unrotated frame
+        lx = px + dx * math.cos(a) - dz * math.sin(a)
+        lz = pz + dx * math.sin(a) + dz * math.cos(a)
+        mx, mz = lx, lz
+    return x0 <= mx <= x1 and z0 <= mz <= z1
+
+
+def collision_heightfield(boxes, radius=8):
+    """
+    Height (px above the entity's feet) of the deployed emplacement at the centre of every block
+    column around it. World offsets are converted to model space with the 180-degree yaw GeckoLib
+    applies to entity models: model (x, z) = (-dx * 16, -dz * 16).
+    """
+    cols = []
+    for dx in range(-radius, radius + 1):
+        for dz in range(-radius, radius + 1):
+            mx, mz = -dx * 16.0, -dz * 16.0
+            # Stack upward: a box counts if it starts on the ground or on geometry already counted
+            # (foundation -> tier 2 -> tier 3 -> cap -> deck), so floating details are ignored.
+            here = [b for b in boxes if b["bone"] in COLLISION_BONES and _inside(b, mx, mz)]
+            h = 0.0
+            changed = True
+            while changed:
+                changed = False
+                for b in here:
+                    if b["min"][1] <= h + 0.5 and b["max"][1] > h:
+                        h = b["max"][1]
+                        changed = True
+            if mx * mx + mz * mz <= TURRET_COLLISION_RADIUS ** 2:
+                h = max(h, TURRET_COLLISION_TOP)
+            if h >= 3.0:
+                cols.append([dx, dz, int(round(h))])
+    return cols
+
+
+def export_collision(boxes, path):
+    cols = collision_heightfield(boxes)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({"comment": "dx, dz (blocks from the railgun's block), height in px (16 = 1 block)",
+                   "columns": cols}, f)
+    return cols
+
+
+# =============================================================================================
 # Animation: authored as Blender Actions, exported to GeckoLib JSON
 # =============================================================================================
 
@@ -1108,7 +1168,28 @@ def reverse_tracks(tracks, length):
 PACK = reverse_tracks(DEPLOY, DEPLOY_LEN)
 PACK["pod_panel"] = {"position": {0.0: PANEL_OPEN, 7.0: PANEL_OPEN, 7.5: [0, 0, 0.6], 8.0: [0, 0, 0]}}
 
-ANIMATIONS = {
+def full_tracks(tracks, length):
+    """
+    Gives every channel explicit keyframes at 0 and at the end of the animation (holding its
+    first/last value). GeckoLib interpolates the span before a channel's first keyframe from the
+    default value (scale 0!), so a track that starts late makes the bone vanish and pop. This is
+    what broke the pack-up animation, which is the deploy reversed.
+    """
+    out = {}
+    for bone, chans in tracks.items():
+        out[bone] = {}
+        for ch, keys in chans.items():
+            k = dict(keys)
+            times = sorted(k)
+            if times[0] > 0:
+                k[0.0] = k[times[0]]
+            if times[-1] < length:
+                k[length] = k[times[-1]]
+            out[bone][ch] = dict(sorted(k.items()))
+    return out
+
+
+_RAW_ANIMATIONS = {
     # name: (length_s, loop, {bone: {"scale"/"position": {time_s: [x,y,z] in MC space}}})
     # Only position and scale are keyframed (sign-convention safe in GeckoLib); turret yaw and
     # barrel pitch are applied procedurally by RailgunModel.
@@ -1135,6 +1216,9 @@ ANIMATIONS = {
         "coils": {"scale": {0.0: [1.35, 1.35, 1], 0.4: [1.1, 1.1, 1], 1.8: ONE}},
     }),
 }
+
+ANIMATIONS = {name: (length, loop, full_tracks(tracks, length))
+              for name, (length, loop, tracks) in _RAW_ANIMATIONS.items()}
 
 CHANNEL_PATH = {"position": "location", "rotation": "rotation_euler", "scale": "scale"}
 
@@ -1292,6 +1376,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--assets", required=True, help="assets/orbital_railgun directory")
     ap.add_argument("--out", required=True, help="directory for renders and the .blend")
+    ap.add_argument("--collision", help="output path of the collision heightfield JSON")
     ap.add_argument("--no-render", action="store_true")
     args = ap.parse_args(argv)
     assets, out = os.path.abspath(args.assets), os.path.abspath(args.out)
@@ -1308,6 +1393,9 @@ def main():
     save_png(rg_atlas, os.path.join(assets, "textures/entity/railgun.png"))
     save_png(rg_glow, os.path.join(assets, "textures/entity/railgun_glowmask.png"))
     export_geo(rg_bones, rg_boxes, rg_tex, os.path.join(assets, "geo/railgun.geo.json"))
+    if args.collision:
+        cols = export_collision(rg_boxes, os.path.abspath(args.collision))
+        print(f"[railgun] collision: {len(cols)} columns")
     author_animations(rg_bones)
     export_animations(rg_bones, os.path.join(assets, "animations/railgun.animation.json"))
     print(f"[railgun] {len(rg_boxes)} cubes, {rg_tex}px atlas, {len(ANIMATIONS)} animations")

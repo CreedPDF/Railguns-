@@ -4,6 +4,7 @@
   "package": "com.creedpdf.orbitalrailgun.client.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
+    "CameraMixin",
     "HeldItemRendererMixin",
     "PlayerEntityRendererMixin"
   ],

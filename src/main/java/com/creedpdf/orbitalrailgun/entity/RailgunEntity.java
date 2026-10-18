@@ -3,6 +3,7 @@ package com.creedpdf.orbitalrailgun.entity;
 import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.registry.ModParticles;
 import com.creedpdf.orbitalrailgun.registry.ModSounds;
+import com.creedpdf.orbitalrailgun.util.RailgunCollision;
 import com.creedpdf.orbitalrailgun.util.RailgunConfig;
 import com.creedpdf.orbitalrailgun.util.RailgunFx;
 import net.minecraft.block.BlockState;
@@ -83,8 +84,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Optional<UUID>> OWNER =
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.OPTIONAL_UUID);
-    private static final TrackedData<Boolean> CONFIRM =
-            DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     // ---- GeckoLib animations (names must match railgun.animation.json) ----------------------
     private static final RawAnimation ANIM_POD = RawAnimation.begin().thenLoop("animation.railgun.pod");
@@ -100,9 +99,15 @@ public class RailgunEntity extends Entity implements GeoEntity {
     /** Pod-form hitbox: a 3.5-block-wide pillar. */
     private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(3.5f, 6.5f);
 
-    /** Control panel positions relative to the entity (pod face, and the console by the stairs). */
-    private static final Vec3d POD_PANEL = new Vec3d(0.0, 2.6, 2.0);
-    private static final Vec3d CONSOLE_PANEL = new Vec3d(1.05, 1.25, 5.95);
+    /*
+     * Control panel positions relative to the entity. GeckoLib renders entity models rotated
+     * 180 degrees about Y, so model +Z (where the panel, stairs and console were modelled) is
+     * world -Z: model (x, y, z) px -> world (-x, y, -z) / 16.
+     */
+    /** Centre of the pod's panel screen (model z 28.4 px face) and the direction it faces. */
+    public static final Vec3d POD_PANEL = new Vec3d(0.0, 41.0 / 16, -28.6 / 16);
+    /** Top of the access console beside the stairs (model x 16.5, y 18.6, z 95). */
+    public static final Vec3d CONSOLE_PANEL = new Vec3d(-16.5 / 16, 18.6 / 16, -95.0 / 16);
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -113,7 +118,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
     private double landY = Double.NaN;
     private boolean clientLoopSoundStarted;
     private boolean chunkForced;
-    private int confirmTicks;
     private double launchSpeed;
 
     /** Turret aim in degrees. Yaw 0 = +Z (south), positive pitch = up. Computed on both sides. */
@@ -131,7 +135,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
         this.dataTracker.startTracking(TARGET, BlockPos.ORIGIN);
         this.dataTracker.startTracking(HAS_TARGET, false);
         this.dataTracker.startTracking(OWNER, Optional.empty());
-        this.dataTracker.startTracking(CONFIRM, false);
     }
 
     // =========================================================================================
@@ -153,8 +156,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
             clientTick(state, t);
             return;
         }
-
-        if (confirmTicks > 0 && --confirmTicks == 0) dataTracker.set(CONFIRM, false);
 
         switch (state) {
             case FALLING -> tickFalling();
@@ -230,7 +231,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             ring(world, ModParticles.SHOCK_DUST, base, 5.5, 20, 0.12);
             RailgunFx.burst(world, ModParticles.DEBRIS, base.add(0, 0.5, 0), 6, 5.0, 0.3, 0.25);
         }
-        if (t == 52) RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(0, 0.5, 6), 12, 1.2, 0.4, 0.04);
+        if (t == 52) RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(0, 0.5, -6), 12, 1.2, 0.4, 0.04);
         if (t == RailgunConfig.CLAMP_SLAM_TICK) {
             for (int i = 0; i < 4; i++) {
                 double a = i * Math.PI / 2;
@@ -248,12 +249,16 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 victim.velocityModified = true;
             }
         }
-        if (t >= RailgunConfig.TRANSFORM_TICKS) setState(RailgunState.IDLE);
+        if (t >= RailgunConfig.TRANSFORM_TICKS) {
+            RailgunCollision.place(world, getBlockPos());
+            setState(RailgunState.IDLE);
+        }
     }
 
     private void tickPacking(int t) {
         ServerWorld world = (ServerWorld) getWorld();
         if (t == 0) {
+            RailgunCollision.remove(world, getBlockPos());
             world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_PACK, SoundCategory.BLOCKS, 4.0f, 1.0f);
             dataTracker.set(HAS_TARGET, false);
             setCharge(0f);
@@ -535,51 +540,46 @@ public class RailgunEntity extends Entity implements GeoEntity {
         return getPos().add(local);
     }
 
-    public boolean isConfirmPending() {
-        return dataTracker.get(CONFIRM);
-    }
-
+    /** Physical panel / console: right-clicking it zooms the view into it (client). */
     @Override
     public ActionResult interact(PlayerEntity player, Hand hand) {
         if (hand != Hand.MAIN_HAND) return ActionResult.PASS;
         RailgunState state = getState();
         if (state == RailgunState.FALLING || state == RailgunState.LAUNCHING) return ActionResult.PASS;
         // Only the control panel is interactive. Anywhere else, PASS so the click falls through
-        // (e.g. the player can still open their tablet while looking at the railgun).
+        // (e.g. the player can still raise their tablet while looking at the railgun).
         if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH) return ActionResult.PASS;
-        if (getWorld().isClient) return ActionResult.SUCCESS;
+        if (getWorld().isClient) {
+            RailgunMod.client().openPanel(this);
+            return ActionResult.SUCCESS;
+        }
+        return ActionResult.CONSUME;
+    }
 
-        ServerWorld world = (ServerWorld) getWorld();
+    /** Panel actions sent from the zoomed-in panel UI (validated by ModPackets). */
+    public enum PanelAction { DEPLOY, RETRACT, RETURN }
+
+    public boolean handlePanelAction(PlayerEntity player, PanelAction action) {
+        if (!(getWorld() instanceof ServerWorld world)) return false;
+        if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 2.0) return false;
         Vec3d p = getPanelPos();
-        switch (state) {
-            case POD -> {
+        RailgunState state = getState();
+        switch (action) {
+            case DEPLOY -> {
+                if (state != RailgunState.POD) return false;
                 world.playSound(null, p.x, p.y, p.z, ModSounds.RAILGUN_PANEL, SoundCategory.BLOCKS, 1.5f, 1.0f);
                 setState(RailgunState.PANEL_OPEN);
             }
-            case IDLE, COOLDOWN -> {
-                if (isConfirmPending()) {
-                    dataTracker.set(CONFIRM, false);
-                    confirmTicks = 0;
-                    world.playSound(null, p.x, p.y, p.z, ModSounds.UI_CLICK, SoundCategory.BLOCKS, 1.0f, 0.8f);
-                    setState(RailgunState.PACKING);
-                } else {
-                    dataTracker.set(CONFIRM, true);
-                    confirmTicks = RailgunConfig.CONFIRM_TICKS;
-                    world.playSound(null, p.x, p.y, p.z, ModSounds.UI_COUNTDOWN_BEEP, SoundCategory.BLOCKS, 1.0f, 1.0f);
-                    player.sendMessage(Text.translatable("message.orbital_railgun.confirm_retract").formatted(Formatting.GOLD), true);
-                }
+            case RETRACT -> {
+                if (state != RailgunState.IDLE && state != RailgunState.COOLDOWN) return false;
+                setState(RailgunState.PACKING);
             }
-            case POD_READY -> {
-                world.playSound(null, p.x, p.y, p.z, ModSounds.UI_CLICK, SoundCategory.BLOCKS, 1.0f, 1.2f);
+            case RETURN -> {
+                if (state != RailgunState.POD_READY) return false;
                 setState(RailgunState.LAUNCHING);
             }
-            case CHARGING, FIRING -> {
-                world.playSound(null, p.x, p.y, p.z, ModSounds.UI_DENIED, SoundCategory.BLOCKS, 1.0f, 1.0f);
-                player.sendMessage(Text.translatable("message.orbital_railgun.denied.busy").formatted(Formatting.RED), true);
-            }
-            default -> { }
         }
-        return ActionResult.CONSUME;
+        return true;
     }
 
     // =========================================================================================
@@ -699,6 +699,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
     @Override
     public void remove(RemovalReason reason) {
         if (reason.shouldDestroy() && getWorld() instanceof ServerWorld world) {
+            RailgunCollision.remove(world, getBlockPos());
             setChunkForced(world, false);
         }
         super.remove(reason);

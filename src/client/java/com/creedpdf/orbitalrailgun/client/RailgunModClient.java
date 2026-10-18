@@ -8,6 +8,7 @@ import com.creedpdf.orbitalrailgun.client.particle.RailgunParticles;
 import com.creedpdf.orbitalrailgun.client.render.RailgunEntityRenderer;
 import com.creedpdf.orbitalrailgun.client.sound.RailgunChargeSoundInstance;
 import com.creedpdf.orbitalrailgun.client.sound.RailgunReentrySoundInstance;
+import com.creedpdf.orbitalrailgun.client.panel.PanelScreen;
 import com.creedpdf.orbitalrailgun.client.tablet.TabletScreen;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
@@ -49,6 +50,12 @@ public final class RailgunModClient implements ClientModInitializer {
         public void openTablet(BlockPos aimed) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.currentScreen == null) client.setScreen(new TabletScreen(aimed));
+        }
+
+        @Override
+        public void openPanel(RailgunEntity railgun) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.currentScreen == null) client.setScreen(new PanelScreen(railgun));
         }
 
         @Override

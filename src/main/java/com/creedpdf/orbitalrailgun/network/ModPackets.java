@@ -30,6 +30,7 @@ import org.jetbrains.annotations.Nullable;
  *  C2S  tablet_target    BlockPos               tablet "SET TARGET" / "PAINT"
  *  C2S  tablet_fire      (empty)                tablet "FIRE"       → IDLE → CHARGING (auto-fires at 100%)
  *  C2S  tablet_abort     (empty)                tablet "ABORT"      → CHARGING → IDLE
+ *  C2S  panel_action     varint entityId, varint action   zoomed-in panel: DEPLOY / RETRACT / RETURN
  *  S2C  drop_countdown   BlockPos, int ticks    HUD countdown + local uplink sound
  *  S2C  tablet_info      status snapshot        what the tablet displays
  * </pre>
@@ -50,6 +51,7 @@ public final class ModPackets {
     public static final Identifier TABLET_TARGET = RailgunMod.id("tablet_target");
     public static final Identifier TABLET_FIRE = RailgunMod.id("tablet_fire");
     public static final Identifier TABLET_ABORT = RailgunMod.id("tablet_abort");
+    public static final Identifier PANEL_ACTION = RailgunMod.id("panel_action");
     public static final Identifier DROP_COUNTDOWN = RailgunMod.id("drop_countdown");
     public static final Identifier TABLET_INFO = RailgunMod.id("tablet_info");
 
@@ -72,6 +74,16 @@ public final class ModPackets {
                             ? (railgun.hasTarget() ? "busy" : "no_target") : "not_deployed");
                     sendTabletInfo(player);
                 }));
+        ServerPlayNetworking.registerGlobalReceiver(PANEL_ACTION, (server, player, handler, buf, sender) -> {
+            int entityId = buf.readVarInt();
+            int action = buf.readVarInt();
+            server.execute(() -> {
+                if (!(player.getWorld().getEntityById(entityId) instanceof RailgunEntity railgun) || !railgun.isAlive()) return;
+                RailgunEntity.PanelAction[] actions = RailgunEntity.PanelAction.values();
+                if (action < 0 || action >= actions.length) return;
+                if (!railgun.handlePanelAction(player, actions[action])) deny(player, "busy");
+            });
+        });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_ABORT, (server, player, handler, buf, sender) ->
                 server.execute(() -> {
                     RailgunEntity railgun = owned(player);

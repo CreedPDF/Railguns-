@@ -57,7 +57,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
      */
     private void renderPanelReadout(RailgunEntity entity, float tickDelta, MatrixStack matrices, VertexConsumerProvider vcp) {
         MinecraftClient client = MinecraftClient.getInstance();
-        if (client.player == null) return;
+        if (client.player == null || com.creedpdf.orbitalrailgun.client.panel.PanelScreen.active() != null) return;
         Vec3d panel = entity.getPanelPos();
         double dist = client.player.getEyePos().distanceTo(panel);
         if (dist > 16) return;
@@ -87,17 +87,15 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
         RailgunState s = e.getState();
         int t = e.getStateTicks();
         return switch (s) {
-            case POD -> List.of("ARES-9 RAILGUN POD", "[ RETRACT PANEL ]");
+            case POD -> List.of("ARES-9 RAILGUN POD", "[ USE PANEL ]");
             case PANEL_OPEN -> List.of("PANEL RETRACTING");
             case TRANSFORMING -> List.of(String.format(Locale.ROOT, "DEPLOYING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.TRANSFORM_TICKS)));
-            case IDLE, COOLDOWN -> e.isConfirmPending()
-                    ? List.of("PACK UP THE RAILGUN?", "[ CONFIRM RETRACT ]")
-                    : List.of(s == RailgunState.IDLE ? "ONLINE  //  USE TABLET TO FIRE" : "COOLING", "[ RETRACT ]");
+            case IDLE, COOLDOWN -> List.of(s == RailgunState.IDLE ? "ONLINE" : "COOLING", "[ USE CONSOLE ]");
             case CHARGING, FIRING -> List.of("WEAPON HOT");
             case PACKING -> List.of(String.format(Locale.ROOT, "RETRACTING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.PACK_TICKS)));
-            case POD_READY -> List.of("PACKED FOR ORBIT", "[ RETURN TO ORBIT ]");
+            case POD_READY -> List.of("PACKED FOR ORBIT", "[ USE PANEL ]");
             default -> List.of();
         };
     }

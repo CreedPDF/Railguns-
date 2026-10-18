@@ -7,4 +7,5 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 "$BLENDER" -b --factory-startup --python-exit-code 1 \
   -P "$ROOT/tools/blender/build_models.py" -- \
   --assets "$ROOT/src/main/resources/assets/orbital_railgun" \
-  --out "$ROOT/build/blender"
+  --out "$ROOT/build/blender" \
+  --collision "$ROOT/src/main/resources/orbital_railgun_collision.json"

@@ -37,6 +37,13 @@ public final class ClientPackets {
         ClientPlayNetworking.send(ModPackets.TABLET_TARGET, buf);
     }
 
+    public static void sendPanelAction(int entityId, com.creedpdf.orbitalrailgun.entity.RailgunEntity.PanelAction action) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(entityId);
+        buf.writeVarInt(action.ordinal());
+        ClientPlayNetworking.send(ModPackets.PANEL_ACTION, buf);
+    }
+
     public static void requestStatus() { sendEmpty(ModPackets.TABLET_STATUS); }
     public static void sendFire() { sendEmpty(ModPackets.TABLET_FIRE); }
     public static void sendAbort() { sendEmpty(ModPackets.TABLET_ABORT); }

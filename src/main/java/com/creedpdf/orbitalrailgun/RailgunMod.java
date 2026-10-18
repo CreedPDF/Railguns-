@@ -1,5 +1,6 @@
 package com.creedpdf.orbitalrailgun;
 
+import com.creedpdf.orbitalrailgun.block.RailgunColliderBlock;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.item.RailgunRemoteItem;
 import com.creedpdf.orbitalrailgun.network.ModPackets;
@@ -11,6 +12,10 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 import net.fabricmc.fabric.api.object.builder.v1.entity.FabricEntityTypeBuilder;
+import net.minecraft.block.AbstractBlock;
+import net.minecraft.block.Block;
+import net.minecraft.block.piston.PistonBehavior;
+import net.minecraft.sound.BlockSoundGroup;
 import net.minecraft.entity.EntityDimensions;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.SpawnGroup;
@@ -56,6 +61,22 @@ public final class RailgunMod implements ModInitializer {
                     .forceTrackedVelocityUpdates(true)
                     .fireImmune()
                     .build());
+
+    /** Invisible collision for the deployed railgun (see RailgunColliderBlock). No item. */
+    public static final Block RAILGUN_COLLIDER = Registry.register(
+            Registries.BLOCK,
+            id("railgun_collider"),
+            new RailgunColliderBlock(AbstractBlock.Settings.create()
+                    .strength(-1.0f, 3_600_000.0f)
+                    .dropsNothing()
+                    .nonOpaque()
+                    .noBlockBreakParticles()
+                    .pistonBehavior(PistonBehavior.BLOCK)
+                    .sounds(BlockSoundGroup.METAL)
+                    .allowsSpawning((state, world, pos, type) -> false)
+                    .solidBlock((state, world, pos) -> false)
+                    .suffocates((state, world, pos) -> false)
+                    .blockVision((state, world, pos) -> false)));
 
     public static final Item RAILGUN_REMOTE = Registry.register(
             Registries.ITEM,

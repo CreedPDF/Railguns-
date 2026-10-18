@@ -1,7 +1,9 @@
 package com.creedpdf.orbitalrailgun.client.mixin;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
+import com.creedpdf.orbitalrailgun.client.panel.PanelScreen;
 import com.creedpdf.orbitalrailgun.client.tablet.TabletScreen;
+import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
 import net.minecraft.client.render.OverlayTexture;
@@ -41,6 +43,14 @@ public abstract class HeldItemRendererMixin {
     @Shadow protected abstract float getMapAngle(float tickDelta);
 
     @Shadow protected abstract void renderArm(MatrixStack matrices, VertexConsumerProvider vertexConsumers, int light, Arm arm);
+
+    /** No hands while the camera is away at a railgun control panel. */
+    @Inject(method = "renderItem(FLnet/minecraft/client/util/math/MatrixStack;Lnet/minecraft/client/render/VertexConsumerProvider$Immediate;Lnet/minecraft/client/network/ClientPlayerEntity;I)V",
+            at = @At("HEAD"), cancellable = true)
+    private void orbitalRailgun$hideHandsAtPanel(float tickDelta, MatrixStack matrices, VertexConsumerProvider.Immediate vertexConsumers,
+                                                 ClientPlayerEntity player, int light, CallbackInfo ci) {
+        if (PanelScreen.zoom(tickDelta) > 0f) ci.cancel();
+    }
 
     @Inject(method = "renderFirstPersonItem", at = @At("HEAD"), cancellable = true)
     private void orbitalRailgun$renderTablet(AbstractClientPlayerEntity player, float tickDelta, float pitch, Hand hand,
