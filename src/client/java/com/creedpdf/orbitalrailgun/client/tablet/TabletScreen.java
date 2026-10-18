@@ -296,7 +296,7 @@ public class TabletScreen extends Screen {
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
         float z = zoom(delta);
-        float alpha = MathHelper.clamp((z - 0.82f) / 0.18f, 0f, 1f);
+        float alpha = z >= 0.999f ? 1f : MathHelper.clamp((z - 0.82f) / 0.18f, 0f, 1f);
         if (alpha <= 0f) return;
 
         RenderSystem.enableBlend();
@@ -304,7 +304,8 @@ public class TabletScreen extends Screen {
         ctx.drawTexture(DISPLAY, 0, 0, width, height, 0, 0, 512, 288, 512, 288);
         ctx.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.disableBlend();
-        if (alpha < 1f || closeTicks >= 0) return;
+        // Float rounding means the fade can stop a hair under 1.0; the UI is live once zoomed in.
+        if (alpha < 0.98f || closeTicks >= 0) return;
 
         float time = ticks + delta;
         ctx.getMatrices().push();
