@@ -105,7 +105,7 @@ public final class BeamRenderer {
         Random rand = Random.create(railgun.getId() * 31L + (long) (time / 2));
         VertexConsumer glow = glow(cp);
         int arcs = 2 + (int) (c * 6);
-        Vector3f back = new Vector3f(b.dir).mul(-RailgunConfig.BARREL_LENGTH);
+        Vector3f back = new Vector3f(b.dir).mul((float) -RailgunConfig.BARREL_LENGTH);
         for (int i = 0; i < arcs; i++) {
             float along = 0.15f + rand.nextFloat() * 0.8f;
             Vector3f start = new Vector3f(back).mul(along).add(b.a)
