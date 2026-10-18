@@ -272,7 +272,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
 
     private void clientTick(RailgunState state, int t) {
         World world = getWorld();
-        var rand = getRandom();
+        var rand = this.random;
         switch (state) {
             case FALLING -> {
                 // Re-entry plasma + smoke trail streaming above the falling pod.
