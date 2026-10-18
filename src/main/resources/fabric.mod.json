@@ -5,7 +5,7 @@
   "name": "Orbital Railgun",
   "description": "Call down an autonomous orbital railgun platform, lock a target and fire a volumetric red beam.",
   "authors": ["CreedPDF"],
-  "contact": { "sources": "https://github.com/CreedPDF/orbital-railgun" },
+  "contact": { "sources": "https://github.com/CreedPDF/Railguns-" },
   "license": "MIT",
   "icon": "assets/orbital_railgun/icon.png",
   "environment": "*",
