@@ -107,7 +107,7 @@ To edit by hand, open the `.blend`, change the modelling objects or Actions, and
 into `build_models.py` (the script is the source of truth). Contracts the Java code relies on:
 - Bone **`turret`**: yaw pivot, at `PIVOT_Y` (2.5 blocks = 40 px) above the origin.
 - Bone **`barrel`**: child of turret, pitch pivot, pointing toward −Z (north), muzzle
-  `BARREL_LENGTH` (3.8 blocks) from the pivot.
+  `BARREL_LENGTH` (4.0 blocks) from the pivot.
 - Animation names as above; `deploy` is 3 s and holds its last frame.
 - Glowing parts must exist: `tools/validate_assets.py` fails the build if the glowmask is
   empty, because GeckoLib crashes on an empty glow layer.

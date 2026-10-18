@@ -161,8 +161,9 @@ def bake_material(kind, image, mask):
     seam, shade, light = PALETTE[kind]
     coords = nt.nodes.new("ShaderNodeTexCoord")
     noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 7.0
-    noise.inputs["Detail"].default_value = 3.0
+    # Low-frequency noise = subtle weathering, not per-pixel grain.
+    noise.inputs["Scale"].default_value = 2.2 if kind == "concrete" else 1.4
+    noise.inputs["Detail"].default_value = 2.0
     nt.links.new(coords.outputs["Object"], noise.inputs["Vector"])
 
     ramp = nt.nodes.new("ShaderNodeValToRGB")
@@ -174,12 +175,12 @@ def bake_material(kind, image, mask):
     else:
         voronoi = nt.nodes.new("ShaderNodeTexVoronoi")
         voronoi.feature = "DISTANCE_TO_EDGE"
-        voronoi.inputs["Scale"].default_value = 3.0
+        voronoi.inputs["Scale"].default_value = 1.6 if kind == "concrete" else 1.1
         nt.links.new(coords.outputs["Object"], voronoi.inputs["Vector"])
 
         is_seam = nt.nodes.new("ShaderNodeMath")
         is_seam.operation = "LESS_THAN"
-        is_seam.inputs[1].default_value = 0.035
+        is_seam.inputs[1].default_value = 0.025
         nt.links.new(voronoi.outputs["Distance"], is_seam.inputs[0])
 
         not_seam = nt.nodes.new("ShaderNodeMath")
@@ -193,9 +194,9 @@ def bake_material(kind, image, mask):
         nt.links.new(not_seam.outputs[0], value.inputs[1])
         nt.links.new(value.outputs[0], ramp.inputs["Fac"])
 
-        els[0].position, els[0].color = 0.05, srgb(seam)
-        els[1].position, els[1].color = 0.4, srgb(shade)
-        top = els.new(0.7)
+        els[0].position, els[0].color = 0.04, srgb(seam)
+        els[1].position, els[1].color = 0.22, srgb(shade)
+        top = els.new(0.55)
         top.color = srgb(light)
 
     nt.links.new(ramp.outputs["Color"], emit.inputs["Color"])
@@ -220,7 +221,7 @@ def preview_material(name, atlas, glow):
     nt.links.new(gtex.outputs["Color"], mult.inputs[0])
     nt.links.new(gtex.outputs["Alpha"], mult.inputs[1])
     nt.links.new(mult.outputs["Vector"], bsdf.inputs["Emission Color"])
-    bsdf.inputs["Emission Strength"].default_value = 6.0
+    bsdf.inputs["Emission Strength"].default_value = 3.0
     bsdf.inputs["Metallic"].default_value = 0.55
     bsdf.inputs["Roughness"].default_value = 0.45
     return mat
@@ -406,28 +407,28 @@ def build_railgun():
     make_part("yoke_hub_glow", B["turret"], "glow", [([-15.5, 39, -1], [0.5, 2, 2])], mirror=("x",))
     make_part("yoke_pistons", B["turret"], "hull", [([-12, 21, 9], [3, 12, 3])], mirror=("x",))
 
-    # ---- Barrel housing (points to -Z / north) -------------------------------------------------
-    make_part("barrel_walls", B["barrel"], "paint", [([-10, 33, -58], [6, 13, 66])], mirror=("x",))
-    make_part("barrel_floor", B["barrel"], "paint", [([-10, 31, -56], [20, 2, 64])])
-    make_part("barrel_roof", B["barrel"], "paint", [([-10, 46, -26], [20, 3, 34])])
-    make_part("barrel_roof_vents", B["barrel"], "dark", [([-6, 48.6, -22], [12, 0.5, 2])], array=(4, [0, 0, 6]))
-    make_part("barrel_slot_core", B["barrel"], "dark", [([-4, 33, -58], [8, 4, 32])])
-    make_part("barrel_rail_core", B["barrel"], "glow", [([-1.5, 38.5, -57], [3, 3, 52])])
-    make_part("barrel_wall_grooves", B["barrel"], "dark", [([-10.2, 41, -54], [0.2, 1, 28])], mirror=("x",))
-    make_part("barrel_wall_panels", B["barrel"], "hull", [([-10.4, 35, -20], [0.4, 8, 14])], mirror=("x",))
-    make_part("barrel_wall_glow", B["barrel"], "glow", [([-10.5, 43, -18], [0.5, 1, 10])], mirror=("x",))
-    make_part("barrel_muzzle_top", B["barrel"], "dark", [([-11, 46, -62], [22, 3, 4])])
-    make_part("barrel_muzzle_bottom", B["barrel"], "dark", [([-11, 30, -62], [22, 3, 4])])
-    make_part("barrel_muzzle_sides", B["barrel"], "dark", [([-11, 33, -62], [4, 13, 4])], mirror=("x",))
-    make_part("barrel_breech", B["barrel"], "paint", [([-12, 31, 8], [24, 17, 10])])
-    make_part("barrel_breech_cap", B["barrel"], "dark", [([-10, 33, 18], [20, 13, 3])])
-    make_part("barrel_breech_fins", B["barrel"], "hull", [([-9, 34, 21], [18, 1, 2])], array=(4, [0, 3, 0]))
-    make_part("barrel_breech_light", B["barrel"], "amber", [([-1, 49, 10], [2, 1, 2])])
-    make_part("barrel_sensor", B["barrel"], "dark", [([-3, 49, -8], [6, 3, 8])])
-    make_part("barrel_sensor_eye", B["barrel"], "glow", [([-2, 50, -8.5], [4, 1, 0.5])])
+    # ---- Barrel housing (points to -Z / north): long, slim, slotted -------------------------
+    make_part("barrel_walls", B["barrel"], "paint", [([-9, 34, -62], [5, 12, 70])], mirror=("x",))
+    make_part("barrel_floor", B["barrel"], "paint", [([-9, 32, -60], [18, 2, 68])])
+    make_part("barrel_roof", B["barrel"], "paint", [([-9, 46, -24], [18, 2, 32])])
+    make_part("barrel_roof_vents", B["barrel"], "dark", [([-6, 47.6, -20], [12, 0.5, 2])], array=(4, [0, 0, 6]))
+    make_part("barrel_slot_core", B["barrel"], "dark", [([-4, 34, -62], [8, 3, 38])])
+    make_part("barrel_rail_core", B["barrel"], "glow", [([-1.5, 38.5, -61], [3, 3, 56])])
+    make_part("barrel_wall_grooves", B["barrel"], "dark", [([-9.2, 42, -58], [0.2, 1, 32])], mirror=("x",))
+    make_part("barrel_wall_panels", B["barrel"], "hull", [([-9.4, 36, -20], [0.4, 7, 14])], mirror=("x",))
+    make_part("barrel_wall_glow", B["barrel"], "glow", [([-9.5, 44, -18], [0.5, 1, 10])], mirror=("x",))
+    make_part("barrel_muzzle_top", B["barrel"], "dark", [([-10, 46, -66], [20, 3, 4])])
+    make_part("barrel_muzzle_bottom", B["barrel"], "dark", [([-10, 31, -66], [20, 3, 4])])
+    make_part("barrel_muzzle_sides", B["barrel"], "dark", [([-10, 34, -66], [4, 12, 4])], mirror=("x",))
+    make_part("barrel_breech", B["barrel"], "paint", [([-11, 32, 8], [22, 15, 10])])
+    make_part("barrel_breech_cap", B["barrel"], "dark", [([-9, 34, 18], [18, 11, 3])])
+    make_part("barrel_breech_fins", B["barrel"], "hull", [([-8, 35, 21], [16, 1, 2])], array=(4, [0, 3, 0]))
+    make_part("barrel_breech_light", B["barrel"], "amber", [([-1, 47, 10], [2, 1, 2])])
+    make_part("barrel_sensor", B["barrel"], "dark", [([-3, 48, -8], [6, 3, 8])])
+    make_part("barrel_sensor_eye", B["barrel"], "glow", [([-2, 49, -8.5], [4, 1, 0.5])])
 
     # ---- Accelerator coils: square frames around the core, spin about the barrel axis --------
-    for z in (-52, -44, -36):
+    for z in (-56, -48, -40):
         make_part(f"coil_{-z}_tb", B["coils"], "glow", [([-3, 43, z], [6, 1, 2]), ([-3, 36, z], [6, 1, 2])])
         make_part(f"coil_{-z}_s", B["coils"], "glow", [([-3, 37, z], [1, 6, 2])], mirror=("x",))
     return bones
@@ -890,8 +891,8 @@ def setup_camera_and_lights():
     key.data.energy = 3.5
     key.rotation_euler = (math.radians(50), math.radians(10), math.radians(-35))
     rim = link(bpy.data.objects.new("rim", bpy.data.lights.new("rim", "SUN")))
-    rim.data.energy = 2.0
-    rim.data.color = (1.0, 0.35, 0.3)
+    rim.data.energy = 1.5
+    rim.data.color = (0.65, 0.75, 1.0)
     rim.rotation_euler = (math.radians(70), 0, math.radians(160))
 
     ground = bpy.data.meshes.new("ground")
