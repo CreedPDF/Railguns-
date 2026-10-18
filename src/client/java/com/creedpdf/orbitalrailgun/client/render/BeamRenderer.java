@@ -50,7 +50,10 @@ public final class BeamRenderer {
     public static void render(RailgunEntity railgun, float tickDelta, MatrixStack matrices, VertexConsumerProvider consumers) {
         Vec3d origin = railgun.getLerpedPos(tickDelta);
         Vector3f muzzle = toLocal(railgun.getMuzzlePos(tickDelta), origin);
-        Vector3f target = toLocal(Vec3d.ofCenter(railgun.getTarget()), origin);
+        Vector3f surface = toLocal(Vec3d.ofCenter(railgun.getTarget()), origin);
+        // While firing, the beam keeps going: it bores on through the target.
+        Vector3f target = railgun.getState() == RailgunState.FIRING
+                ? toLocal(railgun.getBeamEnd(tickDelta), origin) : surface;
         Matrix4f m = matrices.peek().getPositionMatrix();
         float time = railgun.age + tickDelta;
         Beam beam = new Beam(muzzle, target);
@@ -60,7 +63,7 @@ public final class BeamRenderer {
             renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time);
         } else if (railgun.getState() == RailgunState.FIRING) {
             float p = MathHelper.clamp((railgun.getStateTicks() + tickDelta) / RailgunConfig.FIRE_TICKS, 0f, 1f);
-            renderFiring(consumers, m, beam, p, time);
+            renderFiring(consumers, m, beam, surface, p, time);
         }
     }
 
@@ -108,7 +111,7 @@ public final class BeamRenderer {
     // Firing
     // =========================================================================================
 
-    private static void renderFiring(VertexConsumerProvider cp, Matrix4f m, Beam b, float p, float time) {
+    private static void renderFiring(VertexConsumerProvider cp, Matrix4f m, Beam b, Vector3f surface, float p, float time) {
         // Envelope: a blinding ignition flash, a long sustained burn, then a fast collapse.
         float sustain = p < 0.6f ? 1f : (float) Math.pow(1f - (p - 0.6f) / 0.4f, 1.6);
         float flicker = 0.9f + 0.1f * MathHelper.sin(time * 7.3f) * MathHelper.sin(time * 3.1f);
@@ -167,14 +170,18 @@ public final class BeamRenderer {
             texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, c, b.dir, rr, rr + 2.5f + q * 4f, 1f, 0.6f, 0.5f, 0.9f * (1f - q), time * 0.02f);
         }
 
+        // Bore tip: a white-hot point where the beam is eating through the ground.
+        glowSphere(glow(cp), m, b.b, 2.5f * B, 1f, 0.97f, 0.92f, 0.9f * i);
+        glowSphere(glow(cp), m, b.b, 6f * B, 1f, 0.3f, 0.1f, 0.35f * i);
+
         // Impact: fireball, expanding blast dome and rolling ground shockwaves.
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.b, 6.5f * B * throb, 1f, 0.55f, 0.45f, 0.95f * i, time * 0.06f, -time * 0.05f);
-        glowSphere(glow(cp), m, b.b, 4.2f * B, 1f, 0.97f, 0.92f, 0.95f * i);
-        glowSphere(glow(cp), m, b.b, 11f * B, 1f, 0.2f, 0.06f, 0.3f * i);
-        glowSphere(glow(cp), m, b.b, 20f * B, 1f, 0.06f, 0.02f, 0.10f * i);
+        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, surface, 6.5f * B * throb, 1f, 0.55f, 0.45f, 0.95f * i, time * 0.06f, -time * 0.05f);
+        glowSphere(glow(cp), m, surface, 4.2f * B, 1f, 0.97f, 0.92f, 0.95f * i);
+        glowSphere(glow(cp), m, surface, 11f * B, 1f, 0.2f, 0.06f, 0.3f * i);
+        glowSphere(glow(cp), m, surface, 20f * B, 1f, 0.06f, 0.02f, 0.10f * i);
         float dome = Math.min(1f, p * 2.2f);
-        texSphere(tex(cp, BeamRenderLayers.TEX_HALO), m, b.b, 4f + dome * 22f, 1f, 0.35f, 0.25f, 0.55f * (1f - dome), time * 0.03f, time * 0.02f);
-        Vector3f ground = new Vector3f(b.b).add(0, -0.4f, 0);
+        texSphere(tex(cp, BeamRenderLayers.TEX_HALO), m, surface, 4f + dome * 22f, 1f, 0.35f, 0.25f, 0.55f * (1f - dome), time * 0.03f, time * 0.02f);
+        Vector3f ground = new Vector3f(surface).add(0, -0.4f, 0);
         Vector3f up = new Vector3f(0, 1, 0);
         float w1 = 4f + p * 90f;
         texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, ground, up, w1, w1 + 8f, 1f, 0.55f, 0.45f, 0.95f * (1f - p), time * 0.01f);

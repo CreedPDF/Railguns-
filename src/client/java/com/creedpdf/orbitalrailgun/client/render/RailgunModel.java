@@ -52,6 +52,7 @@ public class RailgunModel extends GeoModel<RailgunEntity> {
         // Always applied: the entity decides the aim per state (rail straight up while packed).
 
         float partialTick = animationState.getPartialTick();
+        RailgunAnimator.apply(animatable, getAnimationProcessor(), partialTick);
         CoreGeoBone turret = getAnimationProcessor().getBone("turret");
         CoreGeoBone barrel = getAnimationProcessor().getBone("barrel");
         if (turret != null) turret.setRotY(YAW_SIGN * animatable.getAimYawRad(partialTick));

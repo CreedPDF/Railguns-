@@ -579,7 +579,7 @@ def railgun_panel():
 
 # Deployment timeline (s), mirrors tools/blender/build_models.py
 T_BOLTS, T_UNLATCH, T_GLIDE = 0.3, 1.8, (2.3, 3.8)
-T_DECKS, T_CLAMP_OUT, T_SLAM = 3.9, (5.0, 5.9), 6.5
+T_DECKS, T_CLAMP_OUT, T_SLAM = 3.9, (4.8, 5.95), 6.5
 T_TURRET, T_RADAR, T_RAIL = (6.8, 8.3), 8.3, 8.8
 T_SEG, T_COILS, T_PANEL = (10.2, 10.7), 11.2, 11.55
 

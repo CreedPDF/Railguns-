@@ -46,6 +46,12 @@ removed when it packs up.
 One railgun per player. Creative players can sneak-punch a railgun to remove it instantly.
 Tuning (ranges, timings, blast power, block damage) lives in `RailgunConfig.java`.
 
+### Penetration
+The shot cuts straight through anything between the muzzle and the target, then keeps boring on
+along the beam: a tunnel 8 blocks wide up to 96 blocks deep, with blasts at the bore tip, on top of
+the main blast and two rings of secondary blasts around the crater. Only unbreakable blocks stop
+it. All of it is tunable in `RailgunConfig` (`BORE_*`, `PATH_RADIUS`, `*_POWER`, `BREAK_BLOCKS`).
+
 ## Building
 Every push to `main` runs GitHub Actions, which:
 1. downloads Blender 4.2 LTS and runs `tools/blender/build_models.py` headless,
@@ -69,7 +75,7 @@ Model contracts the Java code relies on:
   `shell_*` quarters (with `clamp_*`, `bolt_*`, `beacon_*`), `strut_*_1..3`, `deck_n/e/w`, `turret`
   (`hull`, `radar` → `dish`, `antenna`), `barrel` (`vents`, `coils_a`, `seg1` → `coils_b`,
   `seg2` → `coils_c`) and `pod_panel` (the tablet in the core's hatch).
-- Animations: `pod`, `panel_open` (1.5 s), `deploy` (12 s), `pack` (12 s, deploy reversed with mirrored easings), `idle`, `charge`, `fire`. Keyframes carry GeckoLib easings (`easeInOutCubic`, `easeOutBack`, `easeInQuart` for the clamp slam...).
+- Animations: `pod`, `panel_open` (1.5 s), `deploy` (12 s), `pack` (12 s, deploy reversed with mirrored easings), `idle`, `charge`, `fire`. Keyframes carry easings (`easeInOutCubic`, `easeOutBack`, `easeInQuart` for the clamp slam...). The client plays them itself (`RailgunAnimator`) from the synced state and how long the railgun has been in it, rather than through GeckoLib controllers, so the animation always matches the server timeline.
 - Boxes only, optionally rotated about Y or Z around their own pivot (octagonal hull, barrel and diagonal bulwarks).
 - The glowmask must have lit pixels (GeckoLib crashes on an empty glow layer); CI enforces it.
 

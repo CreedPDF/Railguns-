@@ -52,19 +52,28 @@ public final class RailgunConfig {
 
     // ---- Weapon --------------------------------------------------------------------------
     public static final double MAX_FIRE_RANGE = 512.0;
-    public static final float IMPACT_EXPLOSION_POWER = 16.0f;
-    public static final float SECONDARY_EXPLOSION_POWER = 9.0f;
-    /** Number of secondary explosions punched downward from the impact point. */
-    public static final int PENETRATION_STEPS = 7;
-    public static final double PENETRATION_STEP_DEPTH = 4.0;
+    public static final float IMPACT_EXPLOSION_POWER = 20.0f;
+    public static final float SECONDARY_EXPLOSION_POWER = 10.0f;
+    /**
+     * Penetration: the beam bores on through the target along its direction, vaporizing a
+     * tunnel BORE_RADIUS wide up to BORE_DEPTH blocks deep at BORE_SPEED blocks per tick, with a
+     * blast every BORE_BLAST_EVERY ticks at the bore tip. Anything in the way between the muzzle
+     * and the target is cut through too (PATH_RADIUS). Only unbreakable blocks stop it.
+     */
+    public static final double BORE_DEPTH = 96.0;
+    public static final double BORE_RADIUS = 4.0;
+    public static final double BORE_SPEED = 2.4;
+    public static final int BORE_BLAST_EVERY = 6;
+    public static final float BORE_BLAST_POWER = 8.0f;
+    public static final double PATH_RADIUS = 2.5;
     /** If false, explosions damage entities but never break blocks. */
     public static final boolean BREAK_BLOCKS = true;
-    public static final float BEAM_DAMAGE = 120.0f;
-    public static final double BEAM_HIT_RADIUS = 6.0;
+    public static final float BEAM_DAMAGE = 250.0f;
+    public static final double BEAM_HIT_RADIUS = 7.0;
     /** Ring of blasts around the impact a moment after the strike (count, radius, power). */
     public static final int RING_BLASTS = 8;
     public static final double RING_BLAST_RADIUS = 9.0;
-    public static final float RING_BLAST_POWER = 7.0f;
+    public static final float RING_BLAST_POWER = 9.0f;
 
     // ---- Interaction ---------------------------------------------------------------------
     public static final double MAX_INTERACT_DISTANCE = 24.0;

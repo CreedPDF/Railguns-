@@ -1281,9 +1281,15 @@ def _deck_in(d, f=1.0):
     return [-ax * DECK_OUT * f, 0, -az * DECK_OUT * f]
 
 
-def _clamp_in(q, lift=6.0):
+CLAMP_STOW = 50.0        # px along the diagonal: stowed fully inside the core
+
+
+def _clamp_in(q, lift=6.0, extra=0.0):
+    """Clamp offset (relative to its shell quarter) that keeps it stowed inside the core.
+    `extra` counters the shell's own outward travel, so the clamp stays put inside the core
+    while the quarters glide away, and only comes out when it is its turn."""
     sx, sz = QUADS[q]
-    k = 30 / math.sqrt(2)
+    k = (CLAMP_STOW + extra) / math.sqrt(2)
     return [-sx * k, lift, -sz * k]
 
 
@@ -1317,7 +1323,7 @@ T_BOLTS = 0.3            # locking bolts pop one after another
 T_UNLATCH = 1.8          # shell quarters crack open
 T_GLIDE = (2.3, 3.8)     # quarters + struts glide out
 T_DECKS = 3.9            # deck plates, staggered 0.25 s, 0.7 s each
-T_CLAMP_OUT = (5.0, 5.9)
+T_CLAMP_OUT = (4.8, 5.95)
 T_SLAM = 6.5             # * CLAMP_SLAM_TICK = 130
 T_TURRET = (6.8, 8.3)
 T_RADAR = 8.3
@@ -1334,7 +1340,7 @@ def _deploy():
       1.8-2.1   the four armour quarters unlatch (crack open)
       2.3-3.8   quarters glide out along the diagonals; the telescoping struts extend with them
       3.9-5.1   deck plates slide out from under the pod, one after another
-      5.0-6.5   ground clamps slide out raised, wind up and SLAM into the ground at 6.5 s
+      4.8-6.5   ground clamps (stowed in the core) slide out under the struts, wind up and SLAM at 6.5 s
       6.8-8.3   turret rises out of the core
       8.3-9.0   radar mast and antenna telescope up, the dish starts turning
       8.8-10.1  (procedural) the rail lowers from vertical
@@ -1357,7 +1363,11 @@ def _deploy():
                                                 T_UNLATCH + 0.3: (_strut_in(q, k, 0.88), OUT),
                                                 g0: _strut_in(q, k, 0.88), g1: (ZERO, IO)}}
         c0, c1 = T_CLAMP_OUT
-        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q), c0: _clamp_in(q), c1: ([0, 10, 0], IO),
+        glide = STRUT_SHIFT[3]
+        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q), T_UNLATCH: _clamp_in(q),
+                                        T_UNLATCH + 0.3: (_clamp_in(q, extra=0.12 * glide), OUT),
+                                        g0: _clamp_in(q, extra=0.12 * glide), g1: (_clamp_in(q, extra=glide), IO),
+                                        c0: _clamp_in(q, extra=glide), c1: ([0, 10, 0], IO),
                                         T_SLAM - 0.4: [0, 10, 0], T_SLAM - 0.15: ([0, 13, 0], OUT),
                                         T_SLAM: (ZERO, SLAM)}}
     for i, d in enumerate(("deck_e", "deck_n", "deck_w")):
