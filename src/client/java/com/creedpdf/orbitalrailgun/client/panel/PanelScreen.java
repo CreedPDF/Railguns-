@@ -58,7 +58,6 @@ public class PanelScreen extends Screen {
         camYaw = 0f;
         camPitch = 1.0f;
     }
-    }
 
     // ---- Camera hook (CameraMixin) -------------------------------------------------------------
 

@@ -512,10 +512,10 @@ def build_railgun():
         # top collar quarter
         box(sh, "dark", [(A - T - 2) if sx > 0 else -(A - 0), SHELL_TOP, z0], [T + 2, 4, half], off)
         rbox(sh, "dark", [cx - L / 2, SHELL_TOP, cz - (T + 2) / 2], [L, 4, T + 2], [cx, SHELL_TOP, cz], "y", ang, off)
-        # re-entry fin on the diagonal (never on the panel face)
-        diag_box(sh, "steel", sx, sz, (sx * 20, sz * 20), 12, 34, 3, 18, 84, off)
-        diag_box(sh, "glow", sx, sz, (sx * 20, sz * 20), 30, 34.6, 3.6, 24, 78, off)
-        diag_box(sh, "dark", sx, sz, (sx * 20, sz * 20), 22, 36, 5, 84, 92, off)
+                # armour rib on the diagonal: shallow, so the pod stays a clean octagonal pillar
+        diag_box(sh, "steel", sx, sz, (sx * 20, sz * 20), 4, 9, 3, 14, 96, off)
+        diag_box(sh, "glow", sx, sz, (sx * 20, sz * 20), 8.6, 9.4, 1.6, 22, 88, off)
+        diag_box(sh, "dark", sx, sz, (sx * 20, sz * 20), 4, 10, 4, 96, 100, off)
         # corner deck slab (bulwark floor)
         box(sh, "steel", [4 if sx > 0 else -30, 0, 4 if sz > 0 else -30], [26, 18, 26], off)
         box(sh, "vent", [6 if sx > 0 else -28, 18, 6 if sz > 0 else -28], [22, 1, 22], off)
@@ -1608,17 +1608,17 @@ def main():
 
         pose(rg_bones, "animation.railgun.deploy", DEPLOY_LEN)
         rail_up(False)
-        render(os.path.join(out, "railgun_deployed.png"), cam, target, (22.0, 19.0, 10.0), (0.0, 5.0, 4.5), 1100, lens=30)
-        render(os.path.join(assets, "icon.png"), cam, target, (24.0, 20.0, 13.0), (0.0, 5.0, 5.0), 128, samples=32, lens=30)
-        render(os.path.join(out, "railgun_front.png"), cam, target, (5.0, 16.0, 6.0), (0.0, 0.0, 3.5), 1100, lens=32)
+        render(os.path.join(out, "railgun_deployed.png"), cam, target, (21.0, -20.0, 10.0), (0.0, -4.0, 4.5), 1100, lens=30)
+        render(os.path.join(assets, "icon.png"), cam, target, (23.0, -21.0, 13.0), (0.0, -4.0, 5.0), 128, samples=32, lens=30)
+        render(os.path.join(out, "railgun_front.png"), cam, target, (5.0, -16.0, 5.0), (0.0, 0.0, 3.5), 1100, lens=32)
         pose(rg_bones, "animation.railgun.pod", 0.0)
         rail_up(True)
-        render(os.path.join(out, "railgun_pod.png"), cam, target, (10.0, 9.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)
-        render(os.path.join(out, "railgun_pod_panel.png"), cam, target, (1.2, 4.6, 3.1), (0.0, 1.9, 3.0), 900, lens=35)
+        render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -10.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)
+        render(os.path.join(out, "railgun_pod_panel.png"), cam, target, (0.8, -4.9, 3.3), (0.0, -2.0, 3.0), 900, lens=35)
         for t_s in (2.2, 4.4, 6.6, 8.8):
             pose(rg_bones, "animation.railgun.deploy", t_s)
             rail_up(t_s < 9.0)
-            render(os.path.join(out, f"railgun_deploy_{t_s:04.1f}s.png"), cam, target, (16.0, 15.0, 9.0), (0.0, 0.0, 3.5), 800, lens=30)
+            render(os.path.join(out, f"railgun_deploy_{t_s:04.1f}s.png"), cam, target, (15.0, -16.0, 9.0), (0.0, 0.0, 3.5), 800, lens=30)
         reset_pose(rg_bones)
         rail_up(False)
 
