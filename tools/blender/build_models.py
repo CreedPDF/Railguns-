@@ -103,11 +103,14 @@ def srgb(hex_color):
 
 # Material "kinds" used by the modelling objects. GLOW kinds become emissive (glowmask).
 PALETTE = {
-    "hull": ("#2f343c", "#4c535e", "#68717e"),   # seam, shade, light
+    "concrete": ("#4a4844", "#7d7a74", "#a29e96"),  # seam, shade, light
+    "paint": ("#7c8086", "#bfc3c8", "#e6e8eb"),    # off-white armour panels
+    "hull": ("#2f343c", "#4c535e", "#68717e"),
     "dark": ("#101215", "#1e2126", "#2c3038"),
     "glow": ("#5a0000", "#c8120c", "#ff4a30"),
     "amber": ("#5a3000", "#d68a10", "#ffc040"),
 }
+KINDS = list(PALETTE)
 GLOW_KINDS = {"glow", "amber"}
 
 
@@ -287,14 +290,55 @@ def make_part(name, bone, kind, boxes, mirror=(), array=None):
     return obj
 
 
+def make_rot_part(name, bone, kind, center_xz, y0, side, height, angle=45.0):
+    """
+    A square box rotated around the vertical axis (Bedrock cube "rotation"). Used for the
+    octagonal concrete tiers and turntable: an upright square plus a 45-degree square = an
+    octagon. Only squares are rotated, which keeps the result identical whichever sign convention
+    the renderer uses for Y rotation.
+    """
+    pivot = Vector(bone["pivot_mc"])
+    h = side / 2.0
+    bm = bmesh.new()
+    lo, hi = Vector((-h / 16, -h / 16, 0)), Vector((h / 16, h / 16, height / 16))
+    v = [bm.verts.new((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
+    for quad in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
+        bm.faces.new([v[i] for i in quad])
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(viewport_material(kind))
+    obj = link(bpy.data.objects.new(name, mesh))
+    obj.parent = bone
+    obj.location = mc_to_b([center_xz[0], y0, center_xz[1]]) - mc_to_b(list(pivot))
+    obj.rotation_euler = (0, 0, math.radians(angle))
+    obj["kind"] = kind
+    obj["export"] = True
+    obj["rot_y"] = angle
+    obj["cube_mc"] = [center_xz[0] - h, y0, center_xz[1] - h, side, height, side]
+    return obj
+
+
+def octagon(name, bone, kind, y0, width, height, center_xz=(0, 0)):
+    """Chamfered octagon slab = square + 45-degree square (82% size so corners are cut, not pointy)."""
+    make_part(f"{name}_sq", bone, kind, [([center_xz[0] - width / 2, y0, center_xz[1] - width / 2],
+                                          [width, height, width])])
+    make_rot_part(f"{name}_rot", bone, kind, center_xz, y0, round(width * 0.82, 2), height)
+
+
 def leg_boxes(direction):
-    """Leg geometry authored for north (-Z) and rotated in 90° steps around Y."""
+    """
+    Perimeter anchor block cluster (the chunky concrete blocks around the bunker in the
+    reference), authored for the north side and rotated in 90-degree steps around Y.
+    """
     north = [
-        ("hull", [[-3, 0, -34], [6, 5, 20]]),
-        ("dark", [[-5, 0, -38], [10, 2, 6]]),
-        ("glow", [[-1, 5, -30], [2, 1, 14]]),
-        ("dark", [[-2, 5, -22], [4, 3, 6]]),
-        ("dark", [[-4, 1, -17], [8, 4, 3]]),
+        ("concrete", [[-25, 0, -40], [21, 8, 13]]),
+        ("concrete", [[4, 0, -40], [21, 8, 13]]),
+        ("concrete", [[-22, 8, -37], [15, 3, 8]]),
+        ("concrete", [[7, 8, -37], [15, 3, 8]]),
+        ("concrete", [[-4, 0, -36], [8, 5, 8]]),
+        ("dark", [[-3, 0, -43], [6, 3, 4]]),
+        ("amber", [[-1, 5, -36.5], [2, 1, 1]]),
     ]
 
     def rot(o, s):
@@ -312,7 +356,14 @@ def leg_boxes(direction):
 
 
 def build_railgun():
-    """Authoring the railgun. Returns {bone_name: empty} in parent-before-child order."""
+    """
+    Railgun emplacement modelled after the concept sketch: an octagonal two-tier concrete bunker
+    ringed by chunky anchor blocks, a dark turntable ring, a yoke with white armoured cheek
+    plates, and a long rectangular white barrel housing with an open slot exposing the glowing
+    accelerator core, plus a boxy breech at the rear.
+
+    Returns {bone_name: empty} in parent-before-child order.
+    """
     bones = {}
 
     def bone(name, parent, pivot):
@@ -321,52 +372,64 @@ def build_railgun():
 
     bone("root", None, [0, 0, 0])
     bone("base", "root", [0, 0, 0])
-    for d, pivot in (("n", [0, 2, -14]), ("s", [0, 2, 14]), ("e", [14, 2, 0]), ("w", [-14, 2, 0])):
+    for d, pivot in (("n", [0, 2, -27]), ("s", [0, 2, 27]), ("e", [27, 2, 0]), ("w", [-27, 2, 0])):
         bone(f"leg_{d}", "base", pivot)
     bone("turret", "root", [0, 40, 0])
     bone("barrel", "turret", [0, 40, 0])
     bone("coils", "barrel", [0, 40, 0])
-
     B = bones
-    # ---- Base -------------------------------------------------------------------------
-    make_part("base_skirt", B["base"], "dark", [([-17, 0, -17], [34, 3, 34])])
-    make_part("base_hull", B["base"], "hull", [([-14, 3, -14], [28, 7, 28])])
-    make_part("base_band", B["base"], "glow", [([-15, 10, -15], [30, 1, 30])])
-    make_part("base_deck", B["base"], "dark", [([-11, 11, -11], [22, 2, 22])])
-    make_part("base_collar", B["base"], "hull", [([-8, 13, -8], [16, 4, 16])])
-    make_part("base_mast", B["base"], "dark", [([-5, 17, -5], [10, 13, 10])])
-    make_part("base_vents", B["base"], "dark", [([-11, 4, -15], [3, 4, 1])], mirror=("z",), array=(4, [6, 0, 0]))
-    make_part("base_vents_side", B["base"], "dark", [([-15, 4, -11], [1, 4, 3])], mirror=("x",), array=(4, [0, 0, 6]))
-    make_part("base_corner_lights", B["base"], "amber", [([-17, 3, -17], [3, 2, 3])], mirror=("x", "z"))
 
-    # ---- Legs -------------------------------------------------------------------------
+    # ---- Concrete bunker -------------------------------------------------------------------
+    octagon("bunker_low", B["base"], "concrete", 0, 54, 8)
+    octagon("bunker_high", B["base"], "concrete", 8, 42, 6)
+    octagon("bunker_deck", B["base"], "dark", 14, 32, 2)
+    make_part("bunker_lip", B["base"], "concrete", [([-27.5, 7, -27.5], [55, 1, 2])], mirror=("z",))
+    make_part("bunker_lip_side", B["base"], "concrete", [([-27.5, 7, -25.5], [2, 1, 51])], mirror=("x",))
+    make_part("bunker_cracks", B["base"], "dark", [([-13, 13.9, -21.1], [6, 0.2, 0.2])], mirror=("x", "z"))
+    make_part("bunker_lights", B["base"], "glow", [([-1, 10, -21.2], [2, 2, 0.2])], mirror=("z",))
+    make_part("bunker_lights_side", B["base"], "glow", [([-21.2, 10, -1], [0.2, 2, 2])], mirror=("x",))
+
+    # ---- Anchor block clusters (deploy outward) ----------------------------------------------
     for d in ("n", "s", "e", "w"):
         for i, (kind, (o, s)) in enumerate(leg_boxes(d)):
             make_part(f"leg_{d}_{i}", B[f"leg_{d}"], kind, [(o, s)])
 
-    # ---- Turret -----------------------------------------------------------------------
-    make_part("turret_body", B["turret"], "hull", [([-10, 30, -10], [20, 12, 20])])
-    make_part("turret_roof", B["turret"], "dark", [([-8, 42, -8], [16, 2, 16])])
-    make_part("turret_capacitors", B["turret"], "dark", [([-14, 31, -7], [4, 10, 14])], mirror=("x",))
-    make_part("turret_cap_glow", B["turret"], "glow", [([-15, 33, -5], [1, 6, 10])], mirror=("x",))
-    make_part("turret_sensor", B["turret"], "dark", [([-3, 44, 3], [6, 3, 5])])
-    make_part("turret_sensor_eye", B["turret"], "glow", [([-2, 45, 2], [4, 1, 1])])
-    make_part("turret_fins", B["turret"], "dark", [([-9, 31, 10], [18, 1, 3])], array=(4, [0, 3, 0]))
+    # ---- Turret: turntable + yoke ------------------------------------------------------------
+    octagon("turntable_ring", B["turret"], "dark", 16, 30, 3)
+    octagon("turntable_top", B["turret"], "paint", 19, 25, 2)
+    make_part("turntable_glow", B["turret"], "glow", [([-1, 17, -15.2], [2, 1, 0.2])], mirror=("z",))
+    make_part("yoke_column", B["turret"], "dark", [([-7, 21, -7], [14, 10, 14])])
+    make_part("yoke_core", B["turret"], "hull", [([-5, 31, -5], [10, 4, 10])])
+    make_part("yoke_cheeks", B["turret"], "paint", [([-14, 23, -9], [5, 22, 18])], mirror=("x",))
+    make_part("yoke_cheek_bevel", B["turret"], "paint", [([-13, 21, -7], [4, 2, 14])], mirror=("x",))
+    make_part("yoke_hubs", B["turret"], "dark", [([-15, 36, -4], [1, 8, 8])], mirror=("x",))
+    make_part("yoke_hub_glow", B["turret"], "glow", [([-15.5, 39, -1], [0.5, 2, 2])], mirror=("x",))
+    make_part("yoke_pistons", B["turret"], "hull", [([-12, 21, 9], [3, 12, 3])], mirror=("x",))
 
-    # ---- Barrel (points to -Z / north) -------------------------------------------------
-    make_part("barrel_breech", B["barrel"], "dark", [([-6, 35, -4], [12, 10, 14])])
-    make_part("barrel_rails", B["barrel"], "hull", [([-5, 37, -52], [3, 6, 48])], mirror=("x",))
-    make_part("barrel_core", B["barrel"], "glow", [([-2, 38, -50], [4, 4, 46])])
-    make_part("barrel_muzzle", B["barrel"], "dark", [([-7, 34, -56], [14, 12, 4])])
-    make_part("barrel_capacitor", B["barrel"], "dark", [([-3, 32, -20], [6, 3, 16])])
+    # ---- Barrel housing (points to -Z / north) -------------------------------------------------
+    make_part("barrel_walls", B["barrel"], "paint", [([-10, 33, -58], [6, 13, 66])], mirror=("x",))
+    make_part("barrel_floor", B["barrel"], "paint", [([-10, 31, -56], [20, 2, 64])])
+    make_part("barrel_roof", B["barrel"], "paint", [([-10, 46, -26], [20, 3, 34])])
+    make_part("barrel_roof_vents", B["barrel"], "dark", [([-6, 48.6, -22], [12, 0.5, 2])], array=(4, [0, 0, 6]))
+    make_part("barrel_slot_core", B["barrel"], "dark", [([-4, 33, -58], [8, 4, 32])])
+    make_part("barrel_rail_core", B["barrel"], "glow", [([-1.5, 38.5, -57], [3, 3, 52])])
+    make_part("barrel_wall_grooves", B["barrel"], "dark", [([-10.2, 41, -54], [0.2, 1, 28])], mirror=("x",))
+    make_part("barrel_wall_panels", B["barrel"], "hull", [([-10.4, 35, -20], [0.4, 8, 14])], mirror=("x",))
+    make_part("barrel_wall_glow", B["barrel"], "glow", [([-10.5, 43, -18], [0.5, 1, 10])], mirror=("x",))
+    make_part("barrel_muzzle_top", B["barrel"], "dark", [([-11, 46, -62], [22, 3, 4])])
+    make_part("barrel_muzzle_bottom", B["barrel"], "dark", [([-11, 30, -62], [22, 3, 4])])
+    make_part("barrel_muzzle_sides", B["barrel"], "dark", [([-11, 33, -62], [4, 13, 4])], mirror=("x",))
+    make_part("barrel_breech", B["barrel"], "paint", [([-12, 31, 8], [24, 17, 10])])
+    make_part("barrel_breech_cap", B["barrel"], "dark", [([-10, 33, 18], [20, 13, 3])])
+    make_part("barrel_breech_fins", B["barrel"], "hull", [([-9, 34, 21], [18, 1, 2])], array=(4, [0, 3, 0]))
+    make_part("barrel_breech_light", B["barrel"], "amber", [([-1, 49, 10], [2, 1, 2])])
+    make_part("barrel_sensor", B["barrel"], "dark", [([-3, 49, -8], [6, 3, 8])])
+    make_part("barrel_sensor_eye", B["barrel"], "glow", [([-2, 50, -8.5], [4, 1, 0.5])])
 
-    # ---- Accelerator coils (square frames, repeated down the barrel) -------------------
-    make_part("coil_rims", B["coils"], "glow", [
-        ([-7, 45, -16], [14, 2, 3]),
-        ([-7, 33, -16], [14, 2, 3]),
-    ], array=(4, [0, 0, -10]))
-    make_part("coil_sides", B["coils"], "glow", [([-7, 35, -16], [2, 10, 3])],
-              mirror=("x",), array=(4, [0, 0, -10]))
+    # ---- Accelerator coils: square frames around the core, spin about the barrel axis --------
+    for z in (-52, -44, -36):
+        make_part(f"coil_{-z}_tb", B["coils"], "glow", [([-3, 43, z], [6, 1, 2]), ([-3, 36, z], [6, 1, 2])])
+        make_part(f"coil_{-z}_s", B["coils"], "glow", [([-3, 37, z], [1, 6, 2])], mirror=("x",))
     return bones
 
 
@@ -374,7 +437,7 @@ def build_remote(offset):
     """The handheld uplink remote, in vanilla item space (0..16 px, centred on 8,8)."""
     bones = {"remote": make_bone("remote", None, [8, 0, 8], None, offset=offset)}
     R = bones["remote"]
-    make_part("remote_body", R, "hull", [([5, 0, 7], [6, 11, 2])])
+    make_part("remote_body", R, "paint", [([5, 0, 7], [6, 11, 2])])
     make_part("remote_bezel", R, "dark", [([5.5, 5.5, 6.5], [5, 4.5, 0.5])])
     make_part("remote_screen", R, "glow", [([6, 6, 6.25], [4, 3.5, 0.25])])
     make_part("remote_button_fire", R, "glow", [([6, 2, 6.5], [1.5, 1.5, 0.5])])
@@ -402,6 +465,12 @@ def extract_boxes(bones, offset=Vector((0, 0, 0))):
     boxes = []
     for obj in bpy.context.scene.objects:
         if not obj.get("export") or obj.parent is None or obj.parent.name not in bone_names:
+            continue
+        if obj.get("rot_y") is not None:
+            x, y, z, sx, sy, sz = list(obj["cube_mc"])
+            boxes.append({"bone": obj.parent.name, "kind": obj["kind"],
+                          "min": [x, y, z], "max": [x + sx, y + sy, z + sz],
+                          "rot_y": float(obj["rot_y"]), "rot_pivot": [x + sx / 2, y, z + sz / 2]})
             continue
         ev = obj.evaluated_get(depsgraph)
         mesh = ev.to_mesh()
@@ -511,6 +580,12 @@ def build_bake_objects(boxes, bones, tex, kinds, offset=Vector((0, 0, 0))):
                 u, v, w, h = box["rects"][face]
                 base = len(verts)
                 for c in corners:
+                    if "rot_y" in box:
+                        px, _, pz = box["rot_pivot"]
+                        a = math.radians(box["rot_y"])
+                        dx, dz = c[0] - px, c[2] - pz
+                        c = (px + dx * math.cos(a) + dz * math.sin(a), c[1],
+                             pz - dx * math.sin(a) + dz * math.cos(a))
                     verts.append(mc_to_b(c) + offset - pivot_world)
                 faces.append((base, base + 1, base + 2, base + 3))
                 # TL, TR, BR, BL -> Blender UV origin is bottom-left.
@@ -523,51 +598,67 @@ def build_bake_objects(boxes, bones, tex, kinds, offset=Vector((0, 0, 0))):
         # from_pydata creates loops in face order, so loop i matches uvs[i].
         for li in range(len(mesh.loops)):
             uv_layer.data[li].uv = uvs[li]
-        mesh.polygons.foreach_set("material_index", mats)
         mesh.update()
         obj = link(bpy.data.objects.new(f"bake_{name}", mesh))
         obj.parent = empty
+        # Material indices are (re)applied after material slots exist: clearing a mesh's
+        # material slots resets every face to index 0, which is what broke the first bake.
+        obj["mat_indices"] = mats
         objs.append(obj)
     return objs
 
 
-def bake(objs, kinds, tex, label):
-    """Bakes colour + glow mask into images; returns (atlas, glowmask) bpy images."""
+def assign_materials(objs, mats):
+    for o in objs:
+        o.data.materials.clear()
+        for m in mats:
+            o.data.materials.append(m)
+        o.data.polygons.foreach_set("material_index", list(o["mat_indices"]))
+        o.data.update()
+
+
+def bake(objs, boxes, kinds, tex, label):
+    """
+    Bakes the procedural colour into the atlas, then builds the glowmask straight from the UV
+    rectangles of glowing boxes (exact, no second bake). Fails loudly if either is wrong, so a
+    blank glowmask can never reach the game again (GeckoLib crashes on an empty glow layer).
+    """
     atlas = bpy.data.images.new(f"{label}_atlas", tex, tex, alpha=True)
-    mask = bpy.data.images.new(f"{label}_mask", tex, tex, alpha=False)
+    assign_materials(objs, [bake_material(k, atlas, False) for k in kinds])
+    for o in bpy.context.view_layer.objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.context.scene.cycles.samples = 1
+    bpy.ops.object.bake(type="EMIT", margin=0, use_clear=True)
 
-    def run(image, is_mask):
-        mats = [bake_material(k, image, is_mask) for k in kinds]
-        for o in objs:
-            o.data.materials.clear()
-            for m in mats:
-                o.data.materials.append(m)
-        for o in bpy.context.view_layer.objects:
-            o.select_set(False)
-        for o in objs:
-            o.select_set(True)
-        bpy.context.view_layer.objects.active = objs[0]
-        bpy.context.scene.cycles.samples = 1
-        bpy.ops.object.bake(type="EMIT", margin=0, use_clear=True)
-
-    run(atlas, False)
-    run(mask, True)
-
-    n = tex * tex * 4
-    color = np.empty(n, dtype=np.float32)
-    m = np.empty(n, dtype=np.float32)
+    color = np.empty(tex * tex * 4, dtype=np.float32)
     atlas.pixels.foreach_get(color)
-    mask.pixels.foreach_get(m)
-    color = color.reshape(-1, 4)
-    m = m.reshape(-1, 4)
-    color[:, 3] = 1.0
+    color = color.reshape(tex, tex, 4)  # row 0 = bottom of the image in Blender
+    color[..., 3] = 1.0
 
+    mask = np.zeros((tex, tex), dtype=bool)
+    for b in boxes:
+        if b["kind"] not in GLOW_KINDS:
+            continue
+        for (u, v, w, h) in b["rects"].values():
+            mask[tex - (v + h):tex - v, u:u + w] = True
+
+    glow_px = color[mask]
+    if not mask.any():
+        raise RuntimeError(f"{label}: glowmask is empty")
+    reddish = (glow_px[:, 0] > glow_px[:, 2] + 0.15).mean()
+    if reddish < 0.8:
+        raise RuntimeError(f"{label}: glow faces did not bake with glow colours ({reddish:.0%} red)")
+
+    g = np.zeros_like(color)
+    g[mask] = color[mask]
+    g[mask, 3] = 1.0
     glow = bpy.data.images.new(f"{label}_glowmask", tex, tex, alpha=True)
-    g = color.copy()
-    g[:, 3] = (m[:, 0] > 0.5).astype(np.float32)
-    g[g[:, 3] == 0, :3] = 0.0
     glow.pixels.foreach_set(g.ravel())
     atlas.pixels.foreach_set(color.ravel())
+    print(f"[{label}] glowmask: {int(mask.sum())} px, {reddish:.0%} glow-coloured")
     return atlas, glow
 
 
@@ -596,7 +687,11 @@ def export_geo(bones, boxes, tex, path):
             size = [round(b["max"][k] - b["min"][k], 2) for k in range(3)]
             uv = {f: {"uv": [b["rects"][f][0], b["rects"][f][1]],
                       "uv_size": [b["rects"][f][2], b["rects"][f][3]]} for f in FACES}
-            cubes.append({"origin": b["min"], "size": size, "uv": uv})
+            cube = {"origin": b["min"], "size": size, "uv": uv}
+            if "rot_y" in b:
+                cube["pivot"] = b["rot_pivot"]
+                cube["rotation"] = [0, b["rot_y"], 0]
+            cubes.append(cube)
         if cubes:
             entry["cubes"] = cubes
         out_bones.append(entry)
@@ -844,14 +939,14 @@ def main():
     assets, out = os.path.abspath(args.assets), os.path.abspath(args.out)
 
     reset_scene()
-    kinds = ["hull", "dark", "glow", "amber"]
+    kinds = KINDS
 
     # ---------------- Railgun ----------------
     rg_bones = build_railgun()
     rg_boxes = extract_boxes(rg_bones)
     rg_tex = pack_faces(rg_boxes, texels_per_px=1, start_size=256)
     rg_bake = build_bake_objects(rg_boxes, rg_bones, rg_tex, kinds)
-    rg_atlas, rg_glow = bake(rg_bake, kinds, rg_tex, "railgun")
+    rg_atlas, rg_glow = bake(rg_bake, rg_boxes, kinds, rg_tex, "railgun")
     save_png(rg_atlas, os.path.join(assets, "textures/entity/railgun.png"))
     save_png(rg_glow, os.path.join(assets, "textures/entity/railgun_glowmask.png"))
     export_geo(rg_bones, rg_boxes, rg_tex, os.path.join(assets, "geo/railgun.geo.json"))
@@ -865,7 +960,7 @@ def main():
     rm_boxes = extract_boxes(rm_bones, offset=offset)
     rm_tex = pack_faces(rm_boxes, texels_per_px=2, start_size=32)
     rm_bake = build_bake_objects(rm_boxes, rm_bones, rm_tex, kinds, offset=offset)
-    rm_atlas, rm_glow = bake(rm_bake, kinds, rm_tex, "remote")
+    rm_atlas, rm_glow = bake(rm_bake, rm_boxes, kinds, rm_tex, "remote")
     save_png(rm_atlas, os.path.join(assets, "textures/item/railgun_remote.png"))
     export_item_model(rm_boxes, rm_tex, os.path.join(assets, "models/item/railgun_remote.json"),
                       "orbital_railgun:item/railgun_remote")
@@ -877,8 +972,6 @@ def main():
         for o in objs:
             o.data.materials.clear()
             o.data.materials.append(mat)
-            o.data.polygons.foreach_set("material_index", [0] * len(o.data.polygons))
-            o.data.update()
     modelling = [o for o in bpy.context.scene.objects if o.get("export")]
     set_visible(modelling, False)
 
@@ -886,10 +979,10 @@ def main():
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
         pose(rg_bones, "animation.railgun.deploy", 3.0)
-        render(os.path.join(out, "railgun_deployed.png"), cam, target, (6.5, 7.5, 4.2), (0, 0.8, 1.5), 900)
-        render(os.path.join(assets, "icon.png"), cam, target, (5.5, 6.5, 4.0), (0, 0.8, 1.6), 128, samples=32)
+        render(os.path.join(out, "railgun_deployed.png"), cam, target, (8.5, 8.0, 5.4), (0, 0.6, 1.6), 900)
+        render(os.path.join(assets, "icon.png"), cam, target, (7.0, 6.8, 4.6), (0, 0.6, 1.7), 128, samples=32)
         pose(rg_bones, "animation.railgun.falling", 0.0)
-        render(os.path.join(out, "railgun_folded.png"), cam, target, (6.5, 7.5, 4.2), (0, 0.4, 1.2), 900)
+        render(os.path.join(out, "railgun_folded.png"), cam, target, (8.5, 8.0, 5.4), (0, 0.4, 1.2), 900)
         reset_pose(rg_bones)
 
         set_visible(rg_bake, False)

@@ -50,7 +50,7 @@ public final class RailgunConfig {
     /** Height of the turret yaw/pitch pivot above the entity's feet. */
     public static final double PIVOT_Y = 2.5;
     /** Distance from pivot to muzzle along the barrel. */
-    public static final double BARREL_LENGTH = 3.5;
+    public static final double BARREL_LENGTH = 3.8;
     /** Max degrees per tick the turret slews while tracking a new target. */
     public static final float SLEW_DEG_PER_TICK = 6.0f;
 }

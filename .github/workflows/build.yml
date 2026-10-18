@@ -42,15 +42,26 @@ jobs:
 
       - name: Build models in Blender
         id: blender
-        continue-on-error: true
-        run: tools/blender/build.sh ~/blender/blender
+        run: |
+          set -o pipefail
+          tools/blender/build.sh ~/blender/blender 2>&1 | tee blender.log
 
-      - name: Warn if Blender step failed
-        if: steps.blender.outcome == 'failure'
-        run: echo "::warning title=Blender models::Blender model build failed; the jar uses the committed assets. See the 'Build models in Blender' step log."
+      - name: Report Blender errors
+        if: failure() && steps.blender.outcome == 'failure'
+        run: |
+          msg=$(tail -n 60 blender.log | sed -e 's/%/%25/g' | sed -e ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Blender build errors::$msg"
+
+      # Hard gate: never ship textures GeckoLib will crash on.
+      - name: Validate textures
+        run: python3 tools/validate_assets.py
+
+      - name: Copy preview renders into the repo
+        run: |
+          mkdir -p docs/renders
+          cp build/blender/*.png docs/renders/
 
       - name: Upload Blender renders and .blend
-        if: steps.blender.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: blender-output
@@ -64,11 +75,11 @@ jobs:
 
       # Keep the repo's assets in sync with what Blender produced (main branch only).
       - name: Commit Blender-generated assets
-        if: steps.blender.outcome == 'success' && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
-          git add src/main/resources/assets/orbital_railgun
+          git add src/main/resources/assets/orbital_railgun docs/renders
           if git diff --cached --quiet; then echo "Assets unchanged"; else
             git commit -m "Regenerate models from Blender [skip ci]"
             git push

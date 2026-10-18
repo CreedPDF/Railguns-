@@ -47,7 +47,7 @@ public final class RailgunMod implements ModInitializer {
             Registries.ENTITY_TYPE,
             id("railgun"),
             FabricEntityTypeBuilder.<RailgunEntity>create(SpawnGroup.MISC, RailgunEntity::new)
-                    .dimensions(EntityDimensions.fixed(3.0f, 3.5f))
+                    .dimensions(EntityDimensions.fixed(3.5f, 3.3f))
                     // Large tracking range so the beam stays visible from afar; update every
                     // tick so the high-speed orbital drop is smooth on clients.
                     .trackRangeChunks(16)
