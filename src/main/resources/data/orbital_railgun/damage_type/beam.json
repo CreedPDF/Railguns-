@@ -1,0 +1,6 @@
+{
+  "message_id": "orbital_railgun.beam",
+  "exhaustion": 0.1,
+  "scaling": "never",
+  "effects": "burning"
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "orbital_railgun",
+  "version": "${version}",
+  "name": "Orbital Railgun",
+  "description": "Call down an autonomous orbital railgun platform, lock a target and fire a volumetric red beam.",
+  "authors": ["CreedPDF"],
+  "contact": { "sources": "https://github.com/CreedPDF/orbital-railgun" },
+  "license": "MIT",
+  "icon": "assets/orbital_railgun/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.creedpdf.orbitalrailgun.RailgunMod"],
+    "client": ["com.creedpdf.orbitalrailgun.client.RailgunModClient"]
+  },
+  "accessWidener": "orbital_railgun.accesswidener",
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*",
+    "geckolib": ">=4.2 <4.5"
+  }
+}
