@@ -698,6 +698,489 @@ def railgun_launch():
     return room(mband_sat(x, (3.0, 2.0, 1.4)), 3.0, 0.35, 3000)
 
 
+# =============================================================================================
+# Loadout options, orbital storage capsule
+# =============================================================================================
+
+
+def ui_loadout_select():
+    d = 0.35
+    x = canvas(d)
+    place(x, fm(1320, 3.0, glide(3.0, 0.2, 0.12), 0.12) * env(0.12, 0.002, 0.03, 0.5, 0.06) * 0.6, 0)
+    place(x, metal(3100, 0.1, 0.01, 2.0) * 0.4, 0.0)
+    place(x, osc(glide(660, 990, 0.08), 0.08, "tri") * env(0.08, 0.002, 0.02, 0.6, 0.04) * 0.4, 0.06)
+    return room(x, 0.3, 0.15)
+
+
+def ui_loadout_order():
+    d = 2.4
+    x = canvas(d)
+    for i in range(18):                                          # encrypted burst transmission
+        f = 900 + 140 * (i % 7)
+        place(x, osc(f, 0.035, "square") * env(0.035, 0.001, 0.005, 0.8, 0.01) * 0.1, 0.02 + i * 0.03)
+    up = unison(glide(120, 1600, 1.0, 1.8), 1.0, 5, 0.012, "saw")
+    place(x, filt(up, "lowpass", 4000) * env(1.0, 0.4, 0.1, 0.8, 0.25) * 0.35, 0.5)
+    chord = sum(fm(f, 2.0, 0.8, 1.1) for f in (440, 554.4, 659.3, 880)) / 4
+    place(x, chord * env(1.1, 0.005, 0.2, 0.5, 0.7) * 0.55, 1.45)
+    place(x, kick(70, 38, 0.8, 0.2, 0.3) * 0.6, 1.45)
+    return room(x, 1.4, 0.3)
+
+
+def capsule_reentry():
+    """Small supply capsule falling: thinner, higher-pitched sheath scream that rises in pitch."""
+    d = 4.5
+    t = t_axis(d)
+    shape = np.clip(t / 0.6, 0, 1) * np.clip((d - t) / 0.4, 0, 1)
+    scream = filt(white(d), "bandpass", [1200, 6000]) * (0.6 + 0.4 * np.sin(2 * np.pi * 11 * t)) * 0.35
+    whistle = osc(glide(700, 1500, d, 0.7), d) * 0.08
+    roar = filt(brown(d), "lowpass", 900) * 0.8
+    crack = crackle(d, 140, 0.0015, 2500) * 0.4
+    return room(mband_sat((scream + whistle + roar + crack) * shape, (2.0, 1.6, 1.3)), 1.5, 0.25)
+
+
+def capsule_land():
+    d = 3.0
+    x = canvas(d)
+    place(x, hydraulic(0.6, 4500, 0.7), 0.0)                     # retro burn cut-off
+    place(x, kick(160, 42, 1.4, 0.35, 0.9) * 1.3, 0.25)
+    place(x, metal(240, 1.6, 0.6, 1.2) * 0.5, 0.26)
+    place(x, crackle(1.2, 120, 0.003, 900, decay(1.2, 0.3)) * 0.6, 0.27)
+    for i in range(4):
+        place(x, latch(0.6, 700 + 90 * i), 0.6 + 0.08 * i)         # landing legs lock
+    return room(mband_sat(x, (2.4, 1.6, 1.2)), 1.6, 0.3)
+
+
+def capsule_open():
+    d = 2.2
+    x = canvas(d)
+    place(x, steam(0.9, 0.7), 0.0)                                # pressure seal vents
+    place(x, latch(1.0, 520), 0.0)
+    place(x, servo(1.0, 220, 380, 11, 0.7), 0.15)                 # petals swing open
+    for i in range(4):
+        place(x, clank(0.6, 300 + 40 * i, 0.25), 1.1 + 0.06 * i)
+    place(x, beep([1760, 2349], 0.3, "tri", 0.35), 1.5)
+    return room(x, 1.2, 0.25)
+
+
+def capsule_transfer():
+    """Cargo cradle rising + hard-light transfer stream into the railgun."""
+    d = 3.2
+    x = canvas(d)
+    t = t_axis(2.6)
+    stream = unison(glide(220, 660, 2.6, 0.6), 2.6, 7, 0.01, "saw")
+    stream = sweep(stream, "bandpass", 400, 3000) * (0.7 + 0.3 * np.sin(2 * np.pi * 14 * t))
+    place(x, stream * env(2.6, 0.3, 0.2, 0.8, 0.6) * 0.5, 0.1)
+    sparkle = crackle(2.6, 80, 0.001, 5000) * 0.35
+    place(x, sparkle, 0.1)
+    place(x, servo(0.8, 160, 260, 9, 0.5), 0.0)
+    place(x, beep([1046.5, 1318.5, 1568, 2093], 0.6, "sine", 0.4), 2.6)
+    return room(x, 1.6, 0.3)
+
+
+def capsule_launch():
+    d = 5.5
+    x = canvas(d)
+    place(x, latch(0.9, 450), 0.0)
+    place(x, kick(110, 30, 1.6, 0.5, 0.6) * 1.1, 0.1)
+    rd = 5.0
+    t = t_axis(rd)
+    shape = np.clip(t / 0.25, 0, 1) * np.exp(-np.maximum(t - 1.0, 0) / 1.6)
+    burn = filt(white(rd), "bandpass", [700, 7000]) * 0.6 + filt(brown(rd), "lowpass", 600) * 0.9
+    burn = sweep(burn, "lowpass", 9000, 900) * shape
+    place(x, burn + osc(glide(300, 900, rd), rd, "saw") * shape * 0.05, 0.1)
+    return room(mband_sat(x, (2.4, 1.8, 1.3)), 2.2, 0.3)
+
+
+def railgun_attach():
+    """An attachment materializing onto the railgun: hard-light shimmer, then a mechanical lock."""
+    d = 1.6
+    x = canvas(d)
+    sh = sweep(white(0.6), "bandpass", 6000, 900) * env(0.6, 0.05, 0.1, 0.6, 0.3) * 0.4
+    place(x, sh, 0.0)
+    place(x, fm(glide(880, 1760, 0.5), 1.5, 2.0, 0.5) * env(0.5, 0.01, 0.1, 0.6, 0.3) * 0.3, 0.05)
+    place(x, latch(1.0, 600), 0.55)
+    place(x, clank(0.7, 260, 0.25), 0.6)
+    return room(x, 0.9, 0.22)
+
+
+# ---- Muzzle signatures (layered over the shot) -----------------------------------------------
+
+def muzzle_lancer():
+    d = 2.0
+    x = canvas(d)
+    place(x, metal(4200, 1.6, 0.9, 2.5) * 0.6, 0)                # ringing lens crystal
+    place(x, osc(glide(9000, 3000, 0.4), 0.4) * decay(0.4, 0.1) * 0.4, 0)
+    place(x, fm(2637, 1.0, glide(6, 0.5, 1.4), 1.4) * decay(1.4, 0.4) * 0.35, 0.02)
+    return room(x, 1.4, 0.3, 7000)
+
+
+def muzzle_triprong():
+    d = 1.6
+    x = canvas(d)
+    for i in range(3):
+        place(x, zap(0.35, 0.9), i * 0.07)
+        place(x, filt(white(0.5), "bandpass", [2500, 9000]) * decay(0.5, 0.08) * 0.5, i * 0.07)
+    place(x, crackle(1.2, 200, 0.001, 3000, decay(1.2, 0.35)) * 0.8, 0.0)
+    return room(x, 1.0, 0.25)
+
+
+def muzzle_shroud():
+    d = 3.0
+    x = canvas(d)
+    roar = filt(brown(2.6), "lowpass", 500) * env(2.6, 0.02, 0.3, 0.6, 1.8) * 1.3
+    whoosh = sweep(white(2.6), "bandpass", 300, 2500) * env(2.6, 0.01, 0.4, 0.5, 1.6) * 0.5
+    place(x, roar + whoosh, 0)
+    place(x, kick(70, 30, 1.6, 0.6, 0.2), 0)
+    return room(mband_sat(x, (2.6, 1.8, 1.2)), 1.8, 0.3)
+
+
+def muzzle_scatter():
+    d = 2.0
+    x = canvas(d)
+    for i in range(5):                                            # five ports, slightly staggered
+        place(x, kick(200 + 30 * i, 50, 0.6, 0.12, 0.8) * 0.7, i * 0.035)
+        place(x, filt(white(0.2), "highpass", 1200) * decay(0.2, 0.03) * 0.6, i * 0.035)
+    place(x, crackle(1.4, 100, 0.002, 1500, decay(1.4, 0.4)) * 0.5, 0.2)
+    return room(mband_sat(x, (2.4, 1.6, 1.2)), 1.5, 0.3)
+
+
+def muzzle_gravity():
+    d = 3.0
+    x = canvas(d)
+    t = t_axis(2.6)
+    warble = osc(glide(55, 28, 2.6), 2.6) * (0.6 + 0.4 * np.sin(2 * np.pi * glide(2, 12, 2.6) * t)) * 1.2
+    place(x, warble * env(2.6, 0.02, 0.3, 0.7, 1.4), 0)
+    rev = sweep(white(0.9), "bandpass", 200, 3000)[::-1] * env(0.9, 0.6, 0.1, 0.8, 0.1) * 0.4
+    place(x, rev, 0)
+    return room(x, 2.0, 0.35, 2500)
+
+
+def muzzle_ghost():
+    d = 1.2
+    x = canvas(d)
+    place(x, kick(90, 50, 0.4, 0.06, 0.05) * 0.8, 0)              # muffled thup
+    place(x, filt(white(0.3), "bandpass", [300, 900]) * decay(0.3, 0.05) * 0.4, 0)
+    place(x, steam(0.6, 0.2), 0.05)
+    return room(x, 0.6, 0.15, 2500)
+
+
+# ---- Ammunition: fire + impact ---------------------------------------------------------------
+
+def _shot(level=1.0, f0=380, f1=40, color=2600, burn_f=(600, 4000), burn_d=2.8):
+    d = burn_d + 2.5
+    x = canvas(d)
+    place(x, kick(170, 26, 2.5, 0.8, 1.0) * 1.8 * level, 0)
+    place(x, filt(white(0.2), "highpass", 900) * decay(0.2, 0.03) * 1.3, 0)
+    th = unison(glide(f0, f1, 2.0, 0.35), 2.0, 7, 0.02, "saw")
+    place(x, filt(th, "lowpass", color) * env(2.0, 0.004, 0.25, 0.6, 1.4), 0)
+    tb = t_axis(burn_d)
+    b_env = env(burn_d, 0.06, 0.3, 0.8, 1.2)
+    burn = filt(white(burn_d), "bandpass", list(burn_f)) * (0.7 + 0.3 * np.sin(2 * np.pi * 9 * tb)) * 0.5
+    place(x, burn * b_env, 0.06)
+    return x, b_env
+
+
+def ammo_tungsten_fire():
+    x, e = _shot(1.0, 520, 60, 4200, (1500, 9000))
+    place(x, metal(1900, 2.0, 1.2, 2.5) * 0.6, 0)                # metallic shriek
+    place(x, osc(glide(7000, 1200, 1.2, 0.5), 1.2) * decay(1.2, 0.4) * 0.25, 0.02)
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 2.8, 0.3)
+
+
+def ammo_tungsten_impact():
+    d = 6.0
+    x = canvas(d)
+    place(x, kick(200, 30, 2.5, 0.6, 1.0) * 1.6, 0)
+    place(x, metal(160, 3.0, 1.2, 1.0) * 0.6, 0)
+    for i in range(10):                                           # tunnelling crunches receding
+        place(x, filt(white(0.25), "lowpass", 2500 - i * 180) * decay(0.25, 0.05) * (0.9 - i * 0.08), 0.15 + i * 0.22)
+    place(x, filt(brown(5), "lowpass", 120) * env(5, 0.05, 0.4, 0.5, 3.5) * 1.2, 0.02)
+    return room(mband_sat(x, (3.0, 2.0, 1.3)), 3.0, 0.35, 2500)
+
+
+def ammo_thermite_fire():
+    x, e = _shot(1.0, 300, 45, 2200, (300, 3000))
+    sizzle = filt(white(3.0), "highpass", 3000) * (0.5 + 0.5 * np.sin(2 * np.pi * 23 * t_axis(3.0))) * 0.35
+    place(x, sizzle * env(3.0, 0.1, 0.3, 0.8, 1.2), 0.1)
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 2.8, 0.3)
+
+
+def ammo_thermite_impact():
+    d = 8.0
+    x = canvas(d)
+    place(x, kick(140, 26, 3.0, 0.9, 1.0) * 1.6, 0)
+    place(x, filt(white(1.0), "lowpass", 3000) * decay(1.0, 0.2) * 1.2, 0)
+    fire = filt(brown(7.0), "lowpass", 1400) * 0.9 + crackle(7.0, 260, 0.002, 1200) * 0.9
+    place(x, fire * env(7.0, 0.3, 0.5, 0.8, 3.5), 0.1)
+    return room(mband_sat(x, (3.0, 2.0, 1.3)), 3.0, 0.35, 3000)
+
+
+def ammo_cryo_fire():
+    x, e = _shot(0.9, 600, 90, 5000, (2500, 10000))
+    for i in range(8):
+        place(x, metal(2600 + 400 * i, 0.8, 0.4, 3.0) * 0.18, 0.1 + i * 0.12)   # ice crystallising
+    return room(mband_sat(x, (2.6, 1.8, 1.3)), 2.8, 0.35, 8000)
+
+
+def ammo_cryo_impact():
+    d = 6.0
+    x = canvas(d)
+    place(x, kick(150, 40, 1.6, 0.4, 0.8) * 1.3, 0)
+    crack = canvas(4.0)
+    for i in range(70):                                            # freezing crackle spreading
+        place(crack, metal(1800 + rng.random() * 5000, 0.12, 0.02, 3.0), rng.random() ** 1.6 * 3.6, 0.2 + rng.random() * 0.5)
+    place(x, crack * 0.6, 0.05)
+    place(x, sweep(white(3.0), "highpass", 6000, 1500) * env(3.0, 0.02, 0.3, 0.5, 2.4) * 0.5, 0)
+    return room(x, 3.0, 0.4, 9000)
+
+
+def ammo_ion_fire():
+    x, e = _shot(0.9, 440, 120, 6000, (2000, 9000))
+    for i in range(14):
+        place(x, zap(0.06 + rng.random() * 0.1, 0.7), 0.05 + rng.random() * 2.4)
+    hum = fm(glide(220, 110, 2.8), 3.0, 4.0, 2.8) * env(2.8, 0.05, 0.2, 0.7, 1.2) * 0.3
+    place(x, hum, 0.05)
+    return room(mband_sat(x, (2.4, 1.8, 1.4)), 2.4, 0.3)
+
+
+def ammo_ion_impact():
+    d = 4.0
+    x = canvas(d)
+    place(x, kick(120, 50, 1.0, 0.25, 1.0) * 1.0, 0)
+    for i in range(10):                                            # chain arcs jumping target to target
+        at = 0.1 + i * 0.16 + rng.random() * 0.05
+        place(x, zap(0.18, 1.0), at)
+        place(x, filt(white(0.08), "highpass", 3000) * decay(0.08, 0.01) * 0.8, at)
+    place(x, power_hum(3.0, 60, 0.3) * env(3.0, 0.05, 0.2, 0.6, 2.2), 0)
+    return room(x, 1.8, 0.3)
+
+
+def ammo_cluster_fire():
+    x, e = _shot(1.0, 340, 50, 2400, (500, 3500))
+    place(x, latch(0.8, 900), 0.4)                                 # submunition bay pops
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 2.8, 0.3)
+
+
+def ammo_cluster_impact():
+    d = 6.5
+    x = canvas(d)
+    place(x, kick(150, 28, 2.0, 0.6, 1.0) * 1.3, 0)
+    for i in range(16):                                            # bomblets popping across the area
+        at = 0.35 + i * 0.13 + rng.random() * 0.08
+        g = 0.5 + rng.random() * 0.4
+        place(x, mix(kick(220, 40, 0.8, 0.12, 0.8), filt(white(0.3), "lowpass", 3500) * decay(0.3, 0.05)) * g, at)
+    place(x, filt(brown(5), "lowpass", 140) * env(5, 0.3, 0.5, 0.5, 3.0) * 0.9, 0.3)
+    return room(mband_sat(x, (3.0, 2.0, 1.3)), 2.6, 0.35)
+
+
+def ammo_singularity_fire():
+    x, e = _shot(0.8, 200, 30, 1500, (100, 1200))
+    rev = filt(brown(2.4), "lowpass", 300)[::-1] * np.linspace(0, 1, n_of(2.4)) ** 2 * 1.0
+    place(x, rev, 0.0)
+    return room(mband_sat(x, (3.0, 1.8, 1.2)), 3.0, 0.35, 2000)
+
+
+def ammo_singularity_impact():
+    """Gravity well: pitch-falling drone sucking inward for ~2.5 s, then collapse."""
+    d = 7.5
+    x = canvas(d)
+    t = t_axis(2.6)
+    drone = unison(glide(110, 22, 2.6, 0.8), 2.6, 7, 0.03, "saw")
+    drone = sweep(drone, "lowpass", 3000, 200) * np.linspace(0.3, 1.0, len(t)) * 0.9
+    place(x, drone, 0)
+    suck = filt(white(2.6), "bandpass", [200, 1500])[::-1] * np.linspace(0, 1, len(t)) ** 2 * 0.5
+    place(x, suck, 0)
+    place(x, kick(90, 18, 3.5, 1.1, 0.4) * 2.0, 2.5)               # collapse
+    place(x, filt(white(1.2), "lowpass", 2000) * decay(1.2, 0.25) * 1.1, 2.5)
+    place(x, filt(brown(4.5), "lowpass", 90) * env(4.5, 0.02, 0.4, 0.5, 3.0) * 1.3, 2.5)
+    return room(mband_sat(x, (3.2, 1.8, 1.2)), 3.5, 0.4, 1500)
+
+
+def ammo_sunburst_fire():
+    x, e = _shot(1.2, 260, 20, 3000, (300, 6000), 3.2)
+    place(x, kick(60, 14, 4.0, 1.5, 0.5) * 1.6, 0)
+    return room(mband_sat(x, (3.4, 2.2, 1.4)), 3.5, 0.35)
+
+
+def ammo_sunburst_impact():
+    d = 12.0
+    x = canvas(d)
+    place(x, kick(130, 12, 6.0, 2.0, 1.0) * 2.4, 0)
+    place(x, filt(white(2.0), "lowpass", 5000) * decay(2.0, 0.5) * 1.6, 0)
+    place(x, sweep(white(6.0), "lowpass", 8000, 200) * decay(6.0, 1.8) * 1.0, 0.05)
+    place(x, filt(brown(11.0), "lowpass", 70) * env(11.0, 0.05, 1.0, 0.6, 7.0) * 1.8, 0.02)
+    place(x, crackle(8.0, 120, 0.004, 600, decay(8.0, 2.0)) * 0.8, 0.3)
+    for k in (0.4, 0.8):
+        place(x, kick(120, 25, 2.0, 0.5, 0.8) * 0.8, k)
+    return room(mband_sat(x, (3.6, 2.2, 1.4)), 4.5, 0.45, 2000)
+
+
+# ---- Modules ---------------------------------------------------------------------------------
+
+def module_capacitor():
+    d = 2.0
+    x = canvas(d)
+    whine = osc(glide(400, 5200, 1.4, 1.4), 1.4) * env(1.4, 0.05, 0.1, 0.8, 0.2) * 0.4
+    place(x, whine, 0)
+    place(x, latch(0.6, 1100), 1.4)
+    place(x, zap(0.12, 0.6), 1.42)
+    return room(x, 0.9, 0.2)
+
+
+def module_coolant():
+    d = 3.0
+    x = canvas(d)
+    place(x, steam(2.6, 0.9), 0.05)
+    place(x, filt(white(2.6), "bandpass", [6000, 14000]) * env(2.6, 0.02, 0.2, 0.7, 1.6) * 0.4, 0.05)
+    place(x, latch(0.6, 800), 0.0)
+    for i in range(5):
+        place(x, metal(2400 + i * 300, 0.3, 0.06, 2.5) * 0.12, 0.9 + i * 0.3)
+    return room(x, 1.2, 0.25, 9000)
+
+
+def module_overclock():
+    d = 2.4
+    x = canvas(d)
+    sc = unison(glide(300, 2400, 2.0, 1.2), 2.0, 5, 0.008, "square")
+    place(x, filt(sc, "bandpass", [400, 6000]) * env(2.0, 0.05, 0.1, 0.8, 0.3) * 0.35, 0)
+    place(x, crackle(2.0, 80, 0.001, 4000, np.linspace(0, 1, n_of(2.0))) * 0.4, 0)
+    return room(x, 1.0, 0.25)
+
+
+def module_targeting():
+    d = 1.2
+    x = canvas(d)
+    for i in range(4):
+        place(x, beep([2093 + i * 300], 0.05, "square", 0.25), i * 0.07)
+    place(x, fm(3136, 2.0, 1.0, 0.5) * env(0.5, 0.002, 0.05, 0.5, 0.3) * 0.4, 0.32)
+    place(x, latch(0.4, 1500), 0.3)
+    return room(x, 0.6, 0.2)
+
+
+def module_shield():
+    """Shield dome raising: rising hard-light hum."""
+    d = 3.0
+    x = canvas(d)
+    t = t_axis(2.6)
+    hum = sum(osc(glide(f, f * 2, 2.6, 0.5), 2.6) / (k + 1) for k, f in enumerate((110, 165, 220, 330)))
+    hum = hum * (0.8 + 0.2 * np.sin(2 * np.pi * 7 * t))
+    place(x, hum * env(2.6, 0.6, 0.2, 0.7, 0.8) * 0.5, 0)
+    place(x, sweep(white(1.5), "bandpass", 400, 8000) * env(1.5, 0.8, 0.1, 0.5, 0.6) * 0.25, 0.3)
+    return room(x, 1.6, 0.3)
+
+
+def module_shield_block():
+    d = 0.8
+    x = canvas(d)
+    place(x, fm(glide(1800, 600, 0.3), 2.7, 5.0, 0.3) * decay(0.3, 0.08) * 0.6, 0)
+    place(x, filt(white(0.15), "highpass", 4000) * decay(0.15, 0.02) * 0.5, 0)
+    return room(x, 0.6, 0.25)
+
+
+def module_sentry():
+    d = 0.6
+    x = canvas(d)
+    place(x, osc(glide(2600, 500, 0.12, 0.6), 0.12, "square") * decay(0.12, 0.04) * 0.5, 0)
+    place(x, filt(white(0.08), "bandpass", [1500, 6000]) * decay(0.08, 0.015) * 0.6, 0)
+    place(x, kick(300, 120, 0.1, 0.02, 0.3) * 0.4, 0)
+    return room(x, 0.5, 0.2)
+
+
+def module_thruster():
+    d = 5.0
+    x = canvas(d)
+    t = t_axis(4.6)
+    shape = np.clip(t / 0.2, 0, 1) * np.exp(-np.maximum(t - 1.5, 0) / 1.5)
+    jet = filt(white(4.6), "bandpass", [1000, 9000]) * 0.7 + filt(brown(4.6), "lowpass", 300) * 0.9
+    place(x, jet * shape, 0.0)
+    place(x, kick(100, 25, 2.0, 0.6, 0.4) * 1.2, 0.0)
+    place(x, osc(glide(150, 700, 4.6), 4.6, "saw") * shape * 0.06, 0)
+    return room(mband_sat(x, (2.8, 1.8, 1.3)), 2.4, 0.3)
+
+
+def module_seismic():
+    d = 5.0
+    x = canvas(d)
+    place(x, kick(70, 20, 3.0, 1.2, 0.3) * 1.8, 0)
+    rum = filt(brown(4.5), "lowpass", 80) * (0.6 + 0.4 * np.sin(2 * np.pi * 5 * t_axis(4.5))) * env(4.5, 0.1, 0.4, 0.6, 3.0) * 1.4
+    place(x, rum, 0)
+    place(x, crackle(3.0, 150, 0.004, 500, decay(3.0, 0.9)) * 0.7, 0.1)
+    return room(mband_sat(x, (3.4, 1.8, 1.2)), 3.0, 0.35, 1500)
+
+
+def module_autoloader():
+    d = 1.2
+    x = canvas(d)
+    place(x, servo(0.3, 300, 500, 9, 0.6), 0)                    # drum rotates
+    place(x, ratchet(0.25, 40, 1600, 0.5), 0.02)
+    place(x, latch(1.0, 380), 0.32)                                # round chambered
+    place(x, clank(0.8, 220, 0.2), 0.5)                            # breech slams
+    return room(x, 0.8, 0.22)
+
+
+def module_afterburn():
+    d = 4.0
+    x = canvas(d)
+    t = t_axis(3.6)
+    bubble = canvas(3.6)
+    for i in range(40):
+        place(bubble, osc(glide(200 + rng.random() * 300, 600 + rng.random() * 500, 0.06), 0.06) * decay(0.06, 0.02),
+              rng.random() * 3.5, 0.4)
+    fire = filt(brown(3.6), "lowpass", 900) * 0.7 + crackle(3.6, 200, 0.002, 1500) * 0.7
+    place(x, (fire + bubble) * env(3.6, 0.1, 0.3, 0.8, 1.4), 0)
+    return room(x, 1.8, 0.3)
+
+
+LOADOUT_SOUNDS = {
+    "ui_loadout_select": ui_loadout_select,
+    "ui_loadout_order": ui_loadout_order,
+    "capsule_reentry": capsule_reentry,
+    "capsule_land": capsule_land,
+    "capsule_open": capsule_open,
+    "capsule_transfer": capsule_transfer,
+    "capsule_launch": capsule_launch,
+    "railgun_attach": railgun_attach,
+    "muzzle_lancer": muzzle_lancer,
+    "muzzle_triprong": muzzle_triprong,
+    "muzzle_shroud": muzzle_shroud,
+    "muzzle_scatter": muzzle_scatter,
+    "muzzle_gravity": muzzle_gravity,
+    "muzzle_ghost": muzzle_ghost,
+    "ammo_tungsten_fire": ammo_tungsten_fire, "ammo_tungsten_impact": ammo_tungsten_impact,
+    "ammo_thermite_fire": ammo_thermite_fire, "ammo_thermite_impact": ammo_thermite_impact,
+    "ammo_cryo_fire": ammo_cryo_fire, "ammo_cryo_impact": ammo_cryo_impact,
+    "ammo_ion_fire": ammo_ion_fire, "ammo_ion_impact": ammo_ion_impact,
+    "ammo_cluster_fire": ammo_cluster_fire, "ammo_cluster_impact": ammo_cluster_impact,
+    "ammo_singularity_fire": ammo_singularity_fire, "ammo_singularity_impact": ammo_singularity_impact,
+    "ammo_sunburst_fire": ammo_sunburst_fire, "ammo_sunburst_impact": ammo_sunburst_impact,
+    "module_capacitor": module_capacitor,
+    "module_coolant": module_coolant,
+    "module_overclock": module_overclock,
+    "module_targeting": module_targeting,
+    "module_shield": module_shield,
+    "module_shield_block": module_shield_block,
+    "module_sentry": module_sentry,
+    "module_thruster": module_thruster,
+    "module_seismic": module_seismic,
+    "module_autoloader": module_autoloader,
+    "module_afterburn": module_afterburn,
+}
+LOUD_EVENTS = {"ammo_", "muzzle_", "capsule_land", "module_seismic", "module_thruster"}
+
+
+def _event_id(file):
+    """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
+    for pre in ("ui_", "capsule_", "railgun_", "muzzle_", "module_"):
+        if file.startswith(pre):
+            return pre[:-1] + "." + file[len(pre):]
+    if file.startswith("ammo_"):
+        rest = file[5:]
+        name, kind = rest.rsplit("_", 1)
+        return f"ammo.{name}.{kind}"
+    return file
+
+
+
 SOUNDS = {
     "ui_click": ui_click,
     "ui_countdown_beep": ui_countdown_beep,
@@ -718,6 +1201,7 @@ SOUNDS = {
     "ui_tablet_open": ui_tablet_open,
     "ui_tablet_close": ui_tablet_close,
 }
+SOUNDS.update(LOADOUT_SOUNDS)
 LOOPS = {"railgun_charge_loop", "railgun_reentry"}
 
 # sound event id -> (file, extra properties)
@@ -741,6 +1225,11 @@ EVENTS = {
     "ui.tablet_open": ("ui_tablet_open", {}),
     "ui.tablet_close": ("ui_tablet_close", {}),
 }
+
+
+for _f in LOADOUT_SOUNDS:
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("capsule_", "module_seismic", "module_thruster")) else 48
+    EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 
 def write_ogg(x, path):

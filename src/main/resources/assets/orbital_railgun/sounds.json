@@ -153,5 +153,354 @@
         "name": "orbital_railgun:ui_tablet_close"
       }
     ]
+  },
+  "ui.loadout_select": {
+    "subtitle": "subtitles.orbital_railgun.ui.loadout_select",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_loadout_select"
+      }
+    ]
+  },
+  "ui.loadout_order": {
+    "subtitle": "subtitles.orbital_railgun.ui.loadout_order",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_loadout_order"
+      }
+    ]
+  },
+  "capsule.reentry": {
+    "subtitle": "subtitles.orbital_railgun.capsule.reentry",
+    "sounds": [
+      {
+        "name": "orbital_railgun:capsule_reentry",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "capsule.land": {
+    "subtitle": "subtitles.orbital_railgun.capsule.land",
+    "sounds": [
+      {
+        "name": "orbital_railgun:capsule_land",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "capsule.open": {
+    "subtitle": "subtitles.orbital_railgun.capsule.open",
+    "sounds": [
+      {
+        "name": "orbital_railgun:capsule_open",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "capsule.transfer": {
+    "subtitle": "subtitles.orbital_railgun.capsule.transfer",
+    "sounds": [
+      {
+        "name": "orbital_railgun:capsule_transfer",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "capsule.launch": {
+    "subtitle": "subtitles.orbital_railgun.capsule.launch",
+    "sounds": [
+      {
+        "name": "orbital_railgun:capsule_launch",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "railgun.attach": {
+    "subtitle": "subtitles.orbital_railgun.railgun.attach",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_attach",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "muzzle.lancer": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.lancer",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_lancer",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "muzzle.triprong": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.triprong",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_triprong",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "muzzle.shroud": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.shroud",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_shroud",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "muzzle.scatter": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.scatter",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_scatter",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "muzzle.gravity": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.gravity",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_gravity",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "muzzle.ghost": {
+    "subtitle": "subtitles.orbital_railgun.muzzle.ghost",
+    "sounds": [
+      {
+        "name": "orbital_railgun:muzzle_ghost",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.tungsten.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.tungsten.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_tungsten_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.tungsten.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.tungsten.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_tungsten_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.thermite.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.thermite.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_thermite_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.thermite.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.thermite.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_thermite_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.cryo.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.cryo.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_cryo_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.cryo.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.cryo.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_cryo_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.ion.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.ion.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_ion_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.ion.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.ion.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_ion_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.cluster.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.cluster.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_cluster_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.cluster.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.cluster.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_cluster_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.singularity.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.singularity.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_singularity_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.singularity.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.singularity.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_singularity_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.sunburst.fire": {
+    "subtitle": "subtitles.orbital_railgun.ammo.sunburst.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_sunburst_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ammo.sunburst.impact": {
+    "subtitle": "subtitles.orbital_railgun.ammo.sunburst.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ammo_sunburst_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "module.capacitor": {
+    "subtitle": "subtitles.orbital_railgun.module.capacitor",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_capacitor",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.coolant": {
+    "subtitle": "subtitles.orbital_railgun.module.coolant",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_coolant",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.overclock": {
+    "subtitle": "subtitles.orbital_railgun.module.overclock",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_overclock",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.targeting": {
+    "subtitle": "subtitles.orbital_railgun.module.targeting",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_targeting",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.shield": {
+    "subtitle": "subtitles.orbital_railgun.module.shield",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_shield",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.shield_block": {
+    "subtitle": "subtitles.orbital_railgun.module.shield_block",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_shield_block",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.sentry": {
+    "subtitle": "subtitles.orbital_railgun.module.sentry",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_sentry",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.thruster": {
+    "subtitle": "subtitles.orbital_railgun.module.thruster",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_thruster",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "module.seismic": {
+    "subtitle": "subtitles.orbital_railgun.module.seismic",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_seismic",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "module.autoloader": {
+    "subtitle": "subtitles.orbital_railgun.module.autoloader",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_autoloader",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "module.afterburn": {
+    "subtitle": "subtitles.orbital_railgun.module.afterburn",
+    "sounds": [
+      {
+        "name": "orbital_railgun:module_afterburn",
+        "attenuation_distance": 48
+      }
+    ]
   }
 }

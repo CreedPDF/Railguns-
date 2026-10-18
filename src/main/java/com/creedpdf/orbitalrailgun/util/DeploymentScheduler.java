@@ -54,6 +54,17 @@ public final class DeploymentScheduler {
     private static void release(ServerWorld world, PendingDrop drop) {
         BlockPos landing = drop.landing;
         world.getChunk(landing); // make sure the landing chunk is loaded before spawning into it
+        // Re-survey at release: the zone may have changed during the countdown.
+        LandingSurvey.Result survey = LandingSurvey.survey(world, landing.down());
+        if (!survey.ok()) {
+            var player = world.getServer().getPlayerManager().getPlayer(drop.owner);
+            if (player != null) {
+                player.sendMessage(net.minecraft.text.Text.translatable("message.orbital_railgun.denied." + survey.reason())
+                        .formatted(net.minecraft.util.Formatting.RED), false);
+                player.playSound(com.creedpdf.orbitalrailgun.registry.ModSounds.UI_DENIED, net.minecraft.sound.SoundCategory.PLAYERS, 1f, 1f);
+            }
+            return;
+        }
 
         double spawnY = Math.max(landing.getY() + 20, Math.min(landing.getY() + RailgunConfig.DROP_HEIGHT, world.getTopY() - 10));
         RailgunEntity railgun = RailgunMod.RAILGUN.create(world);

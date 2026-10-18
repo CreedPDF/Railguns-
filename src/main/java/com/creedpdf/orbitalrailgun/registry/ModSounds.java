@@ -1,6 +1,7 @@
 package com.creedpdf.orbitalrailgun.registry;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
+import com.creedpdf.orbitalrailgun.loadout.Loadout;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.sound.SoundEvent;
@@ -30,6 +31,42 @@ public final class ModSounds {
     public static final SoundEvent RAILGUN_LAUNCH = register("railgun.launch");
     public static final SoundEvent UI_TABLET_OPEN = register("ui.tablet_open");
     public static final SoundEvent UI_TABLET_CLOSE = register("ui.tablet_close");
+
+    // ---- Loadout / orbital storage ----------------------------------------------------------
+    public static final SoundEvent UI_LOADOUT_SELECT = register("ui.loadout_select");
+    public static final SoundEvent UI_LOADOUT_ORDER = register("ui.loadout_order");
+    public static final SoundEvent CAPSULE_REENTRY = register("capsule.reentry");
+    public static final SoundEvent CAPSULE_LAND = register("capsule.land");
+    public static final SoundEvent CAPSULE_OPEN = register("capsule.open");
+    public static final SoundEvent CAPSULE_TRANSFER = register("capsule.transfer");
+    public static final SoundEvent CAPSULE_LAUNCH = register("capsule.launch");
+    public static final SoundEvent RAILGUN_ATTACH = register("railgun.attach");
+
+    private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);
+    private static final java.util.Map<Loadout.Option, SoundEvent> IMPACT = new java.util.EnumMap<>(Loadout.Option.class);
+    static {
+        for (Loadout.Option o : Loadout.Option.values()) {
+            switch (o.category) {
+                case MUZZLE -> SIGNATURE.put(o, register("muzzle." + o.id));
+                case AMMO -> {
+                    SIGNATURE.put(o, register("ammo." + o.id + ".fire"));
+                    IMPACT.put(o, register("ammo." + o.id + ".impact"));
+                }
+                case MODULE -> SIGNATURE.put(o, register("module." + o.id));
+            }
+        }
+    }
+    public static final SoundEvent MODULE_SHIELD_BLOCK = register("module.shield_block");
+
+    /** Muzzle firing signature, ammunition fire sound, or the module's own sound. */
+    public static SoundEvent signature(Loadout.Option o) {
+        return SIGNATURE.get(o);
+    }
+
+    /** Ammunition impact sound. */
+    public static SoundEvent impact(Loadout.Option ammo) {
+        return IMPACT.get(ammo);
+    }
 
     private static SoundEvent register(String path) {
         var id = RailgunMod.id(path);

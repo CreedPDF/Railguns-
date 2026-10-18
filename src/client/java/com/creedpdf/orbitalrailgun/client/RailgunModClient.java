@@ -30,6 +30,7 @@ public final class RailgunModClient implements ClientModInitializer {
         RailgunMod.setClientBridge(new Bridge());
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
+        EntityRendererRegistry.register(RailgunMod.SUPPLY_CAPSULE, com.creedpdf.orbitalrailgun.client.render.SupplyCapsuleRenderer::new);
         RailgunParticles.register();
         ClientPackets.registerReceivers();
 

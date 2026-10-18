@@ -19,6 +19,13 @@ public final class ClientPackets {
             int ticks = buf.readVarInt();
             client.execute(() -> RailgunHud.startCountdown(landing, ticks));
         });
+        ClientPlayNetworking.registerGlobalReceiver(ModPackets.SURVEY_RESULT, (client, handler, buf, sender) -> {
+            BlockPos ground = buf.readBlockPos();
+            boolean ok = buf.readBoolean();
+            String reason = buf.readString();
+            BlockPos obstacle = buf.readBlockPos();
+            client.execute(() -> TabletStatus.survey = new TabletStatus.Survey(ground, ok, reason, obstacle, System.currentTimeMillis()));
+        });
         ClientPlayNetworking.registerGlobalReceiver(ModPackets.TABLET_INFO, (client, handler, buf, sender) -> {
             TabletStatus status = TabletStatus.read(buf);
             client.execute(() -> TabletStatus.latest = status);
@@ -42,6 +49,19 @@ public final class ClientPackets {
         buf.writeVarInt(entityId);
         buf.writeVarInt(action.ordinal());
         ClientPlayNetworking.send(ModPackets.PANEL_ACTION, buf);
+    }
+
+    public static void sendLoadoutOrder(int entityId, int loadout) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(entityId);
+        buf.writeVarInt(loadout);
+        ClientPlayNetworking.send(ModPackets.PANEL_LOADOUT, buf);
+    }
+
+    public static void requestSurvey(BlockPos ground) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeBlockPos(ground);
+        ClientPlayNetworking.send(ModPackets.SURVEY, buf);
     }
 
     public static void requestStatus() { sendEmpty(ModPackets.TABLET_STATUS); }

@@ -1,6 +1,9 @@
 package com.creedpdf.orbitalrailgun.entity;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
+import com.creedpdf.orbitalrailgun.loadout.Loadout;
+import com.creedpdf.orbitalrailgun.loadout.LoadoutEffects;
+import com.creedpdf.orbitalrailgun.util.LandingSurvey;
 import com.creedpdf.orbitalrailgun.registry.ModParticles;
 import com.creedpdf.orbitalrailgun.registry.ModSounds;
 import com.creedpdf.orbitalrailgun.util.RailgunCollision;
@@ -81,6 +84,12 @@ public class RailgunEntity extends Entity implements GeoEntity {
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Optional<UUID>> OWNER =
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.OPTIONAL_UUID);
+    /** Installed loadout (see {@link Loadout}). */
+    private static final TrackedData<Integer> LOADOUT =
+            DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.INTEGER);
+    /** A supply capsule is on its way with a new loadout: deployment waits for it. */
+    private static final TrackedData<Boolean> SUPPLY_INBOUND =
+            DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     /** Pod-form hitbox: the armoured pillar (shell apothem 34 px) with the rail pointing up. */
     private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(4.4f, 10.75f);
@@ -102,6 +111,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
     private boolean clientLoopSoundStarted;
     private boolean chunkForced;
     private double launchSpeed;
+    /** Remaining rounds of an autoloader burst after the current one. */
+    private int shotsLeft;
+    /** Plasma afterburn pool at the last impact. */
+    private int afterburnTicks;
+    private Vec3d afterburnPos = Vec3d.ZERO;
+    /** Safety net: clears SUPPLY_INBOUND if the capsule never arrives (e.g. after a reload). */
+    private int inboundTimeout;
 
     /** Turret aim in degrees. Yaw 0 = +Z (south), positive pitch = up. Computed on both sides. */
     private float aimYaw, aimPitch = 90f, prevAimYaw, prevAimPitch = 90f;
@@ -118,6 +134,8 @@ public class RailgunEntity extends Entity implements GeoEntity {
         this.dataTracker.startTracking(TARGET, BlockPos.ORIGIN);
         this.dataTracker.startTracking(HAS_TARGET, false);
         this.dataTracker.startTracking(OWNER, Optional.empty());
+        this.dataTracker.startTracking(LOADOUT, 0);
+        this.dataTracker.startTracking(SUPPLY_INBOUND, false);
     }
 
     // =========================================================================================
@@ -148,12 +166,17 @@ public class RailgunEntity extends Entity implements GeoEntity {
             }
             case TRANSFORMING -> tickTransforming(t);
             case IDLE -> { }
-            case CHARGING -> tickCharging();
+            case CHARGING -> tickCharging(t);
             case FIRING -> tickFiring(t);
             case COOLDOWN -> tickCooldown(t);
             case PACKING -> tickPacking(t);
             case LAUNCHING -> tickLaunching(t);
         }
+
+        ServerWorld sw = (ServerWorld) getWorld();
+        if (state.isOperational()) LoadoutEffects.deployedTick(this, sw, this.age);
+        if (afterburnTicks > 0) LoadoutEffects.afterburnTick(this, sw, afterburnPos, afterburnTicks--);
+        if (isSupplyInbound() && --inboundTimeout <= 0) dataTracker.set(SUPPLY_INBOUND, false);
     }
 
     /**
@@ -168,6 +191,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         if (Double.isNaN(landY)) {
             landY = getWorld().getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, getBlockX(), getBlockZ());
         }
+        if (nextY <= landY + 12) smashThrough((ServerWorld) getWorld(), Math.max(nextY, landY));
         if (nextY <= landY) {
             setPosition(getX(), landY, getZ());
             land();
@@ -176,11 +200,28 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
+    /** The falling pod smashes through whatever is in its way (trees, roofs, a hill top). */
+    private void smashThrough(ServerWorld world, double y) {
+        BlockPos c = BlockPos.ofFloored(getX(), y, getZ());
+        int broken = 0;
+        for (BlockPos p : BlockPos.iterate(c.add(-2, 0, -2), c.add(2, 10, 2))) {
+            BlockState st = world.getBlockState(p);
+            if (st.isAir() || LandingSurvey.unbreakable(world, p, st) || st.isOf(RailgunMod.RAILGUN_COLLIDER)) continue;
+            world.setBlockState(p, Blocks.AIR.getDefaultState(), Block.NOTIFY_LISTENERS | Block.SKIP_DROPS);
+            if (broken++ % 3 == 0) RailgunFx.burst(world, ModParticles.DEBRIS, Vec3d.ofCenter(p), 5, 0.5, 0.5, 0.4);
+        }
+    }
+
     private void land() {
         setVelocity(Vec3d.ZERO);
         this.noClip = false;
         ServerWorld world = (ServerWorld) getWorld();
-        clearFootprint(world, getBoundingBox());
+        // Smash a flat platform: everything breakable in the deployment volume is cleared.
+        int cleared = LandingSurvey.clearPlatform(world, BlockPos.ofFloored(getX(), landY, getZ()));
+        if (cleared > 0) {
+            RailgunFx.burst(world, ModParticles.DEBRIS, getPos().add(0, 2, 0), Math.min(400, 60 + cleared), 6.0, 2.0, 0.6);
+            RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(0, 1, 0), 80, 6.0, 1.0, 0.2);
+        }
         setChunkForced(world, true);
 
         Vec3d base = getPos().add(0, 0.5, 0);
@@ -250,6 +291,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
             }
         }
         if (t >= RailgunConfig.TRANSFORM_TICKS) {
+            if (getLoadout().has(Loadout.Option.SHIELD)) {
+                world.playSound(null, getX(), getY() + 2, getZ(), ModSounds.signature(Loadout.Option.SHIELD), SoundCategory.BLOCKS, 5f, 1f);
+            }
             RailgunCollision.place(world, getBlockPos());
             setState(RailgunState.IDLE);
         }
@@ -287,12 +331,14 @@ public class RailgunEntity extends Entity implements GeoEntity {
             world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_LAUNCH, SoundCategory.BLOCKS, 12.0f, 1.0f);
             RailgunFx.burst(world, ModParticles.FLASH, getPos().add(0, 0.5, 0), 2, 0.8, 0.2, 0);
             launchSpeed = 0.05;
+            LoadoutEffects.launchStart(this, world);
         }
         if (t < 30) {
             ring(world, ModParticles.PLASMA_SMOKE, new Vec3d(getX(), landY + 0.4, getZ()), 2.5, 10, 0.25);
             if (t % 3 == 0) RailgunFx.burst(world, ModParticles.EMBER, new Vec3d(getX(), landY + 0.5, getZ()), 10, 2.0, 0.2, 0.3);
         }
-        launchSpeed = Math.min(RailgunConfig.LAUNCH_MAX_SPEED, launchSpeed + RailgunConfig.LAUNCH_ACCEL * (1 + t / 40.0));
+        double boost = LoadoutEffects.launchAccelMul(this);
+        launchSpeed = Math.min(RailgunConfig.LAUNCH_MAX_SPEED * boost, launchSpeed + RailgunConfig.LAUNCH_ACCEL * boost * (1 + t / 40.0));
         setPosition(getX(), getY() + launchSpeed, getZ());
         if (getY() > landY + RailgunConfig.LAUNCH_REMOVE_HEIGHT || getY() > getWorld().getTopY() + 64 || t > 400) {
             discard();
@@ -312,7 +358,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
-    private void ring(ServerWorld world, net.minecraft.particle.ParticleEffect particle, Vec3d center, double radius,
+    public void ring(ServerWorld world, net.minecraft.particle.ParticleEffect particle, Vec3d center, double radius,
                       int count, double speed) {
         Random r = this.random;
         for (int i = 0; i < count; i++) {
@@ -323,12 +369,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
-    private void tickCharging() {
+    private void tickCharging(int t) {
         if (!hasTarget()) {
             abortCharge();
             return;
         }
-        float charge = Math.min(1f, getCharge() + 1f / RailgunConfig.CHARGE_TICKS);
+        LoadoutEffects.chargingTick(this, (ServerWorld) getWorld(), t);
+        float charge = Math.min(1f, getCharge() + 1f / getLoadout().chargeTicks(RailgunConfig.CHARGE_TICKS));
         setCharge(charge);
         // Hold at 100% until the turret has finished slewing onto the target.
         if (charge >= 1f && isAimAligned()) {
@@ -338,10 +385,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
 
     private void tickFiring(int t) {
         ServerWorld world = (ServerWorld) getWorld();
+        Loadout l = getLoadout();
+        boolean breaks = RailgunConfig.BREAK_BLOCKS && l.breaksBlocks();
         if (t == 0) {
             fireMainShot(world);
         } else {
-            boreTick(world, t);
+            Vec3d tip = boreTick(world, t, breaks);
+            LoadoutEffects.firingTick(this, world, t, tip);
         }
         if (t == 8 || t == 16) {
             // Secondary ring of blasts around the crater as the shockwave rolls out.
@@ -350,7 +400,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             for (int i = 0; i < RailgunConfig.RING_BLASTS; i++) {
                 double a = (i + (t == 16 ? 0.5 : 0)) * Math.PI * 2 / RailgunConfig.RING_BLASTS;
                 Vec3d p = impact.add(Math.cos(a) * rr, 0, Math.sin(a) * rr);
-                RailgunFx.detonate(world, this, p, RailgunConfig.RING_BLAST_POWER, RailgunConfig.BREAK_BLOCKS);
+                RailgunFx.detonate(world, this, p, RailgunConfig.RING_BLAST_POWER * l.ringBlastMul(), breaks);
                 RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, p.add(0, 1, 0), 18, 2.0, 1.5, 0.1);
                 RailgunFx.burst(world, ModParticles.EMBER, p.add(0, 1, 0), 14, 1.5, 1.0, 0.6);
             }
@@ -367,14 +417,24 @@ public class RailgunEntity extends Entity implements GeoEntity {
         setCharge(Math.max(0f, 1f - (float) t / RailgunConfig.FIRE_TICKS));
 
         if (t >= RailgunConfig.FIRE_TICKS) {
-            world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_POWER_DOWN, SoundCategory.BLOCKS, 3.0f, 1.0f);
-            setState(RailgunState.COOLDOWN);
+            if (shotsLeft > 0 && hasTarget()) {
+                // Autoloader: re-chamber and go again with the capacitors still mostly full.
+                shotsLeft--;
+                LoadoutEffects.onShotEnded(this, world, true);
+                setState(RailgunState.CHARGING);
+                setCharge(0.8f);
+            } else {
+                world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_POWER_DOWN, SoundCategory.BLOCKS, 3.0f, 1.0f);
+                setState(RailgunState.COOLDOWN);
+            }
         }
     }
 
     private void tickCooldown(int t) {
         ServerWorld world = (ServerWorld) getWorld();
-        if (t % 3 == 0 && t < RailgunConfig.COOLDOWN_TICKS - 20) {
+        LoadoutEffects.cooldownTick(this, world, t);
+        int cooldown = getLoadout().cooldownTicks(RailgunConfig.COOLDOWN_TICKS);
+        if (t % 3 == 0 && t < cooldown - 20) {
             // Heat venting from the cooling fins along the barrel roof.
             Vec3d muzzle = getMuzzlePos(1f);
             Vec3d pivot = getPos().add(0, RailgunConfig.PIVOT_Y, 0);
@@ -384,7 +444,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 RailgunFx.launch(world, ModParticles.PLASMA_SMOKE, p, new Vec3d(0, 0.12 + this.random.nextDouble() * 0.08, 0));
             }
         }
-        if (t >= RailgunConfig.COOLDOWN_TICKS) {
+        if (t >= cooldown) {
             setCharge(0f);
             setState(RailgunState.IDLE);
         }
@@ -393,41 +453,48 @@ public class RailgunEntity extends Entity implements GeoEntity {
     private void fireMainShot(ServerWorld world) {
         BlockPos targetPos = getTarget();
         world.getChunk(targetPos); // force-load the impact chunk so the strike always lands
+        Loadout l = getLoadout();
+        boolean breaks = RailgunConfig.BREAK_BLOCKS && l.breaksBlocks();
 
         Vec3d muzzle = getMuzzlePos(1f);
         Vec3d impact = Vec3d.ofCenter(targetPos);
 
         damageAlongBeam(world, muzzle, impact, 1f);
-        if (RailgunConfig.BREAK_BLOCKS) {
+        if (breaks) {
             // Cut straight through anything between the muzzle and the target.
             Vec3d dir = impact.subtract(muzzle).normalize();
-            carveLine(world, muzzle.add(dir.multiply(4.0)), impact, RailgunConfig.PATH_RADIUS);
+            carveLine(world, muzzle.add(dir.multiply(4.0)), impact, RailgunConfig.PATH_RADIUS * l.boreRadiusMul());
         }
-        RailgunFx.detonate(world, this, impact, RailgunConfig.IMPACT_EXPLOSION_POWER, RailgunConfig.BREAK_BLOCKS);
+        RailgunFx.detonate(world, this, impact, RailgunConfig.IMPACT_EXPLOSION_POWER * l.blastMul(), breaks);
 
         // Impact
         RailgunFx.burst(world, ModParticles.FLASH, impact.add(0, 2, 0), 8, 3.0, 2.0, 0);
         RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, impact, 260, 8.0, 5.0, 0.18);
-        RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), 300, 3.5, 2.0, 1.4);
+        RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), breaks ? 300 : 40, 3.5, 2.0, 1.4);
         RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 220, 4.0, 3.0, 1.2);
         RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 260, 3.0, 3.0, 1.8);
         ring(world, ModParticles.SHOCK_DUST, impact, 3.0, 96, 1.7);
         ring(world, ModParticles.SHOCK_DUST, impact, 6.0, 96, 1.2);
-        // Muzzle blast + recoil dust around the fortress
-        RailgunFx.burst(world, ModParticles.FLASH, muzzle, 4, 1.0, 1.0, 0);
-        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 140, 3.5, 3.5, 0.35);
-        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, muzzle, 160, 1.5, 1.5, 2.0);
+        // Muzzle blast + recoil dust around the fortress (the ghost baffle swallows the flash)
+        if (!l.has(Loadout.Option.GHOST)) {
+            RailgunFx.burst(world, ModParticles.FLASH, muzzle, 4, 1.0, 1.0, 0);
+            RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 140, 3.5, 3.5, 0.35);
+            RailgunFx.burst(world, ModParticles.PLASMA_SPARK, muzzle, 160, 1.5, 1.5, 2.0);
+        } else {
+            RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 20, 1.0, 1.0, 0.05);
+        }
         RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 140, 8.0, 0.2, 0.45);
         ring(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 6.0, 64, 0.9);
 
-        world.playSound(null, muzzle.x, muzzle.y, muzzle.z, ModSounds.RAILGUN_FIRE, SoundCategory.BLOCKS, 16.0f, 1.0f);
-        world.playSound(null, impact.x, impact.y, impact.z, ModSounds.RAILGUN_IMPACT, SoundCategory.BLOCKS, 16.0f, 1.0f);
+        LoadoutEffects.fireSounds(this, world, muzzle, impact);
+        LoadoutEffects.onImpact(this, world, muzzle, impact);
     }
 
     /** How deep (blocks past the target, along the beam) the bore has reached. */
     public double getBoreDepth(float tickDelta) {
         if (getState() != RailgunState.FIRING) return 0.0;
-        return Math.min(RailgunConfig.BORE_DEPTH, (stateTicks + tickDelta) * RailgunConfig.BORE_SPEED);
+        double max = RailgunConfig.BORE_DEPTH * getLoadout().boreDepthMul();
+        return Math.min(max, (stateTicks + tickDelta) * RailgunConfig.BORE_SPEED * getLoadout().boreDepthMul());
     }
 
     /** Where the beam currently ends: the target, plus however far it has bored through. */
@@ -439,18 +506,20 @@ public class RailgunEntity extends Entity implements GeoEntity {
     }
 
     /** Each firing tick: push the bore deeper, vaporizing a tunnel, with blasts at the tip. */
-    private void boreTick(ServerWorld world, int t) {
+    private Vec3d boreTick(ServerWorld world, int t, boolean breaks) {
+        Loadout l = getLoadout();
         Vec3d target = Vec3d.ofCenter(getTarget());
         Vec3d dir = target.subtract(getMuzzlePos(1f)).normalize();
-        double d0 = Math.min(RailgunConfig.BORE_DEPTH, (t - 1) * RailgunConfig.BORE_SPEED);
-        double d1 = Math.min(RailgunConfig.BORE_DEPTH, t * RailgunConfig.BORE_SPEED);
-        if (d1 <= d0) return;
+        double max = RailgunConfig.BORE_DEPTH * l.boreDepthMul(), speed = RailgunConfig.BORE_SPEED * l.boreDepthMul();
+        double d0 = Math.min(max, (t - 1) * speed);
+        double d1 = Math.min(max, t * speed);
         Vec3d tip = target.add(dir.multiply(d1));
-        if (RailgunConfig.BREAK_BLOCKS) {
-            carveLine(world, target.add(dir.multiply(d0)), tip, RailgunConfig.BORE_RADIUS);
+        if (d1 <= d0) return tip;
+        if (breaks) {
+            carveLine(world, target.add(dir.multiply(d0)), tip, RailgunConfig.BORE_RADIUS * l.boreRadiusMul());
         }
         if (t % RailgunConfig.BORE_BLAST_EVERY == 0) {
-            RailgunFx.detonate(world, this, tip, RailgunConfig.BORE_BLAST_POWER, RailgunConfig.BREAK_BLOCKS);
+            RailgunFx.detonate(world, this, tip, RailgunConfig.BORE_BLAST_POWER * (float) l.boreRadiusMul(), breaks);
             RailgunFx.burst(world, ModParticles.FLASH, tip, 1, 0.5, 0.5, 0);
         }
         RailgunFx.burst(world, ModParticles.PLASMA_SPARK, tip, 16, 1.5, 1.5, 0.8);
@@ -458,6 +527,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         // Molten spray erupting back out of the bore mouth.
         RailgunFx.burst(world, ModParticles.EMBER, target.add(0, 1, 0), 12, 1.5, 0.5, 0.9);
         RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, target.add(0, 1.5, 0), 6, 2.0, 1.0, 0.15);
+        return tip;
     }
 
     /**
@@ -465,7 +535,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
      * vanilla particles or sounds). Unbreakable blocks (bedrock, the railgun's own colliders,
      * hardness < 0) survive.
      */
-    private void carveLine(ServerWorld world, Vec3d a, Vec3d b, double radius) {
+    public void carveLine(ServerWorld world, Vec3d a, Vec3d b, double radius) {
         Vec3d ab = b.subtract(a);
         double len = ab.length();
         if (len < 1e-4) return;
@@ -492,17 +562,22 @@ public class RailgunEntity extends Entity implements GeoEntity {
      * Hits every living entity within {@link RailgunConfig#BEAM_HIT_RADIUS} of the beam segment.
      * The segment can be hundreds of blocks long, so small boxes are swept along it.
      */
-    private void damageAlongBeam(ServerWorld world, Vec3d from, Vec3d to, float scale) {
+    public DamageSource beamDamage(ServerWorld world) {
+        return new DamageSource(world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(RailgunMod.BEAM_DAMAGE),
+                this, getOwner(world));
+    }
+
+    public void damageAlongBeam(ServerWorld world, Vec3d from, Vec3d to, float scale) {
         Vec3d delta = to.subtract(from);
         double length = delta.length();
         if (length < 1e-3) return;
         Vec3d dir = delta.multiply(1.0 / length);
 
-        DamageSource source = new DamageSource(
-                world.getRegistryManager().get(RegistryKeys.DAMAGE_TYPE).entryOf(RailgunMod.BEAM_DAMAGE),
-                this, getOwner(world));
+        DamageSource source = beamDamage(world);
+        double hitRadius = RailgunConfig.BEAM_HIT_RADIUS * getLoadout().hitRadiusMul();
+        float damage = RailgunConfig.BEAM_DAMAGE * getLoadout().damageMul();
 
-        double r = RailgunConfig.BEAM_HIT_RADIUS + 1.0;
+        double r = hitRadius + 1.0;
         double step = 12.0;
         Set<LivingEntity> hit = new HashSet<>();
         for (double d = 0; d < length + step; d += step) {
@@ -514,8 +589,8 @@ public class RailgunEntity extends Entity implements GeoEntity {
             Vec3d c = victim.getBoundingBox().getCenter();
             double along = MathHelper.clamp(c.subtract(from).dotProduct(dir), 0, length);
             double dist = c.distanceTo(from.add(dir.multiply(along)));
-            if (dist <= RailgunConfig.BEAM_HIT_RADIUS + victim.getWidth() * 0.5) {
-                victim.damage(source, RailgunConfig.BEAM_DAMAGE * scale);
+            if (dist <= hitRadius + victim.getWidth() * 0.5) {
+                victim.damage(source, damage * scale);
             }
         }
     }
@@ -592,6 +667,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
             }
             case LAUNCHING -> {
                 if (t == 0) RailgunMod.client().shake(this, 1.0f);
+                if (getLoadout().has(Loadout.Option.THRUSTER)) {
+                    for (int i = 0; i < 4; i++) {
+                        double a = i * Math.PI / 2 + Math.PI / 4;
+                        world.addParticle(ModParticles.THRUSTER_FLAME, getX() + Math.cos(a) * 1.9, getY() + 0.2,
+                                getZ() + Math.sin(a) * 1.9, 0, -1.6 - rand.nextDouble(), 0);
+                    }
+                }
                 // Thrusters under the pod.
                 for (int i = 0; i < 14; i++) {
                     double a = rand.nextDouble() * Math.PI * 2;
@@ -662,7 +744,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunState state = getState();
         switch (action) {
             case DEPLOY -> {
-                if (state != RailgunState.POD) return false;
+                if (state != RailgunState.POD || isSupplyInbound()) return false;
                 world.playSound(null, p.x, p.y, p.z, ModSounds.RAILGUN_PANEL, SoundCategory.BLOCKS, 1.5f, 1.0f);
                 setState(RailgunState.PANEL_OPEN);
             }
@@ -733,8 +815,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
             targetPitch = (float) Math.toDegrees(Math.atan2(to.y, horizontal));
         }
         float yawDiff = MathHelper.wrapDegrees(targetYaw - aimYaw);
-        aimYaw = MathHelper.wrapDegrees(aimYaw + MathHelper.clamp(yawDiff, -RailgunConfig.SLEW_DEG_PER_TICK, RailgunConfig.SLEW_DEG_PER_TICK));
-        aimPitch += MathHelper.clamp(targetPitch - aimPitch, -RailgunConfig.SLEW_DEG_PER_TICK, RailgunConfig.SLEW_DEG_PER_TICK);
+        float slew = RailgunConfig.SLEW_DEG_PER_TICK * getLoadout().slewMul();
+        aimYaw = MathHelper.wrapDegrees(aimYaw + MathHelper.clamp(yawDiff, -slew, slew));
+        aimPitch += MathHelper.clamp(targetPitch - aimPitch, -slew, slew);
         if (Math.abs(aimYaw - prevAimYaw) > 180f) prevAimYaw = aimYaw;
     }
 
@@ -774,10 +857,14 @@ public class RailgunEntity extends Entity implements GeoEntity {
     public void setTarget(BlockPos pos) {
         dataTracker.set(TARGET, pos.toImmutable());
         dataTracker.set(HAS_TARGET, true);
+        if (getLoadout().has(Loadout.Option.TARGETING) && getWorld() instanceof ServerWorld w) {
+            w.playSound(null, getX(), getY() + 6, getZ(), ModSounds.signature(Loadout.Option.TARGETING), SoundCategory.BLOCKS, 3f, 1f);
+        }
     }
 
     public boolean tryStartCharge() {
         if (getState() != RailgunState.IDLE || !hasTarget()) return false;
+        shotsLeft = getLoadout().burst() - 1;
         setCharge(0f);
         setState(RailgunState.CHARGING);
         return true;
@@ -911,6 +998,45 @@ public class RailgunEntity extends Entity implements GeoEntity {
     public void setOwnerUuid(@Nullable UUID uuid) { dataTracker.set(OWNER, Optional.ofNullable(uuid)); }
     public void setLandY(double y) { this.landY = y; }
 
+    // ---- Loadout ----------------------------------------------------------------------------
+
+    public Loadout getLoadout() { return Loadout.of(dataTracker.get(LOADOUT)); }
+    public boolean isSupplyInbound() { return dataTracker.get(SUPPLY_INBOUND); }
+
+    /**
+     * Panel order: sends the loadout request to orbital storage. A supply capsule drops beside the
+     * pod and installs it. Only on a landed pod, one delivery at a time.
+     */
+    public boolean orderLoadout(PlayerEntity player, int raw) {
+        if (!(getWorld() instanceof ServerWorld world)) return false;
+        if (getState() != RailgunState.POD || isSupplyInbound()) return false;
+        if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 3.0) return false;
+        Loadout want = Loadout.of(raw);
+        if (want.raw() != raw || want.equals(getLoadout())) return false;
+        if (com.creedpdf.orbitalrailgun.entity.SupplyCapsuleEntity.dispatch(world, this, raw) == null) return false;
+        dataTracker.set(SUPPLY_INBOUND, true);
+        inboundTimeout = 1200;
+        Vec3d p = getPanelPos();
+        world.playSound(null, p.x, p.y, p.z, ModSounds.UI_LOADOUT_ORDER, SoundCategory.BLOCKS, 1.5f, 1f);
+        return true;
+    }
+
+    /** Called by the supply capsule at the end of its transfer. */
+    public void receiveLoadout(int raw) {
+        dataTracker.set(LOADOUT, Loadout.of(raw).raw());
+        dataTracker.set(SUPPLY_INBOUND, false);
+        if (getWorld() instanceof ServerWorld world) {
+            world.playSound(null, getX(), getY() + 4, getZ(), ModSounds.RAILGUN_ATTACH, SoundCategory.BLOCKS, 3f, 1f);
+            RailgunFx.burst(world, ModParticles.TRANSFER_MOTE, getPos().add(0, 4, 0), 80, 1.5, 3.0, 0.2);
+            RailgunFx.burst(world, ModParticles.LENS_GLINT, getPos().add(0, 6, 0), 6, 1.0, 3.0, 0);
+        }
+    }
+
+    public void startAfterburn(Vec3d at) {
+        afterburnPos = at;
+        afterburnTicks = LoadoutEffects.AFTERBURN_TICKS;
+    }
+
     @Nullable
     private Entity getOwner(ServerWorld world) {
         UUID owner = getOwnerUuid();
@@ -933,6 +1059,8 @@ public class RailgunEntity extends Entity implements GeoEntity {
         landY = nbt.contains("LandY") ? nbt.getDouble("LandY") : Double.NaN;
         chunkForced = nbt.getBoolean("ChunkForced");
         launchSpeed = nbt.getDouble("LaunchSpeed");
+        dataTracker.set(LOADOUT, Loadout.of(nbt.getInt("Loadout")).raw());
+        shotsLeft = nbt.getInt("ShotsLeft");
     }
 
     @Override
@@ -949,6 +1077,8 @@ public class RailgunEntity extends Entity implements GeoEntity {
         if (!Double.isNaN(landY)) nbt.putDouble("LandY", landY);
         nbt.putBoolean("ChunkForced", chunkForced);
         nbt.putDouble("LaunchSpeed", launchSpeed);
+        nbt.putInt("Loadout", getLoadout().raw());
+        nbt.putInt("ShotsLeft", shotsLeft);
     }
 
     // =========================================================================================

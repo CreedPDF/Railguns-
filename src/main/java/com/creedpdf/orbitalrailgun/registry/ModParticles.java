@@ -23,6 +23,24 @@ public final class ModParticles {
     public static final DefaultParticleType DEBRIS = register("debris");
     public static final DefaultParticleType FLASH = register("flash");
     public static final DefaultParticleType SHOCK_DUST = register("shock_dust");
+    // loadout / orbital storage
+    public static final DefaultParticleType SPALL = register("spall");
+    public static final DefaultParticleType THERMITE_FLAME = register("thermite_flame");
+    public static final DefaultParticleType FROST = register("frost");
+    public static final DefaultParticleType ION_ARC = register("ion_arc");
+    public static final DefaultParticleType BOMBLET = register("bomblet");
+    public static final DefaultParticleType SINGULARITY_MOTE = register("singularity_mote");
+    public static final DefaultParticleType FALLOUT = register("fallout");
+    public static final DefaultParticleType LENS_GLINT = register("lens_glint");
+    public static final DefaultParticleType COOLANT_VAPOR = register("coolant_vapor");
+    public static final DefaultParticleType OVERCLOCK_SPARK = register("overclock_spark");
+    public static final DefaultParticleType SHIELD_SPARK = register("shield_spark");
+    public static final DefaultParticleType SENTRY_BOLT = register("sentry_bolt");
+    public static final DefaultParticleType THRUSTER_FLAME = register("thruster_flame");
+    public static final DefaultParticleType SEISMIC_CRACK = register("seismic_crack");
+    public static final DefaultParticleType SHELL_CASING = register("shell_casing");
+    public static final DefaultParticleType PLASMA_POOL = register("plasma_pool");
+    public static final DefaultParticleType TRANSFER_MOTE = register("transfer_mote");
 
     private static DefaultParticleType register(String name) {
         return Registry.register(Registries.PARTICLE_TYPE, RailgunMod.id(name), FabricParticleTypes.simple(true));

@@ -47,6 +47,9 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
             BeamRenderer.render(entity, partialTick, poseStack, bufferSource);
             poseStack.pop();
         }
+        poseStack.push();
+        LoadoutVfx.always(entity, partialTick, poseStack, bufferSource);
+        poseStack.pop();
         renderPanelReadout(entity, partialTick, poseStack, bufferSource);
     }
 
@@ -87,7 +90,8 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
         RailgunState s = e.getState();
         int t = e.getStateTicks();
         return switch (s) {
-            case POD -> List.of("ARES-9 RAILGUN POD", "[ USE PANEL ]");
+            case POD -> e.isSupplyInbound() ? List.of("ORBITAL STORAGE", "PAYLOAD INBOUND")
+                    : List.of("ARES-9 RAILGUN POD", "[ USE PANEL ]");
             case PANEL_OPEN -> List.of("PANEL RETRACTING");
             case TRANSFORMING -> List.of(String.format(Locale.ROOT, "DEPLOYING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.TRANSFORM_TICKS)));

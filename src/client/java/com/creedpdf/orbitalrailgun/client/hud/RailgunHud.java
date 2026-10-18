@@ -15,6 +15,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.creedpdf.orbitalrailgun.client.ui.UiKit;
 
 import java.util.Locale;
 
@@ -116,30 +117,31 @@ public final class RailgunHud {
         float remaining = (countdownEnd - client.world.getTime()) - tickDelta;
         float progress = MathHelper.clamp(1f - remaining / countdownTotal, 0f, 1f);
         boolean released = remaining <= 0;
-        boolean blink = (client.world.getTime() / 5) % 2 == 0;
+        float time = client.world.getTime() + tickDelta;
+        boolean blink = ((int) (time / 5)) % 2 == 0;
+        int col = released ? UiKit.RED : UiKit.CYAN;
 
-        int w = 240, h = 64;
+        int w = 260, h = 70;
         int x = (sw - w) / 2, y = 8;
-        RenderSystem.enableBlend();
-        ctx.drawTexture(PANEL, x, y, 0, 0, w, h, 256, 64);
-        RenderSystem.disableBlend();
+        // slide/glitch in
+        float in = MathHelper.clamp((countdownTotal - remaining) / 8f, 0f, 1f);
+        x += (int) ((1 - in) * -40);
+        UiKit.chamfer(ctx, x, y, w, h, 10, 0xD0050A10, UiKit.alpha(col, 0.9f));
+        UiKit.hexGrid(ctx, x + 2, y + 2, w - 4, h - 4, time, 0x1433E0FF);
+        UiKit.brackets(ctx, x - 3, y - 3, w + 6, h + 6, 10, UiKit.alpha(col, blink ? 1f : 0.5f));
 
-        Text title = Text.translatable(released ? "hud.orbital_railgun.released" : "hud.orbital_railgun.inbound");
-        ctx.drawCenteredTextWithShadow(font, title, sw / 2, y + 4, released || blink ? RED : RED_DIM);
+        String title = Text.translatable(released ? "hud.orbital_railgun.released" : "hud.orbital_railgun.inbound").getString();
+        float tw = UiKit.spacedWidth(font, title, 2f, 1f);
+        UiKit.spaced(ctx, font, title, sw / 2f - tw / 2f, y + 6, released || blink ? col : UiKit.alpha(col, 0.6f), 2f, 1f, true);
 
         String clock = released ? "IMPACT" : String.format(Locale.ROOT, "T-%05.2f", Math.max(0f, remaining / 20f));
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(sw / 2f, y + 18, 0);
-        ctx.getMatrices().scale(2f, 2f, 1f);
-        ctx.drawText(font, clock, -font.getWidth(clock) / 2, 0, 0xFFFFFFFF, true);
-        ctx.getMatrices().pop();
+        float cw = UiKit.spacedWidth(font, clock, 2f, 2f);
+        UiKit.spaced(ctx, font, clock, sw / 2f - cw / 2f, y + 19, 0xFFFFFFFF, 2f, 2f, true);
 
-        int barX = x + 9, barY = y + 41, barW = w - 18;
-        ctx.fill(barX, barY, barX + (int) (barW * progress), barY + 5, RED);
-
+        UiKit.segBar(ctx, x + 12, y + 41, w - 24, 6, progress, 40, 0xFF1A8FB0, col, 0xFF0C1A22);
         double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(landing));
-        String info = String.format(Locale.ROOT, "LZ %d %d %d   |   %.0fm", landing.getX(), landing.getY(), landing.getZ(), dist);
-        ctx.drawCenteredTextWithShadow(font, info, sw / 2, y + 51, 0xFFB0B0B0);
+        String info = String.format(Locale.ROOT, "LZ %d %d %d  //  %.0f m", landing.getX(), landing.getY(), landing.getZ(), dist);
+        ctx.drawCenteredTextWithShadow(font, info, sw / 2, y + 55, 0xFFA8C4D4);
     }
 
     private static void renderTargetingReadout(DrawContext ctx, MinecraftClient client, TextRenderer font, int sw, int sh, float tickDelta) {

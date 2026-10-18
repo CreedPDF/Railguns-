@@ -79,6 +79,8 @@ public final class RailgunAnimator {
         if (anim.loop) time = time % anim.length;
         else time = Math.min(time, anim.length);
 
+        applyLoadout(e, processor, partialTick);
+
         for (String boneName : animatedBones) {
             CoreGeoBone bone = processor.getBone(boneName);
             if (bone == null) continue;
@@ -103,6 +105,93 @@ public final class RailgunAnimator {
                 bone.setRotY((float) Math.toRadians(-r[1]));
                 bone.setRotZ((float) Math.toRadians(r[2]));
             }
+        }
+    }
+
+    // ---- Loadout attachments ---------------------------------------------------------------
+
+    /** Per railgun: the loadout last seen and when each option appeared (entity age, ticks). */
+    private static final java.util.Map<Integer, int[]> INSTALL = new java.util.HashMap<>();
+    private static final int OPTIONS = com.creedpdf.orbitalrailgun.loadout.Loadout.Option.values().length;
+
+    /**
+     * Shows the bones of installed options (bone names start with "opt_<id>"), hides the rest,
+     * scales newly delivered attachments in, and aims the sentry turret heads.
+     */
+    private static void applyLoadout(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float partialTick) {
+        com.creedpdf.orbitalrailgun.loadout.Loadout l = e.getLoadout();
+        int[] rec = INSTALL.computeIfAbsent(e.getId(), k -> {
+            int[] r = new int[OPTIONS + 1];
+            r[OPTIONS] = l.raw();
+            java.util.Arrays.fill(r, 0, OPTIONS, -10000);
+            return r;
+        });
+        if (rec[OPTIONS] != l.raw()) {
+            com.creedpdf.orbitalrailgun.loadout.Loadout old = com.creedpdf.orbitalrailgun.loadout.Loadout.of(rec[OPTIONS]);
+            for (var o : com.creedpdf.orbitalrailgun.loadout.Loadout.Option.values()) {
+                if (l.has(o) && !old.has(o)) rec[o.ordinal()] = e.age;
+            }
+            rec[OPTIONS] = l.raw();
+        }
+        if (INSTALL.size() > 64) INSTALL.keySet().removeIf(id -> e.getWorld().getEntityById(id) == null);
+
+        float mount = mountFactor(e, partialTick, false), mountMuzzle = mountFactor(e, partialTick, true);
+        for (CoreGeoBone bone : processor.getRegisteredBones()) {
+            String name = bone.getName();
+            if (!name.startsWith("opt_")) continue;
+            int cut = name.indexOf("__");
+            String id = cut < 0 ? name.substring(4) : name.substring(4, cut);
+            var opt = OPTION_BY_ID.get(id);
+            float f = opt == null || !l.has(opt) ? 0f : opt.category == com.creedpdf.orbitalrailgun.loadout.Loadout.Category.MUZZLE ? mountMuzzle : mount;
+            if (f > 0f) {
+                // freshly delivered while deployed: grow in as well
+                f = Math.min(f, Math.min(1f, (e.age - rec[opt.ordinal()] + partialTick) / 16f));
+            }
+            boolean on = f > 0.001f;
+            bone.setHidden(!on);
+            bone.setChildrenHidden(!on);
+            if (!on || name.endsWith("_head")) continue;
+            float sc = (float) Easing.apply("easeoutback", f);
+            bone.setScaleX(sc);
+            bone.setScaleY(sc);
+            bone.setScaleZ(sc);
+        }
+        if (l.has(com.creedpdf.orbitalrailgun.loadout.Loadout.Option.SENTRY)) aimSentries(e, processor, partialTick);
+    }
+
+    /**
+     * Attachments are stored inside the pod and mounted during deployment: they unfold once the
+     * turret is up (muzzle devices once the barrel has telescoped out) and fold away first when
+     * packing up.
+     */
+    private static float mountFactor(RailgunEntity e, float pt, boolean muzzle) {
+        float t = e.getStateTicks() + pt;
+        return switch (e.getState()) {
+            case IDLE, CHARGING, FIRING, COOLDOWN -> 1f;
+            case TRANSFORMING -> Math.max(0f, Math.min(1f, (t - (muzzle ? 226f : 166f)) / 16f));
+            case PACKING -> muzzle ? Math.max(0f, 1f - t / 14f) : Math.max(0f, Math.min(1f, (74f - t) / 16f));
+            default -> 0f;
+        };
+    }
+
+    private static final java.util.Map<String, com.creedpdf.orbitalrailgun.loadout.Loadout.Option> OPTION_BY_ID = new HashMap<>();
+    static {
+        for (var o : com.creedpdf.orbitalrailgun.loadout.Loadout.Option.values()) OPTION_BY_ID.put(o.id, o);
+    }
+
+    private static void aimSentries(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float partialTick) {
+        var mounts = com.creedpdf.orbitalrailgun.loadout.LoadoutEffects.sentryMounts();
+        String[] heads = {"opt_sentry__a_head", "opt_sentry__b_head"};
+        for (int i = 0; i < 2; i++) {
+            CoreGeoBone head = processor.getBone(heads[i]);
+            if (head == null) continue;
+            net.minecraft.util.math.Vec3d gun = e.getLerpedPos(partialTick).add(mounts[i]);
+            net.minecraft.entity.mob.HostileEntity target = e.getWorld().getEntitiesByClass(net.minecraft.entity.mob.HostileEntity.class,
+                    new net.minecraft.util.math.Box(gun, gun).expand(32), net.minecraft.entity.Entity::isAlive).stream()
+                    .min(java.util.Comparator.comparingDouble(m -> m.squaredDistanceTo(gun))).orElse(null);
+            float yaw = target == null ? (e.age + partialTick) * 0.02f * (i == 0 ? 1 : -1)
+                    : (float) Math.atan2(target.getX() - gun.x, target.getZ() - gun.z);
+            head.setRotY(yaw);
         }
     }
 

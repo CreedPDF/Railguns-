@@ -52,6 +52,26 @@ along the beam: a tunnel 8 blocks wide up to 96 blocks deep, with blasts at the 
 the main blast and two rings of secondary blasts around the crater. Only unbreakable blocks stop
 it. All of it is tunable in `RailgunConfig` (`BORE_*`, `PATH_RADIUS`, `*_POWER`, `BREAK_BLOCKS`).
 
+## Loadouts and orbital storage
+Before deploying, open the pod's console and switch to **LOADOUT**. Pick one muzzle device, one
+ammunition type and up to four support modules (23 options), then **TRANSMIT TO ORBITAL STORAGE**:
+a supply capsule re-enters beside the pod, lands on its retro thrusters, opens and streams the
+attachments into the pod, then returns to orbit. Attachments unfold onto the emplacement during
+deployment and fold away first when packing.
+
+| Muzzle | Ammunition | Modules |
+|---|---|---|
+| Lancer Lens Array, Tri-Prong Compensator, Plasma Shroud, Scatter Choke, Graviton Coil, Ghost Baffle | Tungsten Penetrator, Thermite Incendiary, Cryo-Stasis Slug, Ion Disruptor, Cluster Payload, Singularity Charge, Sunburst Warhead | Capacitor Bank, Cryo Coolant Loop, Overclock Coils, Targeting Array, Aegis Shield Emitters, Sentry Turrets, Vector Thrusters, Seismic Anchors, Autoloader Drum, Plasma Afterburn |
+
+Every option has its own Blender-built model, beam/particle effects and synthesized sounds.
+
+## Landing rules
+Before a pod is released, an orbital site survey checks the landing zone (a disc of 8 blocks,
+12 high). Ordinary blocks are fine: the pod smashes through trees and roofs and clears a flat
+platform on touchdown. The drop is refused if the zone holds unbreakable blocks, the ground falls
+away under too much of the footprint, the landing block is liquid, another railgun is too close,
+or the site is buried too deep. The tablet shows the survey live before you call it down.
+
 ## Building
 Every push to `main` runs GitHub Actions, which:
 1. downloads Blender 4.2 LTS and runs `tools/blender/build_models.py` headless,

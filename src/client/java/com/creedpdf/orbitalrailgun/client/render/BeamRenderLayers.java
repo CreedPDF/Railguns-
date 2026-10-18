@@ -45,6 +45,15 @@ public final class BeamRenderLayers extends RenderLayer {
     public static final Identifier TEX_HALO = RailgunMod.id("textures/effect/beam_halo.png");
     public static final Identifier TEX_HELIX = RailgunMod.id("textures/effect/beam_helix.png");
     public static final Identifier TEX_SHOCKWAVE = RailgunMod.id("textures/effect/shockwave.png");
+    // Neutral textures tinted per ammunition, and loadout effects
+    public static final Identifier TINT_CORE = RailgunMod.id("textures/effect/tint_core.png");
+    public static final Identifier TINT_PLASMA = RailgunMod.id("textures/effect/tint_plasma.png");
+    public static final Identifier TINT_HALO = RailgunMod.id("textures/effect/tint_halo.png");
+    public static final Identifier TINT_HELIX = RailgunMod.id("textures/effect/tint_helix.png");
+    public static final Identifier TINT_SHOCKWAVE = RailgunMod.id("textures/effect/tint_shockwave.png");
+    public static final Identifier SHIELD_HEX = RailgunMod.id("textures/effect/shield_hex.png");
+    public static final Identifier SINGULARITY = RailgunMod.id("textures/effect/singularity.png");
+    public static final Identifier TRANSFER_STREAM = RailgunMod.id("textures/effect/transfer_stream.png");
 
     public static final RenderLayer GLOW = RenderLayer.of(
             "orbital_railgun_glow",

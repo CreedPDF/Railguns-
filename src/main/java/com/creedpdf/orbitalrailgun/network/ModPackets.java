@@ -17,7 +17,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.Heightmap;
+import com.creedpdf.orbitalrailgun.util.LandingSurvey;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -33,6 +33,9 @@ import org.jetbrains.annotations.Nullable;
  *  C2S  panel_action     varint entityId, varint action   zoomed-in panel: DEPLOY / RETRACT / RETURN
  *  S2C  drop_countdown   BlockPos, int ticks    HUD countdown + local uplink sound
  *  S2C  tablet_info      status snapshot        what the tablet displays
+ *  C2S  panel_loadout    varint entityId, varint loadout   order a loadout from orbital storage
+ *  C2S  survey           BlockPos ground        tablet asks whether a drop zone is usable
+ *  S2C  survey_result    BlockPos, bool ok, String reason, BlockPos obstacle
  * </pre>
  *
  * <p>Tablet commands carry no entity id: the server resolves the sender's own railgun by owner
@@ -54,6 +57,9 @@ public final class ModPackets {
     public static final Identifier PANEL_ACTION = RailgunMod.id("panel_action");
     public static final Identifier DROP_COUNTDOWN = RailgunMod.id("drop_countdown");
     public static final Identifier TABLET_INFO = RailgunMod.id("tablet_info");
+    public static final Identifier PANEL_LOADOUT = RailgunMod.id("panel_loadout");
+    public static final Identifier SURVEY = RailgunMod.id("survey");
+    public static final Identifier SURVEY_RESULT = RailgunMod.id("survey_result");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -82,6 +88,28 @@ public final class ModPackets {
                 RailgunEntity.PanelAction[] actions = RailgunEntity.PanelAction.values();
                 if (action < 0 || action >= actions.length) return;
                 if (!railgun.handlePanelAction(player, actions[action])) deny(player, "busy");
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(PANEL_LOADOUT, (server, player, handler, buf, sender) -> {
+            int entityId = buf.readVarInt();
+            int raw = buf.readVarInt();
+            server.execute(() -> {
+                if (!(player.getWorld().getEntityById(entityId) instanceof RailgunEntity railgun) || !railgun.isAlive()) return;
+                if (!railgun.orderLoadout(player, raw)) deny(player, "loadout");
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(SURVEY, (server, player, handler, buf, sender) -> {
+            BlockPos ground = buf.readBlockPos();
+            server.execute(() -> {
+                ServerWorld world = (ServerWorld) player.getWorld();
+                if (player.getEyePos().squaredDistanceTo(Vec3d.ofCenter(ground)) > 600 * 600 || !world.isChunkLoaded(ground)) return;
+                LandingSurvey.Result r = LandingSurvey.survey(world, ground);
+                PacketByteBuf out = PacketByteBufs.create();
+                out.writeBlockPos(ground);
+                out.writeBoolean(r.ok());
+                out.writeString(r.reason());
+                out.writeBlockPos(r.obstacle());
+                ServerPlayNetworking.send(player, SURVEY_RESULT, out);
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_ABORT, (server, player, handler, buf, sender) ->
@@ -113,10 +141,9 @@ public final class ModPackets {
 
         BlockPos landing = target.up();
         if (world.isOutOfHeightLimit(landing)) { deny(player, "no_lock"); return; }
-        if (world.getTopY(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, landing.getX(), landing.getZ()) > landing.getY()) {
-            deny(player, "no_sky");
-            return;
-        }
+        // Orbital site survey: the pod is only released if it can land AND deploy here.
+        LandingSurvey.Result survey = LandingSurvey.survey(world, target);
+        if (!survey.ok()) { deny(player, survey.reason()); return; }
 
         DeploymentScheduler.schedule(world, landing, player.getUuid(), RailgunConfig.DROP_COUNTDOWN_TICKS);
         player.getItemCooldownManager().set(RailgunMod.RAILGUN_REMOTE, RailgunConfig.REMOTE_COOLDOWN_TICKS);
@@ -132,7 +159,8 @@ public final class ModPackets {
         if (railgun.getWorld() != player.getWorld()) { deny(player, "other_dimension"); return; }
         double dx = target.getX() + 0.5 - railgun.getX();
         double dz = target.getZ() + 0.5 - railgun.getZ();
-        if (dx * dx + dz * dz > RailgunConfig.MAX_FIRE_RANGE * RailgunConfig.MAX_FIRE_RANGE) { deny(player, "out_of_range"); return; }
+        double range = RailgunConfig.MAX_FIRE_RANGE * railgun.getLoadout().rangeMul();
+        if (dx * dx + dz * dz > range * range) { deny(player, "out_of_range"); return; }
         if (railgun.getWorld().isOutOfHeightLimit(target)) { deny(player, "out_of_range"); return; }
 
         railgun.setTarget(target);
@@ -176,6 +204,8 @@ public final class ModPackets {
             buf.writeFloat((float) Math.toDegrees(railgun.getAimPitchRad(1f)));
             buf.writeBoolean(railgun.getWorld() == player.getWorld());
             buf.writeVarInt(railgun.getStateTicks());
+            buf.writeVarInt(railgun.getLoadout().raw());
+            buf.writeBoolean(railgun.isSupplyInbound());
         }
         ServerPlayNetworking.send(player, TABLET_INFO, buf);
     }

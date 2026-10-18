@@ -19,6 +19,13 @@ public final class TabletStatus {
     public float yaw, pitch;
     public boolean sameDimension = true;
     public int stateTicks;
+    public int loadout;
+    public boolean supplyInbound;
+
+    /** Last orbital site survey for the tablet's landing zone. */
+    public static volatile Survey survey = null;
+
+    public record Survey(BlockPos ground, boolean ok, String reason, BlockPos obstacle, long receivedAt) {}
 
     public static TabletStatus read(PacketByteBuf buf) {
         TabletStatus s = new TabletStatus();
@@ -35,6 +42,8 @@ public final class TabletStatus {
             s.pitch = buf.readFloat();
             s.sameDimension = buf.readBoolean();
             s.stateTicks = buf.readVarInt();
+            s.loadout = buf.readVarInt();
+            s.supplyInbound = buf.readBoolean();
         }
         return s;
     }

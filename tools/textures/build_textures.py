@@ -144,6 +144,78 @@ def beam_textures():
                        (1, (255, 240, 230, 255))]), E / "shockwave.png")
 
 
+def loadout_effect_textures():
+    """
+    Neutral (white-luminance) beam textures that the renderer tints per ammunition, plus the
+    shield lattice, singularity surface and supply-capsule transfer stream.
+    """
+    E = A / "textures/effect"
+    W = [(0, (0, 0, 0, 0))]
+
+    h, w = 256, 32
+    streak = warp(periodic_noise(h, w, 48, 3, 3), periodic_noise(h, w, 32, 8, 2), periodic_noise(h, w, 32, 8, 2), 8)
+    v = 0.5 + 0.5 * streak ** 1.4
+    save_rgba(ramp(v, [(0, (200, 200, 200, 110)), (0.6, (235, 235, 235, 225)), (1, (255, 255, 255, 255))]), E / "tint_core.png")
+
+    h, w = 256, 64
+    body = warp(periodic_noise(h, w, 110, 24, 4, 0.5), periodic_noise(h, w, 80, 30, 2), periodic_noise(h, w, 80, 30, 2), 28)
+    fil = np.abs(np.sin(body * 7.0)) ** 12
+    v = np.clip(body ** 1.2 * 0.7 + fil * 0.7, 0, 1)
+    save_rgba(ramp(v, [(0, (40, 40, 40, 0)), (0.3, (120, 120, 120, 90)), (0.65, (210, 210, 210, 200)),
+                       (1, (255, 255, 255, 255))]), E / "tint_plasma.png")
+
+    h, w = 128, 64
+    wisps = warp(periodic_noise(h, w, 36, 18, 4), periodic_noise(h, w, 20, 20, 2), periodic_noise(h, w, 20, 20, 2), 20)
+    v = np.clip((wisps - 0.25) * 1.7, 0, 1) ** 1.3
+    save_rgba(ramp(v, [(0, (80, 80, 80, 0)), (0.5, (170, 170, 170, 90)), (1, (255, 255, 255, 170))]), E / "tint_halo.png")
+
+    h, w = 128, 16
+    u = np.linspace(-1, 1, w)[None, :]
+    vv = np.arange(h)[:, None] / h
+    edge = np.exp(-((np.abs(u) - 0.75) / 0.14) ** 2) + 0.4 * np.exp(-(u / 0.2) ** 2)
+    chev = 0.4 + 0.6 * (np.sin((vv * 10 + np.abs(u) * 0.8) * 2 * np.pi) > 0)
+    v = np.clip(edge * chev, 0, 1)
+    save_rgba(ramp(v, [(0, (100, 100, 100, 0)), (0.5, (220, 220, 220, 170)), (1, (255, 255, 255, 255))]), E / "tint_helix.png")
+
+    h, w = 32, 256
+    vv = np.linspace(0, 1, h)[:, None]
+    v = np.clip(np.exp(-((vv - 0.1) / 0.07) ** 2) * 0.95 + np.clip(1 - vv, 0, 1) ** 2.5 * periodic_noise(h, w, 6, 20, 3) * 0.7, 0, 1)
+    save_rgba(ramp(v, [(0, (80, 80, 80, 0)), (0.4, (180, 180, 180, 120)), (1, (255, 255, 255, 255))]), E / "tint_shockwave.png")
+
+    # Shield lattice: hexagon cells with bright edges and faint fill (tiles: 4 hex columns).
+    h, w = 128, 128
+    yy, xx = np.mgrid[0:h, 0:w].astype(float)
+    size = 16.0
+    qx = xx / (size * 1.5)
+    col = np.floor(qx)
+    yoff = np.where(col % 2 == 1, size * math.sqrt(3) / 2, 0)
+    cy = (yy + yoff) / (size * math.sqrt(3))
+    fx = (qx - col - 0.5) * 1.5
+    fy = (cy - np.floor(cy) - 0.5) * math.sqrt(3)
+    d = np.maximum(np.abs(fy) * 2 / math.sqrt(3), (np.abs(fx) + np.abs(fy) / math.sqrt(3)))
+    edge = np.clip(1 - np.abs(d - 0.92) / 0.08, 0, 1)
+    shimmer = periodic_noise(h, w, 40, 40, 2)
+    v = np.clip(edge * 0.9 + 0.12 + shimmer * 0.15, 0, 1)
+    save_rgba(ramp(v, [(0, (60, 160, 255, 0)), (0.2, (80, 190, 255, 40)), (0.6, (140, 220, 255, 150)),
+                       (1, (230, 250, 255, 255))]), E / "shield_hex.png")
+
+    # Singularity surface: near-black with faint violet caustics (drawn opaque).
+    h, w = 64, 64
+    n = warp(periodic_noise(h, w, 16, 16, 3), periodic_noise(h, w, 12, 12, 2), periodic_noise(h, w, 12, 12, 2), 10)
+    caust = np.abs(np.sin(n * 9)) ** 16
+    rgb = np.dstack([4 + caust * 70, 2 + caust * 20, 10 + caust * 110])
+    save_rgba(np.dstack([rgb, np.full((h, w), 255.0)]), E / "singularity.png")
+
+    # Transfer stream: teal data ribbon with packets.
+    h, w = 128, 16
+    u = np.linspace(-1, 1, w)[None, :]
+    vv = np.arange(h)[:, None] / h
+    core = np.exp(-(u / 0.35) ** 2)
+    packets = (np.sin(vv * 2 * np.pi * 12) > 0.6) * np.exp(-(u / 0.6) ** 2)
+    v = np.clip(core * 0.6 + packets * 0.8 + periodic_noise(h, w, 10, 4, 2) * 0.2, 0, 1)
+    save_rgba(ramp(v, [(0, (0, 80, 60, 0)), (0.4, (40, 220, 170, 140)), (1, (220, 255, 245, 255))]), E / "transfer_stream.png")
+
+
 # =============================================================================================
 # Particles
 # =============================================================================================
@@ -168,6 +240,222 @@ def glow_frame(size, core, falloff, color, rays=0, ray_len=0.0, ray_w=0.06, rot=
     white = np.clip(np.exp(-(r / (core * 0.6)) ** 2), 0, 1)
     rgb = np.array(color)[None, None, :] * (1 - white[..., None]) + 255 * white[..., None]
     return np.dstack([rgb, a * 255])
+
+
+def shard(size, pts, color, edge, glow=None):
+    img = Image.new("RGBA", (size, size))
+    d = ImageDraw.Draw(img)
+    d.polygon(pts, fill=color)
+    d.line(pts + [pts[0]], fill=edge, width=1)
+    arr = np.array(img).astype(float)
+    if glow is not None:
+        g = glow_frame(size, 0.25, 0.7, glow)
+        g[..., 3] *= 0.45
+        arr = np.maximum(arr, g)
+    return arr
+
+
+def loadout_particles():
+    """Sprites for the loadout options (muzzles, ammunition, modules) and the supply capsule."""
+    # Tungsten spall: bright blue-white metal splinters.
+    frames = []
+    for i in range(4):
+        a0 = rng.random() * math.pi
+        pts = [(8 + math.cos(a0) * 7, 8 + math.sin(a0) * 7), (8 + math.cos(a0 + 1.9) * 2, 8 + math.sin(a0 + 1.9) * 2),
+               (8 + math.cos(a0 + math.pi) * 6, 8 + math.sin(a0 + math.pi) * 6), (8 + math.cos(a0 - 1.2) * 2, 8 + math.sin(a0 - 1.2) * 2)]
+        frames.append(shard(16, pts, (225, 240, 255, 255), (120, 170, 255, 255), (120, 180, 255)))
+    particle("spall", frames)
+
+    # Thermite flame: white-yellow core licking into orange, rising tongues.
+    frames = []
+    for i in range(6):
+        n = periodic_noise(32, 32, 6, 10, 4)
+        r, _ = radial(32, cy=20)
+        yy = np.linspace(0, 1, 32)[:, None]
+        v = np.clip(1.15 - r * 1.2 - (1 - yy) * 0.45 + (n - 0.5) * 1.0 - i * 0.06, 0, 1) ** 1.2
+        frames.append(ramp(v, [(0, (40, 5, 0, 0)), (0.25, (230, 60, 0, 170)), (0.55, (255, 150, 20, 230)),
+                               (0.8, (255, 230, 120, 250)), (1, (255, 255, 235, 255))]))
+    particle("thermite_flame", frames)
+
+    # Frost: six-armed ice crystal, slowly turning, sparkling.
+    frames = []
+    for i in range(6):
+        img = Image.new("RGBA", (16, 16))
+        d = ImageDraw.Draw(img)
+        rot = i * math.pi / 18
+        for k in range(6):
+            a = rot + k * math.pi / 3
+            x1, y1 = 8 + math.cos(a) * 7, 8 + math.sin(a) * 7
+            d.line([(8, 8), (x1, y1)], fill=(220, 250, 255, 255), width=1)
+            for t in (0.45, 0.7):
+                bx, by = 8 + math.cos(a) * 7 * t, 8 + math.sin(a) * 7 * t
+                for s2 in (-0.8, 0.8):
+                    d.line([(bx, by), (bx + math.cos(a + s2) * 2, by + math.sin(a + s2) * 2)], fill=(150, 230, 255, 255))
+        arr = np.array(img).astype(float)
+        g = glow_frame(16, 0.15, 0.5, (120, 230, 255))
+        g[..., 3] *= 0.5 + 0.3 * math.sin(i)
+        frames.append(np.maximum(arr, g))
+    particle("frost", frames)
+
+    # Ion arc: jagged violet lightning fragment.
+    frames = []
+    for i in range(4):
+        img = Image.new("RGBA", (32, 32))
+        d = ImageDraw.Draw(img)
+        pts = [(2, 16)]
+        for k in range(1, 8):
+            pts.append((2 + k * 4, 16 + (rng.random() - 0.5) * 18))
+        pts.append((30, 16))
+        d.line(pts, fill=(170, 90, 255, 200), width=3)
+        d.line(pts, fill=(250, 235, 255, 255), width=1)
+        frames.append(np.array(img.filter(ImageFilter.GaussianBlur(0.4))).astype(float))
+    particle("ion_arc", frames)
+
+    # Bomblet: glowing submunition with a streak.
+    frames = []
+    for i in range(3):
+        r, th = radial(16)
+        core = glow_frame(16, 0.16, 0.35, (255, 200, 40))
+        streak = np.exp(-((np.arange(16)[None, :] - 8) / 1.4) ** 2) * np.clip(np.linspace(1.2, -0.2, 16)[:, None], 0, 1)
+        core[..., 3] = np.clip(core[..., 3] / 255 + streak * (0.6 + 0.2 * i), 0, 1) * 255
+        frames.append(core)
+    particle("bomblet", frames)
+
+    # Singularity mote: dark violet orb with a bright rim (light being swallowed).
+    frames = []
+    for i in range(6):
+        r, _ = radial(16)
+        rim = np.exp(-((r - 0.55 - 0.05 * math.sin(i)) / 0.12) ** 2)
+        a = np.clip(rim + (r < 0.5) * 0.9, 0, 1)
+        rgb = np.dstack([40 + rim * 170, 10 + rim * 60, 70 + rim * 185])
+        frames.append(np.dstack([rgb, a * 255]))
+    particle("singularity_mote", frames)
+
+    # Fallout: towering ash cloud puff, sickly green-grey with glowing underside.
+    frames = []
+    base = periodic_noise(32, 32, 10, 10, 4)
+    for i in range(8):
+        p = i / 7
+        r, _ = radial(32)
+        n = warp(base, periodic_noise(32, 32, 8, 8, 2), periodic_noise(32, 32, 8, 8, 2), 3 + i * 2)
+        a = np.clip((1 - r / (0.7 + 0.25 * p) + (n - 0.5) * 0.8) * 1.6, 0, 1) * (1 - p * 0.6)
+        yy = np.linspace(0, 1, 32)[:, None]
+        hot = np.clip(yy - 0.55, 0, 1) * 2 * (1 - p)
+        shade = 60 + 70 * n
+        rgb = np.dstack([shade + hot * 140, shade * 1.05 + hot * 160, shade * 0.85 + hot * 40])
+        frames.append(np.dstack([rgb, a * 230]))
+    particle("fallout", frames)
+
+    # Lens glint: crisp cyan anamorphic flare.
+    frames = []
+    for i in range(3):
+        f = glow_frame(32, 0.1, 0.3, (110, 230, 255))
+        yy, xx = np.mgrid[0:32, 0:32]
+        streak = np.exp(-((yy - 15.5) / 1.0) ** 2) * np.exp(-((xx - 15.5) / (14 - i * 3)) ** 2)
+        f[..., 3] = np.clip(f[..., 3] / 255 + streak, 0, 1) * 255
+        frames.append(f)
+    particle("lens_glint", frames)
+
+    # Coolant vapour: white-cyan cold mist.
+    frames = []
+    for i in range(6):
+        r, _ = radial(32)
+        n = periodic_noise(32, 32, 7, 7, 3)
+        a = np.clip((1 - r / (0.6 + 0.07 * i)) * (0.6 + 0.7 * n), 0, 1) * (1 - i / 7)
+        frames.append(np.dstack([200 + 40 * n, 235 + 20 * n, np.full((32, 32), 255.0), a * 200]))
+    particle("coolant_vapor", frames)
+
+    # Overclock spark: hot red-white star.
+    particle("overclock_spark", [glow_frame(16, 0.18 - i * 0.03, 0.45, (255, 70, 60), rays=4, ray_len=1.0, rot=i * 0.4)
+                                 for i in range(4)])
+
+    # Shield spark: hexagonal hard-light flash.
+    frames = []
+    for i in range(4):
+        img = Image.new("RGBA", (32, 32))
+        d = ImageDraw.Draw(img)
+        rad = 6 + i * 3
+        hexp = [(16 + math.cos(k * math.pi / 3) * rad, 16 + math.sin(k * math.pi / 3) * rad) for k in range(6)]
+        d.polygon(hexp, outline=(140, 230, 255, 255 - i * 40))
+        d.polygon([(x * 0.6 + 16 * 0.4, y * 0.6 + 16 * 0.4) for x, y in hexp], fill=(80, 200, 255, 90 - i * 18))
+        frames.append(np.array(img).astype(float))
+    particle("shield_spark", frames)
+
+    # Sentry bolt: short orange laser dash.
+    frames = []
+    for i in range(2):
+        yy, xx = np.mgrid[0:16, 0:16]
+        a = np.exp(-((yy - 7.5) / 1.3) ** 2) * np.exp(-((xx - 7.5) / 6.5) ** 2)
+        w = np.exp(-((yy - 7.5) / 0.6) ** 2) * np.exp(-((xx - 7.5) / 5) ** 2)
+        rgb = np.dstack([np.full((16, 16), 255.0), 120 + 135 * w, 40 + 215 * w])
+        frames.append(np.dstack([rgb, np.clip(a * 1.4, 0, 1) * 255]))
+    particle("sentry_bolt", frames)
+
+    # Thruster flame: blue-white shock-diamond plume.
+    frames = []
+    for i in range(6):
+        r, _ = radial(32, cy=10)
+        yy = np.linspace(0, 1, 32)[:, None]
+        n = periodic_noise(32, 32, 6, 12, 3)
+        v = np.clip(1.1 - r - yy * 0.3 + (n - 0.5) * 0.6, 0, 1)
+        frames.append(ramp(v, [(0, (0, 20, 80, 0)), (0.3, (40, 90, 255, 160)), (0.65, (120, 190, 255, 230)),
+                               (1, (240, 250, 255, 255))]))
+    particle("thruster_flame", frames)
+
+    # Seismic crack: dark radial fissure with dust.
+    frames = []
+    for i in range(4):
+        img = Image.new("RGBA", (32, 32))
+        d = ImageDraw.Draw(img)
+        for k in range(5):
+            a = rng.random() * 2 * math.pi
+            x, y = 16.0, 16.0
+            for step in range(5):
+                a += (rng.random() - 0.5) * 0.9
+                nx, ny = x + math.cos(a) * 3, y + math.sin(a) * 3
+                d.line([(x, y), (nx, ny)], fill=(40, 30, 22, 230), width=2)
+                x, y = nx, ny
+        arr = np.array(img).astype(float)
+        r, _ = radial(32)
+        dust = np.clip(1 - r / 0.9, 0, 1) * 0.35 * (1 - i / 5)
+        arr[..., :3] = np.where(arr[..., 3:4] > 0, arr[..., :3], np.array([150, 130, 105]))
+        arr[..., 3] = np.maximum(arr[..., 3], dust * 255)
+        frames.append(arr)
+    particle("seismic_crack", frames)
+
+    # Shell casing: big brass cartridge, a few rotations.
+    frames = []
+    for i in range(4):
+        img = Image.new("RGBA", (16, 16))
+        d = ImageDraw.Draw(img)
+        a = i * math.pi / 4
+        c, s_ = math.cos(a), math.sin(a)
+        L, W = 6.5, 2.2
+        pts = [(8 + c * L - s_ * W, 8 + s_ * L + c * W), (8 + c * L + s_ * W, 8 + s_ * L - c * W),
+               (8 - c * L + s_ * W, 8 - s_ * L - c * W), (8 - c * L - s_ * W, 8 - s_ * L + c * W)]
+        d.polygon(pts, fill=(200, 150, 60, 255), outline=(110, 75, 25, 255))
+        d.line([pts[0], pts[1]], fill=(255, 220, 140, 255))
+        frames.append(np.array(img).astype(float))
+    particle("shell_casing", frames)
+
+    # Plasma pool: bubbling molten plasma blob.
+    frames = []
+    for i in range(6):
+        r, _ = radial(32)
+        n = periodic_noise(32, 32, 6, 6, 3)
+        v = np.clip(1 - r / (0.55 + 0.1 * math.sin(i)) + (n - 0.5) * 0.7, 0, 1)
+        frames.append(ramp(v, [(0, (60, 0, 0, 0)), (0.3, (200, 20, 10, 160)), (0.6, (255, 90, 30, 230)),
+                               (1, (255, 230, 170, 255))]))
+    particle("plasma_pool", frames)
+
+    # Transfer mote: teal data-light packet with a square core.
+    frames = []
+    for i in range(4):
+        f = glow_frame(16, 0.14, 0.42, (60, 255, 200))
+        f[6:10, 6:10] = (230, 255, 245, 255)
+        f[..., 3] *= 0.7 + 0.3 * math.cos(i)
+        frames.append(f)
+    particle("transfer_mote", frames)
 
 
 def particles():
@@ -263,6 +551,8 @@ def particles():
         shade = 120 + 60 * n
         frames.append(np.dstack([shade, shade * 0.95, shade * 0.88, a * 220]))
     particle("shock_dust", frames)
+
+    loadout_particles()
 
     for name, tex in PARTICLES.items():
         p = A / f"particles/{name}.json"
@@ -382,104 +672,88 @@ def hud_panel():
     img.save(A / "textures/gui/hud_countdown.png")
 
 
+def _display_glass(sw, sh, tint):
+    yy = np.linspace(0, 1, sh)[:, None]
+    disp = np.dstack([np.broadcast_to(tint[0] * (0.6 + 0.4 * (1 - yy)), (sh, sw)),
+                      np.broadcast_to(tint[1] * (0.6 + 0.4 * (1 - yy)), (sh, sw)),
+                      np.broadcast_to(tint[2] * (0.6 + 0.4 * (1 - yy)), (sh, sw)), np.full((sh, sw), 255.0)]).copy()
+    r = np.hypot((np.arange(sw)[None, :] - sw / 2) / sw, (np.arange(sh)[:, None] - sh / 2) / sh)
+    disp[..., :3] *= (1 - 0.7 * r[..., None] ** 2)
+    return Image.fromarray(np.clip(disp, 0, 255).astype(np.uint8), "RGBA")
+
+
 def tablet_display():
     """
-    Full-screen view of the uplink tablet when zoomed in: rugged rubber frame, metal bezel,
-    hazard bumpers, screws, camera, and a dark display area (UI is drawn on top in code).
-    Display area: x 36..476, y 26..262 of 512x288 (keep in sync with TabletScreen).
+    The ARES-9 uplink tablet seen up close (matches the item model): carbon-black slate, raised
+    off-white armour frame with hazard corners, ribbed handles, a cyan rim under the display.
+    Display area: x 40..472, y 30..258 of 512x288 (keep in sync with TabletScreen).
     """
     W, H = 512, 288
     img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    rubber = periodic_noise(H, W, 30, 30, 3)
-    rub = np.dstack([22 + rubber * 10, 23 + rubber * 10, 26 + rubber * 11, np.full((H, W), 255.0)])
+    weave = periodic_noise(H, W, 6, 6, 2)
+    carbon = np.dstack([14 + weave * 12, 15 + weave * 12, 18 + weave * 14, np.full((H, W), 255.0)])
+    yy, xx = np.mgrid[0:H, 0:W]
+    carbon[((xx // 4 + yy // 4) % 2 == 0), :3] *= 1.18
     mask = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, W - 1, H - 1], radius=26, fill=255)
-    img.paste(Image.fromarray(rub.astype(np.uint8), "RGBA"), (0, 0), mask)
-    # metal bezel ring
-    d.rounded_rectangle([14, 10, W - 15, H - 11], radius=14, fill=(70, 75, 84, 255), outline=(120, 126, 136, 255))
-    d.rounded_rectangle([22, 16, W - 23, H - 17], radius=8, fill=(30, 33, 38, 255), outline=(12, 13, 15, 255))
-    # hazard bumpers in the corners
-    for (x0, y0) in ((0, 0), (W - 40, 0), (0, H - 40), (W - 40, H - 40)):
-        tile = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
-        td = ImageDraw.Draw(tile)
-        for k in range(-40, 80, 10):
-            td.polygon([(k, 40), (k + 5, 40), (k + 45, 0), (k + 40, 0)], fill=(214, 150, 20, 255))
-        cm = Image.new("L", (40, 40), 0)
-        ImageDraw.Draw(cm).pieslice([0 if x0 == 0 else -40, 0 if y0 == 0 else -40, 80 if x0 == 0 else 40,
-                                     80 if y0 == 0 else 40], 0, 360, fill=255)
-        inner = Image.new("L", (40, 40), 0)
-        ImageDraw.Draw(inner).rectangle([10 if x0 == 0 else 0, 8 if y0 == 0 else 0, 40 if x0 == 0 else 30,
-                                         40 if y0 == 0 else 32], fill=255)
-        cm = Image.fromarray(np.minimum(np.array(cm), 255 - np.array(inner)).astype(np.uint8))
-        img.paste(tile, (x0, y0), Image.fromarray((np.array(cm) * (np.array(mask.crop((x0, y0, x0 + 40, y0 + 40))) > 0)).astype(np.uint8)))
-    # screws, camera, LEDs
-    for (x, y) in ((30, 22), (W - 31, 22), (30, H - 23), (W - 31, H - 23)):
-        d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=(140, 146, 156, 255), outline=(20, 20, 24, 255))
-        d.line([(x - 2, y), (x + 2, y)], fill=(40, 40, 44, 255))
-    d.ellipse([W // 2 - 3, 18, W // 2 + 3, 24], fill=(8, 10, 14, 255), outline=(90, 96, 106, 255))
-    d.ellipse([W // 2 + 12, 19, W // 2 + 16, 23], fill=(255, 60, 40, 255))
-    # display
-    sx0, sy0, sx1, sy1 = 36, 26, 476, 262
-    sw, sh = sx1 - sx0, sy1 - sy0
-    yy = np.linspace(0, 1, sh)[:, None]
-    disp = np.dstack([np.broadcast_to(6 + 10 * (1 - yy), (sh, sw)), np.broadcast_to(9 + 12 * (1 - yy), (sh, sw)),
-                      np.broadcast_to(14 + 18 * (1 - yy), (sh, sw)), np.full((sh, sw), 255.0)]).copy()
-    disp[::2, :, :3] *= 0.85
-    gx = np.zeros((sh, sw), bool)
-    gx[:, ::20] = True
-    gx[::20, :] = True
-    disp[gx, 0] += 6
-    disp[gx, 1] += 14
-    disp[gx, 2] += 18
-    r = np.hypot((np.arange(sw)[None, :] - sw / 2) / sw, (np.arange(sh)[:, None] - sh / 2) / sh)
-    disp[..., :3] *= (1 - 0.6 * r[..., None] ** 2)
-    img.paste(Image.fromarray(np.clip(disp, 0, 255).astype(np.uint8), "RGBA"), (sx0, sy0))
-    d.rectangle([sx0 - 1, sy0 - 1, sx1, sy1], outline=(4, 5, 6, 255))
-    try:
-        font = ImageFont.load_default()
-        d.text((W // 2 - 30, H - 15), "ARES-9 UPLINK", fill=(110, 116, 126, 255), font=font)
-    except Exception:
-        pass
+    ImageDraw.Draw(mask).polygon([(18, 0), (W - 1, 0), (W - 1, H - 19), (W - 19, H - 1), (0, H - 1), (0, 18)], fill=255)
+    img.paste(Image.fromarray(np.clip(carbon, 0, 255).astype(np.uint8), "RGBA"), (0, 0), mask)
+    # handles
+    for x0 in (0, W - 22):
+        d.rectangle([x0, 30, x0 + 21, H - 31], fill=(52, 58, 66, 255))
+        for y in range(40, H - 40, 12):
+            d.rectangle([x0 + 3, y, x0 + 18, y + 4], fill=(20, 22, 26, 255))
+    # armour frame
+    frame = (196, 202, 210, 255)
+    d.rectangle([26, 12, W - 27, 22], fill=frame)
+    d.rectangle([26, H - 26, W - 27, H - 14], fill=frame)
+    d.rectangle([26, 22, 34, H - 26], fill=frame)
+    d.rectangle([W - 35, 22, W - 27, H - 26], fill=frame)
+    for (x0, y0) in ((26, 12), (W - 70, 12)):
+        for k in range(0, 44, 8):
+            d.polygon([(x0 + k, y0 + 10), (x0 + k + 4, y0 + 10), (x0 + k + 9, y0), (x0 + k + 5, y0)], fill=(214, 160, 24, 255))
+    d.line([(26, 23), (W - 27, 23)], fill=(110, 116, 126, 255))
+    # sensor + buttons
+    d.rectangle([W // 2 - 40, 2, W // 2 + 40, 10], fill=(70, 76, 86, 255))
+    d.ellipse([W // 2 - 4, 3, W // 2 + 4, 9], fill=(255, 60, 40, 255))
+    for i, c in enumerate(((255, 70, 50), (255, 176, 32), (51, 224, 255), (51, 224, 255))):
+        x = 60 + i * 40 if i < 2 else W - 180 + (i - 2) * 40
+        d.rectangle([x, H - 23, x + 26, H - 17], fill=c + (255,))
+    sx0, sy0, sx1, sy1 = 40, 30, 472, 258
+    img.paste(_display_glass(sx1 - sx0, sy1 - sy0, (8, 16, 24)), (sx0, sy0))
+    d.rectangle([sx0 - 2, sy1 + 1, sx1 + 1, sy1 + 3], fill=(51, 224, 255, 255))
+    d.rectangle([sx0 - 1, sy0 - 1, sx1, sy1], outline=(4, 6, 8, 255))
     img.save(A / "textures/gui/tablet_display.png")
 
 
 def panel_display():
     """
-    The railgun's physical control panel seen up close: heavy steel housing with bolts and a
-    hazard-striped surround, a recessed screen. Screen area: x 40..472, y 36..252 of 512x288
-    (keep in sync with PanelScreen).
+    The pod's field console seen up close (matches the model): dark armoured back plate,
+    steel visor hood, side rails with grip pads, a cyan display rim, keypad row and status LEDs.
+    Screen area: x 30..482, y 24..264 of 512x288 (keep in sync with PanelScreen).
     """
     W, H = 512, 288
     base = periodic_noise(H, W, 40, 60, 4)
-    steel = np.dstack([58 + base * 22, 62 + base * 23, 70 + base * 25, np.full((H, W), 255.0)])
-    steel[..., :3] += (periodic_noise(H, W, 2, 160, 2)[..., None] - 0.5) * 10
-    img = Image.fromarray(np.clip(steel, 0, 255).astype(np.uint8), "RGBA")
+    plate = np.dstack([22 + base * 14, 25 + base * 15, 30 + base * 17, np.full((H, W), 255.0)])
+    img = Image.fromarray(np.clip(plate, 0, 255).astype(np.uint8), "RGBA")
     d = ImageDraw.Draw(img)
-    hazard(img, (0, 0, W - 1, 13), 14)
-    hazard(img, (0, H - 14, W - 1, H - 1), 14)
-    d.rectangle([0, 14, W - 1, H - 15], outline=(20, 22, 26, 255), width=2)
-    for x in range(24, W, 48):
-        for y in (22, H - 23):
-            d.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(150, 156, 166, 255), outline=(16, 16, 20, 255))
-            d.line([(x - 3, y - 3), (x + 3, y + 3)], fill=(40, 40, 46, 255))
-    for y in range(40, H - 40, 20):
-        for x in (18, W - 19):
-            d.rectangle([x - 6, y, x + 6, y + 3], fill=(22, 24, 28, 255))
-    sx0, sy0, sx1, sy1 = 40, 36, 472, 252
-    d.rectangle([sx0 - 6, sy0 - 6, sx1 + 6, sy1 + 6], fill=(14, 15, 18, 255), outline=(110, 116, 126, 255))
-    sw, sh = sx1 - sx0, sy1 - sy0
-    yy = np.linspace(0, 1, sh)[:, None]
-    disp = np.dstack([np.broadcast_to(16 + 12 * (1 - yy), (sh, sw)), np.broadcast_to(6 + 6 * (1 - yy), (sh, sw)),
-                      np.broadcast_to(6 + 6 * (1 - yy), (sh, sw)), np.full((sh, sw), 255.0)]).copy()
-    disp[::2, :, :3] *= 0.8
-    grid = np.zeros((sh, sw), bool)
-    grid[:, ::24] = True
-    grid[::24, :] = True
-    disp[grid, 0] += 22
-    disp[grid, 1] += 6
-    img.paste(Image.fromarray(np.clip(disp, 0, 255).astype(np.uint8), "RGBA"), (sx0, sy0))
-    d.rectangle([sx0 - 1, sy0 - 1, sx1, sy1], outline=(4, 4, 6, 255))
+    steel = (92, 100, 112, 255)
+    d.rectangle([0, 0, W - 1, 15], fill=steel)                          # visor hood
+    d.line([(0, 15), (W - 1, 15)], fill=(150, 158, 170, 255), width=2)
+    hazard(img, (W // 2 - 80, 2, W // 2 + 80, 12), 10)
+    d.rectangle([0, 16, 20, H - 1], fill=steel)                          # side rails
+    d.rectangle([W - 21, 16, W - 1, H - 1], fill=steel)
+    for y in range(40, H - 40, 14):
+        d.rectangle([5, y, 15, y + 6], fill=(40, 44, 50, 255))
+        d.rectangle([W - 16, y, W - 6, y + 6], fill=(40, 44, 50, 255))
+    for x, c in ((80, (255, 70, 50)), (150, (255, 176, 32)), (220, (51, 224, 255)), (290, (51, 224, 255)), (360, (255, 176, 32))):
+        d.rectangle([x - 4, H - 22, x + 46, H - 4], fill=(70, 76, 86, 255))
+        d.rectangle([x, H - 19, x + 42, H - 8], fill=c + (255,))
+    for i, c in enumerate(((140, 255, 80), (255, 176, 32), (255, 70, 50))):
+        d.ellipse([W - 17, 30 + i * 14, W - 9, 38 + i * 14], fill=c + (255,))
+    sx0, sy0, sx1, sy1 = 30, 24, 482, 264
+    img.paste(_display_glass(sx1 - sx0, sy1 - sy0, (6, 14, 20)), (sx0, sy0))
+    d.rectangle([sx0 - 3, sy0 - 3, sx1 + 2, sy1 + 2], outline=(51, 224, 255, 255), width=2)
     img.save(A / "textures/gui/panel_display.png")
 
 
@@ -488,6 +762,7 @@ def main():
     panel_display()
     tablet_display()
     beam_textures()
+    loadout_effect_textures()
     particles()
     hud_panel()
     print("textures written:", len(list((A / "textures").rglob("*.png"))))

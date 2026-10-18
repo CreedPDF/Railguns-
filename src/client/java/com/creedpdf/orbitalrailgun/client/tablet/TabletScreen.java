@@ -2,6 +2,8 @@ package com.creedpdf.orbitalrailgun.client.tablet;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.client.network.ClientPackets;
+import com.creedpdf.orbitalrailgun.client.ui.UiKit;
+import com.creedpdf.orbitalrailgun.loadout.Loadout;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
 import com.creedpdf.orbitalrailgun.registry.ModSounds;
 import com.creedpdf.orbitalrailgun.util.RailgunConfig;
@@ -47,7 +49,7 @@ public class TabletScreen extends Screen {
     private static final Identifier DISPLAY = RailgunMod.id("textures/gui/tablet_display.png");
     public static final int ZOOM_TICKS = 9;
     // Display area inside tablet_display.png (512x288).
-    private static final float DX0 = 36f / 512, DY0 = 26f / 288, DX1 = 476f / 512, DY1 = 262f / 288;
+    private static final float DX0 = 40f / 512, DY0 = 30f / 288, DX1 = 472f / 512, DY1 = 258f / 288;
     private static final int CW = 400, CH = 214; // virtual canvas
 
     private static final int RED = 0xFFFF3B30, RED_DIM = 0xFF7A1A16, TEXT = 0xFFDDE6EE, MUTED = 0xFF7D8A96;
@@ -94,6 +96,7 @@ public class TabletScreen extends Screen {
         if (ticks == 0) {
             play(ModSounds.UI_TABLET_OPEN, 1f);
             ClientPackets.requestStatus();
+            if (aimed != null) ClientPackets.requestSurvey(aimed);
         }
         buildButtons();
     }
@@ -102,7 +105,7 @@ public class TabletScreen extends Screen {
         buttons.clear();
         // Orbital drop page
         buttons.add(new Btn(214, 150, 178, 52, "CALL DOWN", RED, () -> page() == Page.DROP && aimed != null
-                && !TabletStatus.latest.pending && !onCooldown(), this::callDown, true, Page.DROP));
+                && !TabletStatus.latest.pending && !onCooldown() && surveyOk(), this::callDown, true, Page.DROP));
         // Fire-control page
         buttons.add(new Btn(8, 128, 90, 16, "SET", RED, this::canRetarget, this::submitTarget, false, Page.FIRE));
         buttons.add(new Btn(104, 128, 92, 16, "PAINT", AMBER, () -> canRetarget() && aimed != null, this::paint, false, Page.FIRE));
@@ -118,6 +121,17 @@ public class TabletScreen extends Screen {
 
     private Page page() {
         return TabletStatus.latest.found ? Page.FIRE : Page.DROP;
+    }
+
+    @Nullable
+    private TabletStatus.Survey survey() {
+        TabletStatus.Survey sv = TabletStatus.survey;
+        return sv != null && aimed != null && sv.ground().equals(aimed) ? sv : null;
+    }
+
+    private boolean surveyOk() {
+        TabletStatus.Survey sv = survey();
+        return sv != null && sv.ok();
     }
 
     private boolean onCooldown() {
@@ -184,6 +198,7 @@ public class TabletScreen extends Screen {
         if (ticks == ZOOM_TICKS) bootTicks = 0;
         if (bootTicks >= 0) bootTicks++;
         if (ticks % RailgunConfig.TABLET_POLL_TICKS == 0) ClientPackets.requestStatus();
+        if (aimed != null && page() == Page.DROP && ticks % 40 == 0) ClientPackets.requestSurvey(aimed);
         TabletStatus st = TabletStatus.latest;
         if (!fieldsInitialised && st.received) {
             BlockPos init = st.found && st.hasTarget ? st.target : aimed;
@@ -313,10 +328,14 @@ public class TabletScreen extends Screen {
         ctx.getMatrices().scale(s, s, 1f);
         float mx = (mouseX - ox) / s, my = (mouseY - oy) / s;
 
+        ctx.fill(0, 0, CW, CH, UiKit.BG);
+        UiKit.hexGrid(ctx, 0, 0, CW, CH, time, 0x1833E0FF);
         drawHeader(ctx, time);
         if (page() == Page.DROP) drawDropPage(ctx, time);
         else drawFirePage(ctx, time);
         for (Btn b : buttons) if (b.page == page()) b.render(ctx, mx, my, time);
+        UiKit.scanlines(ctx, 0, 0, CW, CH, time);
+        UiKit.brackets(ctx, 1, 1, CW - 2, CH - 2, 12, CYAN);
 
         // Boot-up scan line sweeping down the display.
         if (bootTicks >= 0 && bootTicks < 10) {
@@ -330,61 +349,95 @@ public class TabletScreen extends Screen {
 
     private void drawHeader(DrawContext ctx, float time) {
         TabletStatus st = TabletStatus.latest;
-        ctx.drawText(textRenderer, "ARES-9 // ORBITAL UPLINK", 6, 4, CYAN, false);
+        UiKit.chamfer(ctx, 0, 0, CW, 18, 7, 0xE0081420, UiKit.CYAN_DIM);
+        UiKit.spaced(ctx, textRenderer, "ARES-9", 8, 4, CYAN, 2f, 1.25f, true);
+        ctx.drawText(textRenderer, "// ORBITAL UPLINK", 70, 6, MUTED, false);
         String link;
         int linkColor;
-        if (!st.received) { link = "LINKING..."; linkColor = AMBER; }
-        else if (st.found) { link = st.sameDimension ? "RAILGUN ONLINE" : "RAILGUN: OTHER DIMENSION"; linkColor = st.sameDimension ? GREEN : AMBER; }
+        if (!st.received) { link = "LINKING"; linkColor = AMBER; }
+        else if (st.found) { link = st.sameDimension ? "RAILGUN ONLINE" : "OTHER DIMENSION"; linkColor = st.sameDimension ? GREEN : AMBER; }
         else if (st.pending) { link = "DROP INBOUND"; linkColor = AMBER; }
-        else { link = "NO RAILGUN DEPLOYED"; linkColor = MUTED; }
+        else { link = "NO RAILGUN"; linkColor = MUTED; }
         boolean blink = ((int) (time / 8)) % 2 == 0;
-        ctx.drawText(textRenderer, link, CW - 6 - textRenderer.getWidth(link) - 10, 4, linkColor, false);
-        ctx.fill(CW - 12, 5, CW - 6, 11, blink ? linkColor : 0xFF1A2228);
-        ctx.fill(4, 16, CW - 4, 17, 0x665FE3FF);
+        int w = textRenderer.getWidth(link) + 8;
+        UiKit.tag(ctx, textRenderer, link, CW - w - 14, 4, blink || !st.found ? linkColor : UiKit.alpha(linkColor, 0.7f));
+        ctx.fill(CW - 10, 7, CW - 6, 11, blink ? linkColor : 0xFF1A2228);
+        UiKit.glowLine(ctx, 6, 18, CW - 6, CYAN);
     }
 
     private void drawDropPage(DrawContext ctx, float time) {
-        title(ctx, "ORBITAL DROP", 8, 24);
-        // Targeting reticle
-        int cx = 104, cy = 110;
-        int r = 44 + (int) (2 * MathHelper.sin(time * 0.2f));
-        ring(ctx, cx, cy, r, 0x995FE3FF);
-        ring(ctx, cx, cy, r - 16, 0x665FE3FF);
-        ctx.fill(cx - r - 6, cy, cx - 6, cy + 1, 0xAA5FE3FF);
-        ctx.fill(cx + 6, cy, cx + r + 6, cy + 1, 0xAA5FE3FF);
-        ctx.fill(cx, cy - r - 6, cx + 1, cy - 6, 0xAA5FE3FF);
-        ctx.fill(cx, cy + 6, cx + 1, cy + r + 6, 0xAA5FE3FF);
+        UiKit.chamfer(ctx, 6, 24, 196, 182, 10, UiKit.PANEL, UiKit.CYAN_DIM);
+        title(ctx, "ORBITAL DROP", 12, 30);
+        // Targeting reticle with orbital track
+        int cx = 104, cy = 118;
+        int r = 52 + (int) (2 * MathHelper.sin(time * 0.2f));
+        UiKit.ring(ctx, cx, cy, r, 0x9933E0FF, 128);
+        UiKit.ring(ctx, cx, cy, r - 18, 0x5533E0FF, 96);
+        UiKit.ring(ctx, cx, cy, 8, 0x8833E0FF, 32);
+        UiKit.octagon(ctx, cx, cy, r - 30, time * 0.01f, 0x4433E0FF);
+        ctx.fill(cx - r - 6, cy, cx - 10, cy + 1, 0xAA33E0FF);
+        ctx.fill(cx + 10, cy, cx + r + 6, cy + 1, 0xAA33E0FF);
+        ctx.fill(cx, cy - r - 6, cx + 1, cy - 10, 0xAA33E0FF);
+        ctx.fill(cx, cy + 10, cx + 1, cy + r + 6, 0xAA33E0FF);
         float sweep = time * 0.12f;
-        for (int i = 0; i < 24; i++) {
-            float a = sweep - i * 0.04f;
+        for (int i = 0; i < 28; i++) {
+            float a = sweep - i * 0.035f;
             int px = cx + (int) (MathHelper.cos(a) * (r - 2)), py = cy + (int) (MathHelper.sin(a) * (r - 2));
-            ctx.fill(px, py, px + 2, py + 2, ((0xCC - i * 8) << 24) | 0x5FE3FF);
+            ctx.fill(px, py, px + 2, py + 2, UiKit.alpha(CYAN, 1f - i / 28f));
         }
-        ctx.fill(cx - 2, cy - 2, cx + 3, cy + 3, aimed != null ? RED : MUTED);
+        float orbit = time * 0.03f;
+        int sx = cx + (int) (MathHelper.cos(orbit) * (r + 10)), sy = cy + (int) (MathHelper.sin(orbit) * (r + 10) * 0.35f) - 40;
+        ctx.fill(sx - 2, sy - 1, sx + 3, sy + 2, AMBER);
+        ctx.fill(cx - 2, cy - 2, cx + 3, cy + 3, aimed != null ? (surveyOk() ? GREEN : RED) : MUTED);
 
         int x = 214;
+        UiKit.chamfer(ctx, 208, 24, 186, 120, 8, UiKit.PANEL, UiKit.CYAN_DIM);
         TabletStatus st = TabletStatus.latest;
         if (aimed != null) {
             line(ctx, "LANDING ZONE", x, 30, MUTED);
-            line(ctx, String.format(Locale.ROOT, "%d  %d  %d", aimed.getX(), aimed.getY() + 1, aimed.getZ()), x, 42, TEXT);
+            UiKit.spaced(ctx, textRenderer, String.format(Locale.ROOT, "%d %d %d", aimed.getX(), aimed.getY() + 1, aimed.getZ()), x, 42, TEXT, 1f, 1.2f, false);
             double dist = client != null && client.player != null ? Math.sqrt(client.player.getBlockPos().getSquaredDistance(aimed)) : 0;
             line(ctx, String.format(Locale.ROOT, "RANGE  %.0f m", dist), x, 58, MUTED);
+            line(ctx, "SITE SURVEY", x, 74, MUTED);
+            TabletStatus.Survey sv = survey();
+            if (sv == null) {
+                line(ctx, "SCANNING" + ".".repeat(1 + (ticks / 5) % 3), x, 86, AMBER);
+            } else if (sv.ok()) {
+                UiKit.tag(ctx, textRenderer, "ZONE CLEAR", x, 85, GREEN);
+                line(ctx, "Obstructions will be smashed", x, 100, MUTED);
+                line(ctx, "flat on touchdown.", x, 110, MUTED);
+            } else {
+                UiKit.tag(ctx, textRenderer, "NO ROOM TO DEPLOY", x, 85, RED);
+                String why = Text.translatable("message.orbital_railgun.denied." + sv.reason()).getString();
+                int yy = 100;
+                for (String l : UiKit.wrap(textRenderer, why, 172)) { line(ctx, l, x, yy, 0xFFFF9A90); yy += 10; }
+            }
         } else {
             line(ctx, "NO LANDING ZONE", x, 30, RED);
             line(ctx, "Aim at open ground, then", x, 46, MUTED);
             line(ctx, "raise the tablet again.", x, 58, MUTED);
         }
-        line(ctx, "PAYLOAD  ARES-9 RAILGUN POD", x, 82, MUTED);
-        line(ctx, "Needs clear sky above the zone.", x, 98, MUTED);
-        line(ctx, "On landing, use the pod's panel", x, 110, MUTED);
-        line(ctx, "to deploy the emplacement.", x, 122, MUTED);
-        if (st.pending) line(ctx, "DROP INBOUND", x, 136, AMBER);
-        else if (onCooldown()) line(ctx, "UPLINK RECHARGING", x, 136, AMBER);
+        line(ctx, "PAYLOAD  ARES-9 RAILGUN POD", x, 130, MUTED);
+        if (st.pending) line(ctx, "DROP INBOUND", x, 138 + 4, AMBER);
+        else if (onCooldown()) line(ctx, "UPLINK RECHARGING", x, 142, AMBER);
     }
 
     private void drawFirePage(DrawContext ctx, float time) {
         TabletStatus st = TabletStatus.latest;
+        UiKit.chamfer(ctx, 4, 22, 198, 188, 10, UiKit.PANEL, UiKit.CYAN_DIM);
+        UiKit.chamfer(ctx, 204, 22, 192, 124, 10, UiKit.PANEL, UiKit.CYAN_DIM);
         title(ctx, "FIRE CONTROL", 8, 24);
+        // Installed loadout chips
+        Loadout lo = Loadout.of(st.loadout);
+        java.util.List<Loadout.Option> opts = new java.util.ArrayList<>();
+        if (lo.muzzle() != null) opts.add(lo.muzzle());
+        if (lo.ammo() != null) opts.add(lo.ammo());
+        opts.addAll(lo.modules());
+        for (int i = 0; i < opts.size(); i++) {
+            RenderSystem.enableBlend();
+            ctx.drawTexture(RailgunMod.id("textures/gui/option/" + opts.get(i).id + ".png"), 112 + i * 14, 22, 13, 13, 0, 0, 96, 96, 96, 96);
+            RenderSystem.disableBlend();
+        }
 
         // State + location
         ctx.getMatrices().push();
@@ -411,7 +464,7 @@ public class TabletScreen extends Screen {
         if (st.hasTarget) {
             line(ctx, String.format(Locale.ROOT, "LOCK  %d %d %d", st.target.getX(), st.target.getY(), st.target.getZ()), 8, 150, RED);
             double range = Math.sqrt(st.pos.getSquaredDistance(st.target));
-            line(ctx, String.format(Locale.ROOT, "RANGE %.0f / %.0f m", range, RailgunConfig.MAX_FIRE_RANGE), 8, 162, MUTED);
+            line(ctx, String.format(Locale.ROOT, "RANGE %.0f / %.0f m", range, RailgunConfig.MAX_FIRE_RANGE * Loadout.of(st.loadout).rangeMul()), 8, 162, MUTED);
         } else {
             line(ctx, "NO TARGET LOCKED", 8, 150, MUTED);
         }
@@ -463,8 +516,8 @@ public class TabletScreen extends Screen {
     }
 
     private void title(DrawContext ctx, String text, int x, int y) {
-        ctx.fill(x, y + 2, x + 3, y + 7, RED);
-        ctx.drawText(textRenderer, text, x + 6, y, TEXT, false);
+        ctx.fill(x, y + 2, x + 3, y + 7, CYAN);
+        UiKit.spaced(ctx, textRenderer, text, x + 6, y, TEXT, 1.5f, 1f, false);
     }
 
     private void line(DrawContext ctx, String text, int x, int y, int color) {
@@ -526,28 +579,20 @@ public class TabletScreen extends Screen {
         void render(DrawContext ctx, float mx, float my, float time) {
             boolean on = enabled.getAsBoolean();
             boolean hover = on && hit(mx, my);
-            int rgb = accent & 0x00FFFFFF;
+            float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
             if (big) {
-                // Hazard frame
-                for (int sx = x; sx < x + w; sx += 8) {
-                    int c = ((sx - x) / 8) % 2 == 0 ? (on ? 0xFFD69614 : 0xFF3A3220) : 0xFF101010;
-                    ctx.fill(sx, y, Math.min(sx + 8, x + w), y + 3, c);
-                    ctx.fill(sx, y + h - 3, Math.min(sx + 8, x + w), y + h, c);
+                UiKit.chamfer(ctx, x, y, w, h, 10, on ? UiKit.alpha(accent, hover ? 0.6f : 0.22f + 0.15f * pulse) : 0x40202830, on ? accent : 0xFF2A333C);
+                for (int sx = x + 12; sx < x + w - 12; sx += 10) {
+                    ctx.fill(sx, y + 3, sx + 5, y + 5, on ? 0xE0D69614 : 0xFF2A2A2A);
+                    ctx.fill(sx + 3, y + h - 5, sx + 8, y + h - 3, on ? 0xE0D69614 : 0xFF2A2A2A);
                 }
-                float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
-                int a = on ? (int) (0x40 + (hover ? 0x80 : 0x50 * pulse)) : 0x18;
-                ctx.fill(x, y + 3, x + w, y + h - 3, (a << 24) | (on ? rgb : 0x404448));
             } else {
-                ctx.fill(x, y, x + w, y + h, on ? (hover ? (0x60 << 24) | rgb : 0xFF151C21) : 0xFF101417);
-                ctx.fill(x, y + h - 1, x + w, y + h, on ? accent : 0xFF2A2E36);
+                UiKit.chamfer(ctx, x, y, w, h, 4, on ? (hover ? UiKit.alpha(accent, 0.45f) : 0xE0101A22) : 0xC00C1014, on ? accent : 0xFF2A2E36);
             }
             float scale = big ? 2.0f : 1.0f;
             int color = on ? 0xFFFFFFFF : 0xFF5A626C;
-            ctx.getMatrices().push();
-            ctx.getMatrices().translate(x + w / 2f, y + h / 2f - 4 * scale, 0);
-            ctx.getMatrices().scale(scale, scale, 1f);
-            ctx.drawText(textRenderer, label, -textRenderer.getWidth(label) / 2, 0, color, big && on);
-            ctx.getMatrices().pop();
+            float tw = UiKit.spacedWidth(textRenderer, label, big ? 2f : 1f, scale);
+            UiKit.spaced(ctx, textRenderer, label, x + (w - tw) / 2f, y + h / 2f - 4 * scale, color, big ? 2f : 1f, scale, big && on);
         }
     }
 }

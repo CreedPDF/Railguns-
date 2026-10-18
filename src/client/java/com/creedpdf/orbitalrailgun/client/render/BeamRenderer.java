@@ -2,6 +2,7 @@ package com.creedpdf.orbitalrailgun.client.render;
 
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
+import com.creedpdf.orbitalrailgun.loadout.Loadout;
 import com.creedpdf.orbitalrailgun.util.RailgunConfig;
 import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.VertexConsumer;
@@ -47,6 +48,35 @@ public final class BeamRenderer {
     private static final int MAX_SEGMENTS = 160;
     private static final int LIGHT = LightmapTextureManager.MAX_LIGHT_COORDINATE;
 
+    /** Per-shot colours and textures: the standard slug is the classic red, ammunition tints it. */
+    static final class Pal {
+        final Identifier core, plasma, halo, helix, shock;
+        final float[] c, p, h;
+        final float alpha;
+
+        Pal(Loadout l) {
+            boolean std = l.ammo() == null;
+            core = std ? BeamRenderLayers.TEX_CORE : BeamRenderLayers.TINT_CORE;
+            plasma = std ? BeamRenderLayers.TEX_PLASMA : BeamRenderLayers.TINT_PLASMA;
+            halo = std ? BeamRenderLayers.TEX_HALO : BeamRenderLayers.TINT_HALO;
+            helix = std ? BeamRenderLayers.TEX_HELIX : BeamRenderLayers.TINT_HELIX;
+            shock = std ? BeamRenderLayers.TEX_SHOCKWAVE : BeamRenderLayers.TINT_SHOCKWAVE;
+            int[] cols = l.beamColors();
+            c = std ? new float[]{1f, 0.97f, 0.94f} : rgb(cols[0]);
+            p = std ? new float[]{1f, 0.45f, 0.33f} : rgb(cols[1]);
+            h = std ? new float[]{1f, 0.25f, 0.18f} : rgb(cols[2]);
+            alpha = l.has(Loadout.Option.GHOST) ? 0.5f : 1f;
+        }
+
+        static float[] rgb(int c) {
+            return new float[]{((c >> 16) & 0xFF) / 255f, ((c >> 8) & 0xFF) / 255f, (c & 0xFF) / 255f};
+        }
+
+        float[] mul(float[] a, float k) {
+            return new float[]{a[0] * k, a[1] * k, a[2] * k};
+        }
+    }
+
     public static void render(RailgunEntity railgun, float tickDelta, MatrixStack matrices, VertexConsumerProvider consumers) {
         Vec3d origin = railgun.getLerpedPos(tickDelta);
         Vector3f muzzle = toLocal(railgun.getMuzzlePos(tickDelta), origin);
@@ -58,12 +88,17 @@ public final class BeamRenderer {
         float time = railgun.age + tickDelta;
         Beam beam = new Beam(muzzle, target);
         if (beam.length < 0.5f) return;
+        Loadout l = railgun.getLoadout();
+        Pal pal = new Pal(l);
 
         if (railgun.getState() == RailgunState.CHARGING) {
-            renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time);
+            renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time, pal);
+            if (l.has(Loadout.Option.GRAVITY)) gravityField(consumers, m, surface, railgun.getCharge(), time);
         } else if (railgun.getState() == RailgunState.FIRING) {
             float p = MathHelper.clamp((railgun.getStateTicks() + tickDelta) / RailgunConfig.FIRE_TICKS, 0f, 1f);
-            renderFiring(consumers, m, beam, surface, p, time);
+            float width = l.beamWidth();
+            renderFiring(consumers, m, beam, surface, p, time, pal, width);
+            LoadoutVfx.firing(consumers, m, matrices, railgun, l, beam, surface, p, time, pal, width, origin, tickDelta);
         }
     }
 
@@ -72,28 +107,26 @@ public final class BeamRenderer {
     // =========================================================================================
 
     /** Charging: no beam yet, only energy gathering at the muzzle and arcs along the barrel. */
-    private static void renderChargeUp(VertexConsumerProvider cp, Matrix4f m, Beam b, RailgunEntity railgun, float c, float time) {
+    private static void renderChargeUp(VertexConsumerProvider cp, Matrix4f m, Beam b, RailgunEntity railgun, float c, float time, Pal pal) {
         float pulse = 0.75f + 0.25f * MathHelper.sin(time * (0.3f + c * 1.2f));
+        float[] pc = pal.p, hc = pal.h;
 
         // Swelling plasma orb at the muzzle.
         float orb = 0.5f + 4.6f * c;
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.a, orb * 0.7f,
-                1f, 0.5f, 0.4f, 0.75f, time * 0.05f, time * 0.03f);
-        glowSphere(glow(cp), m, b.a, orb * 0.35f, 1f, 0.95f, 0.9f, 0.5f + 0.5f * c);
-        glowSphere(glow(cp), m, b.a, orb, 1f, 0.12f, 0.06f, 0.22f * pulse);
-        glowSphere(glow(cp), m, b.a, orb * 1.9f, 0.9f, 0.03f, 0.02f, 0.08f * c);
+        texSphere(tex(cp, pal.plasma), m, b.a, orb * 0.7f, pc[0], Math.min(1, pc[1] * 1.1f), Math.min(1, pc[2] * 1.2f), 0.75f * pal.alpha, time * 0.05f, time * 0.03f);
+        glowSphere(glow(cp), m, b.a, orb * 0.35f, pal.c[0], pal.c[1], pal.c[2], (0.5f + 0.5f * c) * pal.alpha);
+        glowSphere(glow(cp), m, b.a, orb, hc[0], hc[1] * 0.5f, hc[2] * 0.5f, 0.22f * pulse * pal.alpha);
+        glowSphere(glow(cp), m, b.a, orb * 1.9f, hc[0] * 0.9f, hc[1] * 0.12f, hc[2] * 0.12f, 0.08f * c * pal.alpha);
 
         // Collapsing rings: energy pouring into the muzzle.
-        VertexConsumer ringTex = tex(cp, BeamRenderLayers.TEX_SHOCKWAVE);
         for (int i = 0; i < 4; i++) {
             float phase = ((time * (0.02f + 0.05f * c)) + i / 4f) % 1f;
             float r = orb * (3.2f - 2.6f * phase);
-            texRing(ringTex, m, b.a, b.dir, r, r + 0.4f + 0.8f * c, 1f, 0.3f, 0.2f, phase * 0.8f * c, time * 0.01f);
+            texRing(tex(cp, pal.shock), m, b.a, b.dir, r, r + 0.4f + 0.8f * c, pc[0], pc[1] * 0.7f, pc[2] * 0.7f, phase * 0.8f * c * pal.alpha, time * 0.01f);
         }
 
         // Lightning arcs crawling up the barrel, re-rolled every 2 ticks.
         Random rand = Random.create(railgun.getId() * 31L + (long) (time / 2));
-        VertexConsumer glow = glow(cp);
         int arcs = 3 + (int) (c * 12);
         Vector3f back = new Vector3f(b.dir).mul((float) -RailgunConfig.BARREL_LENGTH);
         for (int i = 0; i < arcs; i++) {
@@ -103,37 +136,50 @@ public final class BeamRenderer {
                     .add(new Vector3f(b.v).mul((rand.nextFloat() - 0.5f) * 3f));
             Vector3f end = rand.nextFloat() < 0.5f ? new Vector3f(b.a)
                     : new Vector3f(back).mul(rand.nextFloat()).add(b.a).add(new Vector3f(b.v).mul(2f));
-            arc(glow, m, start, end, rand, 0.05f + 0.05f * c, 1f, 0.75f, 0.7f, 0.9f);
+            arc(glow(cp), m, start, end, rand, 0.05f + 0.05f * c, pal.c[0], Math.min(1, pc[1] + 0.3f), Math.min(1, pc[2] + 0.3f), 0.9f * pal.alpha);
         }
+    }
+
+    /** Graviton coil: distortion rings collapsing onto the target while the gun charges. */
+    private static void gravityField(VertexConsumerProvider cp, Matrix4f m, Vector3f target, float c, float time) {
+        Vector3f up = new Vector3f(0, 1, 0);
+        for (int i = 0; i < 5; i++) {
+            float ph = ((time * 0.03f) + i / 5f) % 1f;
+            float r = 20f * (1f - ph);
+            Vector3f at = new Vector3f(target).add(0, 0.5f + ph * 3f, 0);
+            texRing(tex(cp, BeamRenderLayers.TINT_SHOCKWAVE), m, at, up, r, r + 1.2f, 0.7f, 0.45f, 1f, 0.6f * ph * (0.4f + c), time * 0.02f);
+        }
+        glowSphere(glow(cp), m, new Vector3f(target).add(0, 3, 0), 1f + 2f * c, 0.6f, 0.3f, 1f, 0.4f * c);
     }
 
     // =========================================================================================
     // Firing
     // =========================================================================================
 
-    private static void renderFiring(VertexConsumerProvider cp, Matrix4f m, Beam b, Vector3f surface, float p, float time) {
+    private static void renderFiring(VertexConsumerProvider cp, Matrix4f m, Beam b, Vector3f surface, float p, float time, Pal pal, float width) {
         // Envelope: a blinding ignition flash, a long sustained burn, then a fast collapse.
         float sustain = p < 0.6f ? 1f : (float) Math.pow(1f - (p - 0.6f) / 0.4f, 1.6);
         float flicker = 0.9f + 0.1f * MathHelper.sin(time * 7.3f) * MathHelper.sin(time * 3.1f);
-        float i = sustain * flicker;
+        float i = sustain * flicker * pal.alpha;
         float bloom = p < 0.05f ? 3.0f * (1f - p / 0.05f) : 0f;
-        float B = 1.0f + 0.9f * sustain + bloom;
+        float B = (1.0f + 0.9f * sustain + bloom) * width;
         float throb = 1f + 0.08f * MathHelper.sin(time * 2.2f);
+        float[] cc = pal.c, pc = pal.p, hc = pal.h;
 
         // Beam body, inside out.
-        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 0.9f * B, 1f, 0.97f, 0.94f, Math.min(1f, 1.2f * i), 5f, time * 3.4f, 0f, 0.06f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 1.3f * B, 1f, 0.75f, 0.65f, 0.6f * i, 7f, time * 2.8f, 0.5f, 0.08f, time + 13f);
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 1.8f * B * throb, 1f, 0.45f, 0.33f, 0.9f * i, 10f, time * 2.2f, time * 0.06f, 0.12f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 2.2f * B, 1f, 0.28f, 0.2f, 0.6f * i, 14f, time * 1.4f, -time * 0.09f, 0.16f, time + 40f);
-        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, b, 3.4f * B * throb, 1f, 0.25f, 0.18f, 0.6f * i, 16f, time * 0.8f, time * 0.03f, 0.22f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, b, 4.6f * B, 0.9f, 0.15f, 0.1f, 0.3f * i, 22f, time * 0.5f, -time * 0.02f, 0.28f, time + 7f);
-        glowTube(glow(cp), m, b, 6.0f * B, 1f, 0.06f, 0.02f, 0.12f * i, time);
-        glowTube(glow(cp), m, b, 9.5f * B, 0.9f, 0.03f, 0.01f, 0.05f * i, time);
-        glowTube(glow(cp), m, b, 15f * B, 0.8f, 0.02f, 0.01f, 0.022f * i, time);
+        texTube(tex(cp, pal.core), m, b, 0.9f * B, cc[0], cc[1], cc[2], Math.min(1f, 1.2f * i), 5f, time * 3.4f, 0f, 0.06f, time);
+        texTube(tex(cp, pal.core), m, b, 1.3f * B, cc[0], cc[1] * 0.8f, cc[2] * 0.7f, 0.6f * i, 7f, time * 2.8f, 0.5f, 0.08f, time + 13f);
+        texTube(tex(cp, pal.plasma), m, b, 1.8f * B * throb, pc[0], pc[1], pc[2], 0.9f * i, 10f, time * 2.2f, time * 0.06f, 0.12f, time);
+        texTube(tex(cp, pal.plasma), m, b, 2.2f * B, pc[0], pc[1] * 0.62f, pc[2] * 0.62f, 0.6f * i, 14f, time * 1.4f, -time * 0.09f, 0.16f, time + 40f);
+        texTube(tex(cp, pal.halo), m, b, 3.4f * B * throb, hc[0], hc[1], hc[2], 0.6f * i, 16f, time * 0.8f, time * 0.03f, 0.22f, time);
+        texTube(tex(cp, pal.halo), m, b, 4.6f * B, hc[0] * 0.9f, hc[1] * 0.6f, hc[2] * 0.6f, 0.3f * i, 22f, time * 0.5f, -time * 0.02f, 0.28f, time + 7f);
+        glowTube(glow(cp), m, b, 6.0f * B, hc[0], hc[1] * 0.24f, hc[2] * 0.12f, 0.12f * i, time);
+        glowTube(glow(cp), m, b, 9.5f * B, hc[0] * 0.9f, hc[1] * 0.12f, hc[2] * 0.06f, 0.05f * i, time);
+        glowTube(glow(cp), m, b, 15f * B, hc[0] * 0.8f, hc[1] * 0.08f, hc[2] * 0.05f, 0.022f * i, time);
 
         // Two counter-rotating sets of helix ribbons.
-        helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 2.6f * B, 1.0f * B, 0.22f, time * 0.45f, 1f, 0.6f, 0.5f, 0.85f * i, time);
-        helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 3.6f * B, 0.6f * B, -0.13f, -time * 0.3f, 1f, 0.35f, 0.25f, 0.55f * i, time + 20f);
+        helix(tex(cp, pal.helix), m, b, 2.6f * B, 1.0f * B, 0.22f, time * 0.45f, pc[0], Math.min(1, pc[1] * 1.3f), Math.min(1, pc[2] * 1.5f), 0.85f * i, time);
+        helix(tex(cp, pal.helix), m, b, 3.6f * B, 0.6f * B, -0.13f, -time * 0.3f, hc[0], hc[1], hc[2], 0.55f * i, time + 20f);
 
         // Lightning crawling around the beam, re-rolled every 2 ticks.
         Random rand = Random.create((long) (time / 2) * 977L + 13L);
@@ -147,7 +193,7 @@ public final class BeamRenderer {
                     .add(new Vector3f(b.u).mul(MathHelper.cos(a0) * r0)).add(new Vector3f(b.v).mul(MathHelper.sin(a0) * r0));
             Vector3f s1 = new Vector3f(b.dir).mul(d1).add(b.a)
                     .add(new Vector3f(b.u).mul(MathHelper.cos(a1) * r1)).add(new Vector3f(b.v).mul(MathHelper.sin(a1) * r1));
-            arc(glow(cp), m, s0, s1, rand, 0.07f + 0.05f * i, 1f, 0.8f, 0.75f, 0.9f * i);
+            arc(glow(cp), m, s0, s1, rand, 0.07f + 0.05f * i, cc[0], Math.min(1, pc[1] + 0.35f), Math.min(1, pc[2] + 0.4f), 0.9f * i);
         }
 
         // Accelerator rings racing down the beam.
@@ -155,45 +201,45 @@ public final class BeamRenderer {
         float offset = (time * 5f) % spacing;
         for (float d = offset; d < b.length; d += spacing) {
             Vector3f c = new Vector3f(b.dir).mul(d).add(b.a);
-            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, c, b.dir, 2.6f * B, 4.4f * B, 1f, 0.5f, 0.4f, 0.65f * i, time * 0.03f + d * 0.01f);
+            texRing(tex(cp, pal.shock), m, c, b.dir, 2.6f * B, 4.4f * B, pc[0], pc[1], pc[2], 0.65f * i, time * 0.03f + d * 0.01f);
         }
 
         // Muzzle: fireball plus shock collars blasting off the end of the barrel.
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.a, 2.8f * B, 1f, 0.6f, 0.5f, 0.9f * i, time * 0.07f, time * 0.04f);
-        glowSphere(glow(cp), m, b.a, 1.8f * B, 1f, 0.97f, 0.92f, 0.95f * i);
-        glowSphere(glow(cp), m, b.a, 5.5f * B, 1f, 0.15f, 0.05f, 0.25f * i);
+        texSphere(tex(cp, pal.plasma), m, b.a, 2.8f * B, pc[0], Math.min(1, pc[1] * 1.3f), Math.min(1, pc[2] * 1.5f), 0.9f * i, time * 0.07f, time * 0.04f);
+        glowSphere(glow(cp), m, b.a, 1.8f * B, cc[0], cc[1], cc[2], 0.95f * i);
+        glowSphere(glow(cp), m, b.a, 5.5f * B, hc[0], hc[1] * 0.6f, hc[2] * 0.3f, 0.25f * i);
         for (int k = 0; k < 3; k++) {
             float q = p * 3.2f - k * 0.18f;
             if (q <= 0f || q >= 1f) continue;
             float rr = 2f + q * 26f;
             Vector3f c = new Vector3f(b.dir).mul(q * 6f).add(b.a);
-            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, c, b.dir, rr, rr + 2.5f + q * 4f, 1f, 0.6f, 0.5f, 0.9f * (1f - q), time * 0.02f);
+            texRing(tex(cp, pal.shock), m, c, b.dir, rr, rr + 2.5f + q * 4f, pc[0], Math.min(1, pc[1] * 1.3f), Math.min(1, pc[2] * 1.5f), 0.9f * (1f - q) * pal.alpha, time * 0.02f);
         }
 
         // Bore tip: a white-hot point where the beam is eating through the ground.
-        glowSphere(glow(cp), m, b.b, 2.5f * B, 1f, 0.97f, 0.92f, 0.9f * i);
-        glowSphere(glow(cp), m, b.b, 6f * B, 1f, 0.3f, 0.1f, 0.35f * i);
+        glowSphere(glow(cp), m, b.b, 2.5f * B, cc[0], cc[1], cc[2], 0.9f * i);
+        glowSphere(glow(cp), m, b.b, 6f * B, hc[0], hc[1] * 1.2f, hc[2] * 0.6f, 0.35f * i);
 
         // Impact: fireball, expanding blast dome and rolling ground shockwaves.
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, surface, 6.5f * B * throb, 1f, 0.55f, 0.45f, 0.95f * i, time * 0.06f, -time * 0.05f);
-        glowSphere(glow(cp), m, surface, 4.2f * B, 1f, 0.97f, 0.92f, 0.95f * i);
-        glowSphere(glow(cp), m, surface, 11f * B, 1f, 0.2f, 0.06f, 0.3f * i);
-        glowSphere(glow(cp), m, surface, 20f * B, 1f, 0.06f, 0.02f, 0.10f * i);
+        texSphere(tex(cp, pal.plasma), m, surface, 6.5f * B * throb, pc[0], Math.min(1, pc[1] * 1.2f), Math.min(1, pc[2] * 1.35f), 0.95f * i, time * 0.06f, -time * 0.05f);
+        glowSphere(glow(cp), m, surface, 4.2f * B, cc[0], cc[1], cc[2], 0.95f * i);
+        glowSphere(glow(cp), m, surface, 11f * B, hc[0], hc[1] * 0.8f, hc[2] * 0.33f, 0.3f * i);
+        glowSphere(glow(cp), m, surface, 20f * B, hc[0], hc[1] * 0.24f, hc[2] * 0.11f, 0.10f * i);
         float dome = Math.min(1f, p * 2.2f);
-        texSphere(tex(cp, BeamRenderLayers.TEX_HALO), m, surface, 4f + dome * 22f, 1f, 0.35f, 0.25f, 0.55f * (1f - dome), time * 0.03f, time * 0.02f);
+        texSphere(tex(cp, pal.halo), m, surface, 4f + dome * 22f, hc[0], Math.min(1, hc[1] * 1.4f), Math.min(1, hc[2] * 1.4f), 0.55f * (1f - dome) * pal.alpha, time * 0.03f, time * 0.02f);
         Vector3f ground = new Vector3f(surface).add(0, -0.4f, 0);
         Vector3f up = new Vector3f(0, 1, 0);
         float w1 = 4f + p * 90f;
-        texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, ground, up, w1, w1 + 8f, 1f, 0.55f, 0.45f, 0.95f * (1f - p), time * 0.01f);
+        texRing(tex(cp, pal.shock), m, ground, up, w1, w1 + 8f, pc[0], Math.min(1, pc[1] * 1.2f), Math.min(1, pc[2] * 1.35f), 0.95f * (1f - p) * pal.alpha, time * 0.01f);
         if (p > 0.1f) {
             float q = (p - 0.1f) / 0.9f;
             float w2 = 3f + q * 60f;
-            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, new Vector3f(ground).add(0, 0.2f, 0), up, w2, w2 + 5f, 1f, 0.4f, 0.3f, 0.8f * (1f - q), -time * 0.01f);
+            texRing(tex(cp, pal.shock), m, new Vector3f(ground).add(0, 0.2f, 0), up, w2, w2 + 5f, pc[0], pc[1] * 0.9f, pc[2] * 0.9f, 0.8f * (1f - q) * pal.alpha, -time * 0.01f);
         }
         if (p > 0.25f) {
             float q = (p - 0.25f) / 0.75f;
             float w3 = 2f + q * 36f;
-            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, new Vector3f(ground).add(0, 0.4f, 0), up, w3, w3 + 3f, 1f, 0.6f, 0.45f, 0.7f * (1f - q), time * 0.015f);
+            texRing(tex(cp, pal.shock), m, new Vector3f(ground).add(0, 0.4f, 0), up, w3, w3 + 3f, cc[0], cc[1], cc[2], 0.7f * (1f - q) * pal.alpha, time * 0.015f);
         }
     }
 
@@ -202,11 +248,11 @@ public final class BeamRenderer {
      * requesting a different RenderLayer finishes the previous layer's buffer, so a consumer
      * must never be reused after another layer has been requested.
      */
-    private static VertexConsumer tex(VertexConsumerProvider cp, Identifier texture) {
+    static VertexConsumer tex(VertexConsumerProvider cp, Identifier texture) {
         return cp.getBuffer(BeamRenderLayers.textured(texture));
     }
 
-    private static VertexConsumer glow(VertexConsumerProvider cp) {
+    static VertexConsumer glow(VertexConsumerProvider cp) {
         return cp.getBuffer(BeamRenderLayers.GLOW);
     }
 
@@ -215,7 +261,7 @@ public final class BeamRenderer {
     // =========================================================================================
 
     /** Beam frame: endpoints, unit direction and two perpendicular unit vectors. */
-    private static final class Beam {
+    static final class Beam {
         final Vector3f a, b, dir, u = new Vector3f(), v = new Vector3f();
         final float length;
 
@@ -244,7 +290,7 @@ public final class BeamRenderer {
      * Textured tube. U wraps once around the circumference (+ uOffset, which twists the pattern),
      * V = distance / vScale - vScroll, so the texture streams along the beam.
      */
-    private static void texTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
+    static void texTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
                                 float alpha, float vScale, float vScroll, float uOffset, float wobble, float time) {
         if (alpha <= 0.003f || radius <= 0f) return;
         int segs = segments(bm.length);
@@ -273,7 +319,7 @@ public final class BeamRenderer {
     }
 
     /** Untextured glow tube (soft bloom shells). */
-    private static void glowTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
+    static void glowTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
                                  float alpha, float time) {
         if (alpha <= 0.003f || radius <= 0f) return;
         int segs = Math.max(2, segments(bm.length) / 2);
@@ -300,7 +346,7 @@ public final class BeamRenderer {
      * cylinder of radius {@code radius}: at angle theta(d) = d * twist + spin + k*120deg, the
      * ribbon spans +/- width/2 along the circle's tangent.
      */
-    private static void helix(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float width, float twist, float spin,
+    static void helix(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float width, float twist, float spin,
                               float r, float g, float b, float alpha, float time) {
         if (alpha <= 0.003f) return;
         int segs = Math.min(MAX_SEGMENTS * 2, Math.max(8, (int) (bm.length / 1.2f)));
@@ -333,7 +379,7 @@ public final class BeamRenderer {
     }
 
     /** Textured flat annulus: U around (+ uOffset rotates it), V from inner (0) to outer (1) edge. */
-    private static void texRing(VertexConsumer vc, Matrix4f m, Vector3f c, Vector3f normal, float inner, float outer,
+    static void texRing(VertexConsumer vc, Matrix4f m, Vector3f c, Vector3f normal, float inner, float outer,
                                 float r, float g, float b, float alpha, float uOffset) {
         if (alpha <= 0.003f || outer <= 0f) return;
         Vector3f n = new Vector3f(normal).normalize();
@@ -352,7 +398,7 @@ public final class BeamRenderer {
     }
 
     /** Textured UV sphere (U = longitude, V = latitude), offsets animate the plasma. */
-    private static void texSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b,
+    static void texSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b,
                                   float alpha, float uOffset, float vOffset) {
         if (alpha <= 0.003f || radius <= 0f) return;
         final int lat = 10, lon = 18;
@@ -371,7 +417,7 @@ public final class BeamRenderer {
     }
 
     /** Untextured glow sphere. */
-    private static void glowSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b, float alpha) {
+    static void glowSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b, float alpha) {
         if (alpha <= 0.003f || radius <= 0f) return;
         final int lat = 8, lon = 14;
         for (int i = 0; i < lat; i++) {
@@ -386,7 +432,7 @@ public final class BeamRenderer {
         }
     }
 
-    private static void spherePoint(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, double theta, double phi,
+    static void spherePoint(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, double theta, double phi,
                                     float r, float g, float b, float a, float u, float v, boolean textured) {
         float ct = (float) Math.cos(theta);
         float x = c.x + radius * ct * (float) Math.cos(phi);
@@ -404,7 +450,7 @@ public final class BeamRenderer {
      * interior points are displaced randomly perpendicular to it; each segment is drawn as two
      * crossed thin quads so it reads from any angle.
      */
-    private static void arc(VertexConsumer vc, Matrix4f m, Vector3f start, Vector3f end, Random rand, float thickness,
+    static void arc(VertexConsumer vc, Matrix4f m, Vector3f start, Vector3f end, Random rand, float thickness,
                             float r, float g, float b, float alpha) {
         final int n = 9;
         Vector3f d = new Vector3f(end).sub(start);
@@ -447,7 +493,7 @@ public final class BeamRenderer {
                 .color(r, g, b, a).texture(tu, tv).light(LIGHT).normal(0, 1, 0).next();
     }
 
-    private static void texVertRaw(VertexConsumer vc, Matrix4f m, Vector3f p, float r, float g, float b, float a, float tu, float tv) {
+    static void texVertRaw(VertexConsumer vc, Matrix4f m, Vector3f p, float r, float g, float b, float a, float tu, float tv) {
         vc.vertex(m, p.x, p.y, p.z).color(r, g, b, a).texture(tu, tv).light(LIGHT).normal(0, 1, 0).next();
     }
 
@@ -459,7 +505,7 @@ public final class BeamRenderer {
                 center.z + (u.z * cos + v.z * sin) * radius).color(r, g, b, a).next();
     }
 
-    private static void quad(VertexConsumer vc, Matrix4f m, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3,
+    static void quad(VertexConsumer vc, Matrix4f m, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3,
                              float r, float g, float b, float a) {
         vc.vertex(m, p0.x, p0.y, p0.z).color(r, g, b, a).next();
         vc.vertex(m, p1.x, p1.y, p1.z).color(r, g, b, a).next();
@@ -468,13 +514,13 @@ public final class BeamRenderer {
     }
 
     /** Builds two unit vectors perpendicular to {@code dir} and to each other. */
-    private static void basis(Vector3f dir, Vector3f u, Vector3f v) {
+    static void basis(Vector3f dir, Vector3f u, Vector3f v) {
         Vector3f helper = Math.abs(dir.y) < 0.99f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0);
         dir.cross(helper, u).normalize();
         dir.cross(u, v).normalize();
     }
 
-    private static Vector3f toLocal(Vec3d world, Vec3d origin) {
+    static Vector3f toLocal(Vec3d world, Vec3d origin) {
         return new Vector3f((float) (world.x - origin.x), (float) (world.y - origin.y), (float) (world.z - origin.z));
     }
 }

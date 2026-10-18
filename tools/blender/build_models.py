@@ -115,9 +115,17 @@ PALETTE = {
     "glow": ("#5a0000", "#c8120c", "#ff4a30"),
     "amber": ("#5a3000", "#d68a10", "#ffc040"),
     "screen": ("#020407", "#07121c", "#0e2436"),   # display glass; UI painted by paint_faces
+    # loadout attachments, supply capsule, tablet
+    "cyan": ("#003a4a", "#10b8e0", "#8af0ff"),
+    "violet": ("#25003a", "#8a30e0", "#d8a0ff"),
+    "lime": ("#203a00", "#88d820", "#e0ff90"),
+    "orange": ("#4a1400", "#e0600c", "#ffb060"),
+    "chrome": ("#5a6068", "#a8b0ba", "#e8edf2"),
+    "brass": ("#4a3008", "#a8781c", "#e0b85a"),
+    "white": ("#8a929c", "#d8dee6", "#f6f8fa"),
 }
 KINDS = list(PALETTE)
-GLOW_KINDS = {"glow", "amber", "screen"}
+GLOW_KINDS = {"glow", "amber", "screen", "cyan", "violet", "lime", "orange"}
 
 
 def viewport_material(kind):
@@ -390,6 +398,21 @@ def diag_box(bone, kind, sx, sz, base, r0, r1, width, y0, y1, off=(0, 0, 0)):
     rbox(bone, kind, [cx - L / 2, y0, cz - width / 2], [L, y1 - y0, width], [cx, y0, cz], "y", ang, off=off, name="diag")
 
 
+def ring_z(bone, kind, cx, cy, z0, z1, radius, thick, off=(0, 0, 0)):
+    """Hollow octagonal ring around an axis parallel to Z: eight tangent slabs rotated about Z."""
+    seg = 2 * (radius + thick) * TAN22 + 0.6
+    for k in range(8):
+        rbox(bone, kind, [cx - seg / 2, cy + radius, z0], [seg, thick, z1 - z0], [cx, cy, (z0 + z1) / 2], "z", 45.0 * k,
+             off=off, name="ring")
+
+
+def ring_y(bone, kind, cx, cz, y0, y1, radius, thick):
+    """Hollow octagonal ring around a vertical axis."""
+    seg = 2 * (radius + thick) * TAN22 + 0.6
+    for k in range(8):
+        rbox(bone, kind, [cx - seg / 2, y0, cz + radius], [seg, y1 - y0, thick], [cx, y0, cz], "y", 45.0 * k, name="ringy")
+
+
 # ---- Layout constants (px, 16 px = 1 block) ----------------------------------------------------
 SHELL_A = 34.0          # pod shell outer apothem
 SHELL_T = 5.0           # shell wall thickness
@@ -470,13 +493,24 @@ def build_railgun():
     box(core, "dark", [-13, 34, 28.4], [26, 28, 1.2])                      # tablet recess frame
     box(core, "vent", [-8, 10, 28.5], [16, 8, 0.8])
     P = B["pod_panel"]
-    box(P, "dark", [-3, 44, 29], [6, 8, 2])                                # mount arm
-    box(P, "dark", [-11, 37, 31], [22, 22, 1.6])                           # tablet bezel
-    box(P, "steel", [-12.5, 39, 30.6], [1.5, 18, 2.4], mirror=("x",))      # rubber grips
-    box(P, "screen", [-9, 39, 32.6], [18, 18, 0.3])                        # display
-    box(P, "amber", [-6, 37.4, 32.6], [2, 0.9, 0.3])
-    box(P, "glow", [4, 37.4, 32.6], [2, 0.9, 0.3])
-    box(P, "glow", [-1, 57.3, 32.6], [2, 1, 0.3])
+    # Armoured field console: back plate, visor hood, side rails, framed display with a glowing
+    # border, keypad row and status LEDs.
+    box(P, "dark", [-3, 44, 28.6], [6, 8, 1.2])                            # mount arm
+    box(P, "dark", [-12, 36, 29.8], [24, 24, 1.4])                         # back plate
+    box(P, "steel", [-12.6, 58.2, 31.2], [25.2, 1.8, 2.6])                 # visor hood
+    box(P, "steel", [-12.6, 36.2, 31.2], [2.2, 22, 2.0], mirror=("x",))    # side rails
+    box(P, "hull", [-12.9, 39, 31.4], [0.4, 16, 1.4], mirror=("x",))       # grip pads
+    box(P, "dark", [-10.4, 41.4, 31.2], [20.8, 16.4, 1.2])                 # screen bezel
+    box(P, "screen", [-9.5, 42.2, 32.4], [19, 14.8, 0.3])                  # display
+    box(P, "cyan", [-10.2, 57.0, 32.42], [20.4, 0.5, 0.25])                # glowing border
+    box(P, "cyan", [-10.2, 41.6, 32.42], [20.4, 0.5, 0.25])
+    box(P, "cyan", [-10.2, 42.1, 32.42], [0.5, 14.9, 0.25], mirror=("x",))
+    for i, (x, k) in enumerate(((-8.2, "glow"), (-4.6, "amber"), (-1.0, "cyan"), (2.6, "cyan"), (6.2, "amber"))):
+        box(P, "steel", [x - 0.2, 37.2, 31.2], [2.8, 2.6, 1.6])           # keypad
+        box(P, k, [x, 37.5, 32.8], [2.4, 2.0, 0.3])
+    box(P, "lime", [10.6, 52.0, 33.2], [1.2, 1.2, 0.3])                    # status LEDs
+    box(P, "amber", [10.6, 49.6, 33.2], [1.2, 1.2, 0.3])
+    box(P, "glow", [10.6, 47.2, 33.2], [1.2, 1.2, 0.3])
 
     # ---- Shell quarters (pod armour) -> corner bulwarks, with clamps, bolts, beacons -----------
     A, T = SHELL_A, SHELL_T
@@ -660,29 +694,351 @@ def build_railgun():
     box(s2, "vent", [-20.6, Y - 5, -314], [0.6, 10, 8], mirror=("x",))
     octagon_z("bore", s2, "glow", 0, Y, -316.6, -316, 22)
     octagon_z("coil_c0", B["coils_c"], "glow", 0, Y, -261.5, -258.5, 36)
+
+    # ---- Loadout attachments (bones "opt_<id>"; the mod shows only the installed ones) ---------
+    build_options(bone, B)
     return bones
+
+
+# Which bones make each option's icon (the first mount of multi-mount options).
+OPTION_ICON_BONES = {
+    "shield": ["opt_shield__a"], "sentry": ["opt_sentry__a", "opt_sentry__a_head"],
+    "seismic": ["opt_seismic__pp"], "targeting": ["opt_targeting", "opt_targeting__laser"],
+}
+OPTION_IDS = ["lancer", "triprong", "shroud", "scatter", "gravity", "ghost",
+              "tungsten", "thermite", "cryo", "ion", "cluster", "singularity", "sunburst",
+              "capacitor", "coolant", "overclock", "targeting", "shield", "sentry", "thruster",
+              "seismic", "autoloader", "afterburn"]
+
+
+def build_options(bone, B):
+    Y = BARREL_Y
+    MZ = -316.0
+
+    # ================= Muzzle devices (children of seg2, at the muzzle) =================
+    bone("opt_lancer", "seg2", [0, Y, MZ])
+    L = B["opt_lancer"]
+    octagon_z("lan_collar", L, "steel", 0, Y, MZ - 6, MZ, 42)
+    octagon_z("lan_band", L, "cyan", 0, Y, MZ - 4, MZ - 3, 42.6)
+    box(L, "chrome", [-15, Y - 1, MZ - 36], [2, 2, 30], mirror=("x",))
+    box(L, "chrome", [-1, Y + 13, MZ - 36], [2, 2, 30])
+    box(L, "chrome", [-1, Y - 15, MZ - 36], [2, 2, 30])
+    for i, (z, r) in enumerate(((MZ - 14, 16), (MZ - 24, 13), (MZ - 34, 10))):
+        ring_z(L, "steel", 0, Y, z - 1.5, z + 1.5, r, 2.5)
+        octagon_z(f"lan_lens{i}", L, "cyan", 0, Y, z - 0.8, z + 0.8, r * 2 - 2)
+    octagon_z("lan_tip", L, "cyan", 0, Y, MZ - 42, MZ - 37, 7)
+
+    bone("opt_triprong", "seg2", [0, Y, MZ])
+    T = B["opt_triprong"]
+    octagon_z("tri_collar", T, "dark", 0, Y, MZ - 10, MZ, 46)
+    octagon_z("tri_band", T, "amber", 0, Y, MZ - 6, MZ - 5, 46.6)
+    for k in range(3):
+        a = 120.0 * k
+        rbox(T, "paint", [-3, Y + 15, MZ - 46], [6, 6, 38], [0, Y, MZ], "z", a, name="prong")
+        rbox(T, "dark", [-3.5, Y + 20.5, MZ - 40], [7, 2, 26], [0, Y, MZ], "z", a, name="prong_spine")
+        rbox(T, "amber", [-1, Y + 14.2, MZ - 44], [2, 0.8, 34], [0, Y, MZ], "z", a, name="prong_glow")
+        rbox(T, "amber", [-3.2, Y + 14.8, MZ - 50], [6.4, 6.4, 4], [0, Y, MZ], "z", a, name="prong_tip")
+
+    bone("opt_shroud", "seg2", [0, Y, MZ])
+    S = B["opt_shroud"]
+    octagon_z("shr_a", S, "dark", 0, Y, MZ - 8, MZ, 44)
+    octagon_z("shr_b", S, "steel", 0, Y, MZ - 24, MZ - 8, 54)
+    octagon_z("shr_c", S, "paint", 0, Y, MZ - 34, MZ - 24, 50)
+    octagon_z("shr_d", S, "dark", 0, Y, MZ - 40, MZ - 34, 44)
+    octagon_z("shr_g1", S, "orange", 0, Y, MZ - 17, MZ - 15, 54.8)
+    octagon_z("shr_g2", S, "orange", 0, Y, MZ - 30, MZ - 29, 50.6)
+    box(S, "vent", [-27.4, Y - 6, MZ - 22], [0.6, 12, 12], mirror=("x",))
+    box(S, "vent", [-6, Y + 26.8, MZ - 22], [12, 0.6, 12])
+    octagon_z("shr_bore", S, "orange", 0, Y, MZ - 40.4, MZ - 40, 26)
+
+    bone("opt_scatter", "seg2", [0, Y, MZ])
+    C = B["opt_scatter"]
+    octagon_z("sca_block", C, "steel", 0, Y, MZ - 16, MZ, 48)
+    octagon_z("sca_haz", C, "hazard", 0, Y, MZ - 4, MZ - 2, 48.6)
+    octagon_z("sca_c", C, "dark", 0, Y, MZ - 34, MZ - 16, 14)
+    octagon_z("sca_cg", C, "orange", 0, Y, MZ - 34.4, MZ - 34, 7)
+    for i, (dx, dy) in enumerate(((-12, -12), (12, -12), (-12, 12), (12, 12))):
+        octagon_z(f"sca_p{i}", C, "dark", dx, Y + dy, MZ - 30, MZ - 16, 10)
+        octagon_z(f"sca_pg{i}", C, "orange", dx, Y + dy, MZ - 30.4, MZ - 30, 5)
+
+    bone("opt_gravity", "seg2", [0, Y, MZ])
+    G = B["opt_gravity"]
+    octagon_z("grv_collar", G, "dark", 0, Y, MZ - 8, MZ, 40)
+    for dx, dy in ((-17, 0), (17, 0), (0, -17), (0, 17)):
+        box(G, "chrome", [dx - 1, Y + dy - 1, MZ - 50], [2, 2, 42])
+    for z, r in ((MZ - 16, 24), (MZ - 30, 20), (MZ - 44, 16)):
+        ring_z(G, "violet", 0, Y, z - 1.5, z + 1.5, r, 2.5)
+        ring_z(G, "dark", 0, Y, z - 2.5, z - 1.5, r - 0.5, 3.5)
+
+    bone("opt_ghost", "seg2", [0, Y, MZ])
+    H = B["opt_ghost"]
+    octagon_z("gh_can", H, "dark", 0, Y, MZ - 68, MZ, 32)
+    for i in range(6):
+        z = MZ - 10 - i * 10
+        octagon_z(f"gh_rib{i}", H, "steel", 0, Y, z - 2, z, 34)
+    octagon_z("gh_cap", H, "steel", 0, Y, MZ - 72, MZ - 68, 30)
+    octagon_z("gh_bore", H, "vent", 0, Y, MZ - 72.4, MZ - 72, 10)
+
+    # ================= Ammunition racks (children of barrel, on the breech's right side) =================
+    BZ = 28.0
+    bone("opt_tungsten", "barrel", [28, Y, BZ])
+    A = B["opt_tungsten"]
+    box(A, "dark", [22, Y - 10, 12], [2, 22, 34])
+    box(A, "steel", [22, Y - 11, 12], [10, 1, 34])
+    for k in range(3):
+        y = Y - 7 + k * 6
+        box(A, "chrome", [25, y, 12], [3, 3, 30])
+        box(A, "cyan", [25.5, y + 0.5, 8], [2, 2, 4])
+        box(A, "dark", [24.5, y - 0.5, 38], [4, 4, 4])
+
+    bone("opt_thermite", "barrel", [28, Y, BZ])
+    A = B["opt_thermite"]
+    box(A, "dark", [22, Y - 10, 12], [12, 2, 34])
+    for i, z in enumerate((18, 29, 40)):
+        octagon(f"th_can{i}", A, "steel", Y - 8, 10, 18, center_xz=(29, z))
+        octagon(f"th_band{i}", A, "orange", Y, 10.6, 2, center_xz=(29, z))
+        octagon(f"th_cap{i}", A, "dark", Y + 10, 8, 2, center_xz=(29, z))
+
+    bone("opt_cryo", "barrel", [28, Y, BZ])
+    A = B["opt_cryo"]
+    box(A, "dark", [22, Y - 12, 14], [3, 24, 30])
+    for i, cy in enumerate((Y + 5, Y - 6)):
+        octagon_z(f"cr_tank{i}", A, "white", 31, cy, 12, 46, 10)
+        for j, z in enumerate((18, 26, 34, 42)):
+            octagon_z(f"cr_coil{i}{j}", A, "cyan", 31, cy, z - 1, z + 1, 11)
+        octagon_z(f"cr_capa{i}", A, "chrome", 31, cy, 10, 12, 8)
+
+    bone("opt_ion", "barrel", [28, Y, BZ])
+    A = B["opt_ion"]
+    for i, z in enumerate((13, 21, 29, 37)):
+        box(A, "dark", [24, Y - 8, z], [10, 20, 6])
+        box(A, "violet", [34, Y - 6, z + 1.5], [0.4, 16, 3])
+        box(A, "chrome", [26, Y + 12, z + 2], [2, 2, 2])
+        box(A, "chrome", [30, Y + 12, z + 2], [2, 2, 2])
+
+    bone("opt_cluster", "barrel", [28, Y, BZ])
+    A = B["opt_cluster"]
+    octagon_z("cl_drum", A, "steel", 33, Y + 2, 12, 44, 22)
+    octagon_z("cl_h1", A, "hazard", 33, Y + 2, 12, 14, 22.6)
+    octagon_z("cl_h2", A, "hazard", 33, Y + 2, 42, 44, 22.6)
+    box(A, "amber", [43.6, Y - 6, 16], [0.8, 2, 2.4], array=(4, [0, 0, 6]))
+    box(A, "amber", [43.6, Y - 1, 16], [0.8, 2, 2.4], array=(4, [0, 0, 6]))
+    box(A, "amber", [43.6, Y + 4, 16], [0.8, 2, 2.4], array=(4, [0, 0, 6]))
+    box(A, "dark", [22, Y - 3, 20], [2, 10, 16])
+
+    bone("opt_singularity", "barrel", [28, Y, BZ])
+    A = B["opt_singularity"]
+    box(A, "steel", [23, Y - 12, 18], [16, 3, 22])
+    for i, (y, w) in enumerate(((Y - 9, 10), (Y - 6, 16), (Y - 3, 18), (Y, 18), (Y + 3, 16), (Y + 6, 10))):
+        octagon(f"sg_s{i}", A, "dark", y, w, 3, center_xz=(31, 29))
+    octagon("sg_slit", A, "violet", Y - 0.5, 18.6, 1, center_xz=(31, 29))
+    ring_y(A, "chrome", 31, 29, Y - 4, Y - 2, 9.5, 1.5)
+
+    bone("opt_sunburst", "barrel", [28, Y, BZ])
+    A = B["opt_sunburst"]
+    box(A, "steel", [23, Y - 10, 14], [15, 22, 30])
+    box(A, "dark", [22.6, Y - 10.4, 13.6], [2, 23, 2], array=(2, [0, 0, 28.8]))
+    box(A, "hazard", [38, Y - 3, 16], [0.4, 4, 26])
+    box(A, "lime", [38, Y + 4, 22], [0.6, 5, 14])
+    box(A, "dark", [30, Y + 12, 20], [4, 2, 18])
+
+    # ================= Support modules =================
+    bone("opt_capacitor", "hull", [0, TURRET_Y, 0])
+    M = B["opt_capacitor"]
+    for sgn in (-1, 1):
+        box(M, "dark", [sgn * 34 - 5, 74, -21], [10, 2, 30])
+        for i, z in enumerate((-16, -6, 4)):
+            octagon(f"cap{sgn}{i}", M, "steel", 76, 7, 16, center_xz=(sgn * 34, z))
+            octagon(f"capg{sgn}{i}", M, "amber", 92, 5, 2, center_xz=(sgn * 34, z))
+            octagon(f"capb{sgn}{i}", M, "dark", 82, 7.4, 1.5, center_xz=(sgn * 34, z))
+
+    bone("opt_coolant", "barrel", [0, Y, 0])
+    M = B["opt_coolant"]
+    box(M, "chrome", [-23, Y + 8, -112], [2.5, 3, 120], mirror=("x",))
+    box(M, "cyan", [-23.3, Y + 8.5, -100], [0.3, 2, 80], mirror=("x",))
+    octagon_z("cool_tank", M, "white", 0, Y - 28, 14, 40, 10)
+    for z in (18, 26, 34):
+        octagon_z(f"cool_band{z}", M, "cyan", 0, Y - 28, z, z + 1.5, 10.6)
+    box(M, "dark", [-2, Y - 24, 20], [4, 3, 14])
+
+    bone("opt_overclock", "barrel", [0, Y, 0])
+    M = B["opt_overclock"]
+    for z in (-20, -60, -100):
+        ring_z(M, "dark", 0, Y, z - 2, z + 2, 23, 3)
+        ring_z(M, "glow", 0, Y, z - 0.8, z + 0.8, 26, 0.8)
+    box(M, "steel", [-1, Y + 25, -102], [2, 2, 84])
+
+    bone("opt_targeting", "hull", [0, TURRET_Y, 0])
+    M = B["opt_targeting"]
+    tx, tz = -12, -12
+    octagon("tg_base", M, "dark", 107, 16, 2, center_xz=(tx, tz))
+    octagon("tg_d1", M, "white", 109, 14, 3, center_xz=(tx, tz))
+    octagon("tg_d2", M, "white", 112, 11, 2, center_xz=(tx, tz))
+    octagon("tg_d3", M, "white", 114, 7, 1.5, center_xz=(tx, tz))
+    octagon("tg_ring", M, "glow", 110, 14.6, 0.8, center_xz=(tx, tz))
+    bone("opt_targeting__laser", "barrel", [-26, Y - 11, -50])
+    M = B["opt_targeting__laser"]
+    box(M, "dark", [-29, Y - 14, -70], [5, 6, 40])
+    box(M, "steel", [-24, Y - 12, -60], [4, 2, 20])
+    box(M, "glow", [-28.5, Y - 13.5, -70.6], [4, 5, 0.6])
+    box(M, "steel", [-29.4, Y - 14.4, -72], [5.8, 6.8, 2])
+
+    for tag, q in (("a", "pn"), ("b", "np")):
+        sx, sz = {"pn": (1, -1), "np": (-1, 1)}[q]
+        cx, cz = sx * (BULWARK_D + 14), sz * (BULWARK_D + 14)
+        bone(f"opt_shield__{tag}", f"shell_{q}", [cx, SHELL_TOP + 4, cz])
+        M = B[f"opt_shield__{tag}"]
+        octagon(f"sh_base{tag}", M, "dark", SHELL_TOP + 4, 10, 4, center_xz=(cx, cz))
+        octagon(f"sh_mast{tag}", M, "steel", SHELL_TOP + 8, 4, 18, center_xz=(cx, cz))
+        octagon(f"sh_ring{tag}", M, "cyan", SHELL_TOP + 16, 7, 1, center_xz=(cx, cz))
+        octagon(f"sh_crys{tag}", M, "cyan", SHELL_TOP + 26, 6, 6, center_xz=(cx, cz))
+        octagon(f"sh_cap{tag}", M, "chrome", SHELL_TOP + 32, 3, 2, center_xz=(cx, cz))
+        box(M, "steel", [cx - 5, SHELL_TOP + 22, cz - 0.5], [10, 1, 1])
+        box(M, "steel", [cx - 0.5, SHELL_TOP + 22, cz - 5], [1, 1, 10])
+
+    for tag, q in (("a", "pp"), ("b", "nn")):
+        sx, sz = QUADS[q]
+        cx, cz = sx * (BULWARK_D + 14), sz * (BULWARK_D + 14)
+        bone(f"opt_sentry__{tag}", f"shell_{q}", [cx, SHELL_TOP + 4, cz])
+        M = B[f"opt_sentry__{tag}"]
+        octagon(f"se_base{tag}", M, "dark", SHELL_TOP + 4, 11, 4, center_xz=(cx, cz))
+        octagon(f"se_ring{tag}", M, "orange", SHELL_TOP + 7, 11.6, 0.8, center_xz=(cx, cz))
+        bone(f"opt_sentry__{tag}_head", f"opt_sentry__{tag}", [cx, SHELL_TOP + 10, cz])
+        Hd = B[f"opt_sentry__{tag}_head"]
+        box(Hd, "paint", [cx - 4.5, SHELL_TOP + 8, cz - 4.5], [9, 8, 9])
+        box(Hd, "dark", [cx - 4.8, SHELL_TOP + 13, cz - 3], [9.6, 2, 6])
+        box(Hd, "steel", [cx - 3.5, SHELL_TOP + 11, cz - 15], [2, 2, 11])
+        box(Hd, "steel", [cx + 1.5, SHELL_TOP + 11, cz - 15], [2, 2, 11])
+        box(Hd, "orange", [cx - 3.5, SHELL_TOP + 11, cz - 15.4], [2, 2, 0.4])
+        box(Hd, "orange", [cx + 1.5, SHELL_TOP + 11, cz - 15.4], [2, 2, 0.4])
+        box(Hd, "glow", [cx - 1, SHELL_TOP + 14, cz - 4.7], [2, 1, 0.3])
+
+    bone("opt_thruster", "core", [0, 0, 0])
+    M = B["opt_thruster"]
+    for sx, sz in QUADS.values():
+        diag_box(M, "dark", sx, sz, (0, 0), 27, 36, 10, 10, 26)
+        diag_box(M, "steel", sx, sz, (0, 0), 30, 37, 8, 6, 10)
+        diag_box(M, "cyan", sx, sz, (0, 0), 31, 36, 5, 5.6, 6)
+        diag_box(M, "steel", sx, sz, (0, 0), 35.5, 36.3, 8, 12, 24)
+
+    for q, (sx, sz) in QUADS.items():
+        D = (sx * BULWARK_D, 0, sz * BULWARK_D)
+        bone(f"opt_seismic__{q}", f"clamp_{q}", [D[0] + sx * 26, 4, D[2] + sz * 26])
+        M = B[f"opt_seismic__{q}"]
+        base = (sx * 26, sz * 26)
+        diag_box(M, "steel", sx, sz, base, 31, 37, 6, 14, 34, off=D)
+        diag_box(M, "dark", sx, sz, base, 30, 38, 8, 34, 38, off=D)
+        diag_box(M, "hazard", sx, sz, base, 30.8, 37.2, 6.6, 24, 26, off=D)
+        diag_box(M, "brass", sx, sz, base, 33, 35, 3, -9, 0, off=D)
+
+    bone("opt_autoloader", "barrel", [0, Y + 31, 28])
+    M = B["opt_autoloader"]
+    octagon_z("al_drum", M, "steel", 0, Y + 31, 14, 42, 20)
+    octagon_z("al_p1", M, "dark", 0, Y + 31, 12, 14, 22)
+    octagon_z("al_p2", M, "dark", 0, Y + 31, 42, 44, 22)
+    octagon_z("al_hub", M, "brass", 0, Y + 31, 44, 45, 8)
+    box(M, "dark", [-4, Y + 19, 20], [8, 3, 16])
+    box(M, "brass", [-10.6, Y + 26, 16], [0.6, 2, 3], array=(4, [0, 0, 6.5]))
+
+    bone("opt_afterburn", "seg1", [0, Y, -180])
+    M = B["opt_afterburn"]
+    for sgn in (-1, 1):
+        octagon_z(f"ab_tank{sgn}", M, "steel", sgn * 14, Y - 18, -197, -163, 9)
+        octagon_z(f"ab_win{sgn}", M, "orange", sgn * 14, Y - 18, -186, -174, 9.6)
+        box(M, "dark", [sgn * 14 - 1, Y - 14, -190], [2, 4, 20])
+
 
 
 def build_remote(offset):
     """
-    The uplink tablet (item id railgun_remote), in vanilla item space (0..16 px). A rugged
-    landscape slate held in both hands: rubber side grips, bezel, a glowing display on BOTH
-    faces (so it reads correctly however the hands orient it), status buttons and an antenna.
+    The ARES-9 uplink tablet (item id railgun_remote), in vanilla item space (0..16 px): a
+    carbon-black military slate with a raised armour frame, cyan-rimmed displays on BOTH faces,
+    ribbed side handles, a sensor bar with twin antennas, a control strip and rear heat sinks.
     """
     bones = {"remote": make_bone("remote", None, [8, 0, 8], None, offset=offset)}
     R = bones["remote"]
-    make_part("tab_body", R, "paint", [([1, 2.5, 7.25], [14, 11, 1.5])])
-    make_part("tab_bezel_f", R, "dark", [([1.5, 3.2, 7.18], [13, 9.6, 0.07])])
-    make_part("tab_bezel_b", R, "dark", [([1.5, 3.2, 8.75], [13, 9.6, 0.07])])
-    make_part("tab_screen_f", R, "screen", [([2.2, 4.2, 7.1], [11.6, 7.6, 0.08])])
-    make_part("tab_screen_b", R, "screen", [([2.2, 4.2, 8.82], [11.6, 7.6, 0.08])])
-    make_part("tab_grips", R, "dark", [([0, 3.5, 6.9], [1.5, 9, 2.2])], mirror=("x",))
-    make_part("tab_grip_ribs", R, "steel", [([-0.1, 5, 7.4], [0.1, 0.6, 1.2])], mirror=("x",), array=(4, [0, 2, 0]))
-    make_part("tab_bumpers", R, "hazard", [([1, 2, 7], [3, 0.6, 2])], mirror=("x",))
-    make_part("tab_btn_fire", R, "glow", [([6.6, 2.75, 7.08], [1.2, 0.5, 0.17])])
-    make_part("tab_btn_arm", R, "amber", [([8.2, 2.75, 7.08], [1.2, 0.5, 0.17])])
-    make_part("tab_antenna", R, "dark", [([12.4, 13.5, 7.6], [1, 2.4, 0.8])])
-    make_part("tab_antenna_tip", R, "glow", [([12.4, 15.9, 7.6], [1, 0.6, 0.8])])
+    make_part("tab_body", R, "dark", [([0.8, 2.4, 7.25], [14.4, 11.2, 1.5])])
+    # raised armour frame, both faces
+    for z in (7.0, 8.75):
+        make_part(f"tab_ftop{z}", R, "paint", [([1.0, 12.3, z], [14.0, 1.1, 0.25])])
+        make_part(f"tab_fbot{z}", R, "paint", [([1.0, 2.5, z], [14.0, 1.5, 0.25])])
+        make_part(f"tab_fside{z}", R, "paint", [([1.0, 4.0, z], [1.0, 8.3, 0.25])], mirror=("x",))
+        make_part(f"tab_corner{z}", R, "hazard", [([1.0, 12.3, z - 0.02], [1.6, 1.1, 0.29])], mirror=("x",))
+    make_part("tab_screen_f", R, "screen", [([2.2, 4.2, 6.95], [11.6, 7.9, 0.05])])
+    make_part("tab_screen_b", R, "screen", [([2.2, 4.2, 9.0], [11.6, 7.9, 0.05])])
+    make_part("tab_rim_f", R, "cyan", [([2.2, 4.0, 6.97], [11.6, 0.2, 0.04])])
+    make_part("tab_rim_b", R, "cyan", [([2.2, 4.0, 9.0], [11.6, 0.2, 0.04])])
+    # handles with ribs
+    make_part("tab_grips", R, "hull", [([-0.4, 3.4, 6.8], [1.4, 9.2, 2.4])], mirror=("x",))
+    make_part("tab_grip_ribs", R, "dark", [([-0.5, 4.2, 7.1], [0.1, 0.5, 1.8])], mirror=("x",), array=(5, [0, 1.7, 0]))
+    # sensor bar + antennas
+    make_part("tab_sensor", R, "steel", [([4.0, 13.6, 7.4], [8.0, 0.8, 1.2])])
+    make_part("tab_lens", R, "glow", [([7.4, 13.75, 7.32], [1.2, 0.5, 0.08])])
+    make_part("tab_ant1", R, "dark", [([12.6, 14.4, 7.7], [0.6, 1.8, 0.6])])
+    make_part("tab_ant1_tip", R, "amber", [([12.6, 16.2, 7.7], [0.6, 0.4, 0.6])])
+    make_part("tab_ant2", R, "dark", [([2.8, 14.4, 7.75], [0.5, 1.1, 0.5])])
+    # control strip
+    for x, k in ((3.0, "glow"), (4.8, "amber"), (9.8, "cyan"), (11.6, "cyan")):
+        make_part(f"tab_btn{x}", R, k, [([x, 2.85, 6.9], [1.4, 0.7, 0.1])])
+    # rear heat sinks
+    make_part("tab_fins", R, "steel", [([3.0, 5.0, 9.05], [10.0, 0.6, 0.4])], array=(4, [0, 1.8, 0]))
+    return bones
+
+
+def build_capsule(offset):
+    """
+    Orbital storage supply capsule (GeckoLib entity): floor + roof joined by corner ribs, four
+    side petals that swing open on bottom hinges, telescoping landing legs, a nose cone with a
+    beacon, four retro thrusters, and a cargo cradle that rises when it unloads.
+    """
+    bones = {}
+
+    def bone(name, parent, pivot):
+        p = bones.get(parent)
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None, offset=offset)
+
+    bone("capsule", None, [0, 0, 0])
+    bone("cargo", "capsule", [0, 8, 0])
+    for n, (hx, hz) in {"px": (14, 0), "nx": (-14, 0), "pz": (0, 14), "nz": (0, -14)}.items():
+        bone(f"petal_{n}", "capsule", [hx, 8, hz])
+    for i, (sx, sz) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
+        bone(f"leg_{i}", "capsule", [sx * 13, 8, sz * 13])
+    Bc = bones["capsule"]
+    octagon("cp_base", Bc, "steel", 2, 26, 2)
+    octagon("cp_floor", Bc, "dark", 4, 30, 4)
+    octagon("cp_roof", Bc, "steel", 38, 30, 4)
+    octagon("cp_haz", Bc, "hazard", 36, 30.4, 1.6)
+    octagon("cp_n1", Bc, "paint", 42, 24, 6)
+    octagon("cp_n2", Bc, "paint", 48, 16, 5)
+    octagon("cp_n3", Bc, "dark", 53, 8, 3)
+    octagon("cp_tip", Bc, "glow", 56, 4, 2)
+    octagon("cp_nband", Bc, "dark", 46, 22.4, 1.2)
+    for sx, sz in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        diag_box(Bc, "dark", sx, sz, (0, 0), 13, 19.5, 4, 8, 38)
+        diag_box(Bc, "cyan", sx, sz, (0, 0), 19.3, 19.7, 1, 12, 34)
+        octagon(f"cp_thr{sx}{sz}", Bc, "dark", 0, 5, 2, center_xz=(sx * 7, sz * 7))
+        octagon(f"cp_thrg{sx}{sz}", Bc, "cyan", -0.4, 3, 0.4, center_xz=(sx * 7, sz * 7))
+    # petals (hinged at their bottom edge)
+    for n, (ax, az) in {"px": (1, 0), "nx": (-1, 0), "pz": (0, 1), "nz": (0, -1)}.items():
+        Pb = bones[f"petal_{n}"]
+        if ax:
+            x0 = 12 if ax > 0 else -15
+            make_part(f"pet_{n}", Pb, "paint", [([x0, 8, -9], [3, 30, 18])])
+            make_part(f"pet_g{n}", Pb, "cyan", [([x0 + (3 if ax > 0 else -0.3), 10, -0.6], [0.3, 26, 1.2])])
+            make_part(f"pet_h{n}", Pb, "hazard", [([x0 + (3 if ax > 0 else -0.3), 30, -8], [0.3, 2, 16])])
+        else:
+            z0 = 12 if az > 0 else -15
+            make_part(f"pet_{n}", Pb, "paint", [([-9, 8, z0], [18, 30, 3])])
+            make_part(f"pet_g{n}", Pb, "cyan", [([-0.6, 10, z0 + (3 if az > 0 else -0.3)], [1.2, 26, 0.3])])
+            make_part(f"pet_h{n}", Pb, "hazard", [([-8, 30, z0 + (3 if az > 0 else -0.3)], [16, 2, 0.3])])
+    for i, (sx, sz) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
+        Lg = bones[f"leg_{i}"]
+        diag_box(Lg, "steel", sx, sz, (0, 0), 15, 21, 3, 0, 10)
+        diag_box(Lg, "dark", sx, sz, (0, 0), 17, 24, 6, -0.5, 1)
+    Cg = bones["cargo"]
+    make_part("cg_crate", Cg, "steel", [([-6, 8, -6], [12, 12, 12])])
+    make_part("cg_band", Cg, "cyan", [([-6.2, 13, -6.2], [12.4, 2, 12.4])])
+    make_part("cg_top", Cg, "dark", [([-5, 20, -5], [10, 1, 10])])
     return bones
 
 
@@ -1108,7 +1464,7 @@ def save_png(image, path):
 # =============================================================================================
 
 
-def export_geo(bones, boxes, tex, path):
+def export_geo(bones, boxes, tex, path, identifier="geometry.railgun", bounds=(44, 14, 6)):
     out_bones = []
     for name, empty in bones.items():
         entry = {"name": name, "pivot": list(empty["pivot_mc"])}
@@ -1133,10 +1489,10 @@ def export_geo(bones, boxes, tex, path):
         "format_version": "1.12.0",
         "minecraft:geometry": [{
             "description": {
-                "identifier": "geometry.railgun",
+                "identifier": identifier,
                 "texture_width": tex, "texture_height": tex,
-                "visible_bounds_width": 44, "visible_bounds_height": 14,
-                "visible_bounds_offset": [0, 6, 0],
+                "visible_bounds_width": bounds[0], "visible_bounds_height": bounds[1],
+                "visible_bounds_offset": [0, bounds[2], 0],
             },
             "bones": out_bones,
         }],
@@ -1634,6 +1990,35 @@ def render(path, cam, target, cam_loc, look_at, res, samples=48, lens=50):
     bpy.ops.render.render(write_still=True)
 
 
+def render_option_icons(rg_bake, rg_bones, cam, target, ground, assets):
+    """One transparent 96 px icon per loadout option: its attachment alone, three-quarter view."""
+    scene = bpy.context.scene
+    reset_pose(rg_bones)
+    bpy.context.view_layer.update()
+    scene.render.film_transparent = True
+    scene.render.image_settings.color_mode = "RGBA"
+    ground.hide_render = True
+    by_bone = {o.name[len("bake_"):]: o for o in rg_bake}
+    for oid in OPTION_IDS:
+        names = OPTION_ICON_BONES.get(oid, [f"opt_{oid}"])
+        objs = [by_bone[n] for n in names if n in by_bone]
+        if not objs:
+            continue
+        set_visible(rg_bake, False)
+        set_visible(objs, True)
+        pts = [o.matrix_world @ Vector(c) for o in objs for c in o.bound_box]
+        lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        c = (lo + hi) / 2
+        ext = max((hi - lo).length, 0.4)
+        d = Vector((1.0, -1.25, 0.8)).normalized() * ext * 1.55
+        render(os.path.join(assets, f"textures/gui/option/{oid}.png"), cam, target, tuple(c + d), tuple(c), 96, samples=24, lens=50)
+    scene.render.film_transparent = False
+    scene.render.image_settings.color_mode = "RGB"
+    ground.hide_render = False
+    set_visible(rg_bake, True)
+
+
 def set_visible(objs, visible):
     for o in objs:
         o.hide_render = not visible
@@ -1685,8 +2070,24 @@ def main():
                       "orbital_railgun:item/railgun_remote")
     print(f"[remote] {len(rm_boxes)} elements, {rm_tex}px atlas")
 
+    # ---------------- Supply capsule ----------------
+    cap_off = Vector((-120, 0, 0))
+    cp_bones = build_capsule(cap_off)
+    cp_boxes = extract_boxes(cp_bones, offset=cap_off)
+    cp_tex = pack_faces(cp_boxes, texels_per_px=2, start_size=64)
+    cp_bake = build_bake_objects(cp_boxes, cp_bones, cp_tex, kinds, offset=cap_off)
+    cp_atlas, cp_glow = bake(cp_bake, cp_boxes, kinds, cp_tex, "capsule")
+    save_png(cp_atlas, os.path.join(assets, "textures/entity/supply_capsule.png"))
+    save_png(cp_glow, os.path.join(assets, "textures/entity/supply_capsule_glowmask.png"))
+    export_geo(cp_bones, cp_boxes, cp_tex, os.path.join(assets, "geo/supply_capsule.geo.json"),
+               identifier="geometry.supply_capsule", bounds=(4, 5, 2))
+    with open(os.path.join(assets, "animations/supply_capsule.animation.json"), "w") as f:
+        json.dump({"format_version": "1.8.0", "animations": {}}, f)
+    print(f"[capsule] {len(cp_boxes)} cubes, {cp_tex}px atlas")
+
     # ---------------- Preview materials + renders ----------------
-    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm")):
+    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm"),
+                                    (cp_bake, cp_atlas, cp_glow, "cp")):
         mat = preview_material(f"preview_{name}", atlas, glow)
         for o in objs:
             o.data.materials.clear()
@@ -1697,6 +2098,8 @@ def main():
     if not args.no_render:
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
+        set_visible(cp_bake, False)
+        render_option_icons(rg_bake, rg_bones, cam, target, ground, assets)
         barrel = rg_bones["barrel"]
 
         def rail_up(up):
@@ -1721,13 +2124,18 @@ def main():
         set_visible(rg_bake, False)
         set_visible(rm_bake, True)
         ground.location = (120, 0, -0.01)
-        render(os.path.join(out, "tablet.png"), cam, target, (120.6, 1.4, 1.1), (120.5, -0.5, 0.5), 700, lens=50)
+        render(os.path.join(out, "tablet.png"), cam, target, (120.6, -1.6, 1.4), (120.5, -0.45, 0.5), 700, lens=50)
+        set_visible(rm_bake, False)
+        set_visible(cp_bake, True)
+        ground.location = (-120, 0, -0.01)
+        render(os.path.join(out, "supply_capsule.png"), cam, target, (-114.0, -6.0, 3.5), (-120.0, 0.0, 1.8), 700, lens=45)
+        set_visible(cp_bake, False)
         set_visible(rg_bake, True)
         ground.location = (0, 0, 0)
 
     # ---------------- Save the editable .blend ----------------
     os.makedirs(out, exist_ok=True)
-    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow):
+    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow, cp_atlas, cp_glow):
         try:
             img.pack()
         except RuntimeError:
