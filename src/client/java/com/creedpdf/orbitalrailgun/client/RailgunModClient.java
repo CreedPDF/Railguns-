@@ -6,9 +6,9 @@ import com.creedpdf.orbitalrailgun.client.hud.RailgunHud;
 import com.creedpdf.orbitalrailgun.client.network.ClientPackets;
 import com.creedpdf.orbitalrailgun.client.particle.RailgunParticles;
 import com.creedpdf.orbitalrailgun.client.render.RailgunEntityRenderer;
-import com.creedpdf.orbitalrailgun.client.screen.RailgunControlScreen;
 import com.creedpdf.orbitalrailgun.client.sound.RailgunChargeSoundInstance;
 import com.creedpdf.orbitalrailgun.client.sound.RailgunReentrySoundInstance;
+import com.creedpdf.orbitalrailgun.client.tablet.TabletScreen;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
 import net.fabricmc.api.ClientModInitializer;
@@ -46,13 +46,17 @@ public final class RailgunModClient implements ClientModInitializer {
     /** Real client-side implementation of the hooks common code calls into. */
     private static final class Bridge implements RailgunClientBridge {
         @Override
-        public void openControlScreen(RailgunEntity railgun) {
-            MinecraftClient.getInstance().setScreen(new RailgunControlScreen(railgun));
+        public void openTablet(BlockPos aimed) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.currentScreen == null) client.setScreen(new TabletScreen(aimed));
         }
 
         @Override
-        public void requestDeploy(BlockPos target) {
-            ClientPackets.sendDeployRequest(target);
+        public void shake(RailgunEntity railgun, float strength) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.player == null) return;
+            double dist = client.player.distanceTo(railgun);
+            RailgunHud.shake((float) (strength * Math.max(0.0, 1.0 - dist / 64.0)));
         }
 
         @Override
@@ -66,7 +70,7 @@ public final class RailgunModClient implements ClientModInitializer {
             if (client.player == null) return;
             double dist = client.player.distanceTo(railgun);
             switch (newState) {
-                case DEPLOYING -> RailgunHud.shake((float) Math.max(0.0, 1.2 - dist / 80.0));
+                case POD -> RailgunHud.shake((float) Math.max(0.0, 1.0 - dist / 60.0));
                 case CHARGING -> client.getSoundManager().play(new RailgunChargeSoundInstance(railgun));
                 case FIRING -> {
                     double toImpact = Math.sqrt(client.player.getBlockPos().getSquaredDistance(railgun.getTarget()));

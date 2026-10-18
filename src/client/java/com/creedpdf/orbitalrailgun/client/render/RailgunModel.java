@@ -49,7 +49,7 @@ public class RailgunModel extends GeoModel<RailgunEntity> {
     @Override
     public void setCustomAnimations(RailgunEntity animatable, long instanceId, AnimationState<RailgunEntity> animationState) {
         super.setCustomAnimations(animatable, instanceId, animationState);
-        if (!animatable.getState().isOperational()) return;
+        // Always applied: the entity decides the aim per state (rail straight up while packed).
 
         float partialTick = animationState.getPartialTick();
         CoreGeoBone turret = getAnimationProcessor().getBone("turret");

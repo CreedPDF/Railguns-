@@ -107,8 +107,7 @@ public final class RailgunHud {
 
         if (landing != null) renderCountdown(ctx, client, font, sw, tickDelta);
 
-        if (client.player.getMainHandStack().isOf(RailgunMod.RAILGUN_REMOTE)
-                || client.player.getOffHandStack().isOf(RailgunMod.RAILGUN_REMOTE)) {
+        if (client.currentScreen == null && client.player.getMainHandStack().isOf(RailgunMod.RAILGUN_REMOTE)) {
             renderTargetingReadout(ctx, client, font, sw, sh, tickDelta);
         }
     }
@@ -157,7 +156,7 @@ public final class RailgunHud {
         } else if (hit.getType() == HitResult.Type.BLOCK && hit instanceof BlockHitResult bh) {
             BlockPos p = bh.getBlockPos();
             double d = Math.sqrt(client.player.getEyePos().squaredDistanceTo(hit.getPos()));
-            line = String.format(Locale.ROOT, "[ LOCK %d %d %d  %.0fm ]", p.getX(), p.getY(), p.getZ(), d);
+            line = String.format(Locale.ROOT, "[ %d %d %d  %.0fm ]  RMB: UPLINK", p.getX(), p.getY(), p.getZ(), d);
             color = RED;
             // Animated targeting reticle around the crosshair.
             int r = 9 + (int) (2 * MathHelper.sin((client.world.getTime() + tickDelta) * 0.4f));

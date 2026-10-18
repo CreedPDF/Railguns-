@@ -16,11 +16,11 @@ import net.minecraft.util.math.BlockPos;
 public interface RailgunClientBridge {
     RailgunClientBridge NO_OP = new RailgunClientBridge() {};
 
-    /** Open the railgun control screen for this entity. */
-    default void openControlScreen(RailgunEntity railgun) {}
+    /** Opens the uplink tablet (zoom-in UI). {@code aimed} is the block the player looked at, if any. */
+    default void openTablet(@org.jetbrains.annotations.Nullable BlockPos aimed) {}
 
-    /** Send a deploy request for the block the player is looking at. */
-    default void requestDeploy(BlockPos target) {}
+    /** Camera shake for the local player, scaled by distance to the railgun. */
+    default void shake(RailgunEntity railgun, float strength) {}
 
     /** Starts the looping re-entry roar that follows a falling platform (client only). */
     default void startReentrySound(RailgunEntity railgun) {}

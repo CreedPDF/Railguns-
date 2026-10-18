@@ -367,21 +367,46 @@ def parts4(prefix, bone_for, boxes):
             make_part(f"{prefix}_{d}_{i}", bone, kind, [(o, sz)])
 
 
-# Outrigger arm + foot (north side; the leg bone pivots at the bunker edge so the deploy
-# animation can scale it out from 12% to full length).
-OUTRIGGER = [
-    ("steel", [[-6, 4, -114], [12, 8, 30]]),
-    ("paint", [[-7, 12, -112], [14, 2, 24]]),
-    ("dark", [[-2.5, 14, -108], [5, 5, 18]]),
-    ("steel", [[-3.5, 14, -92], [7, 7, 6]]),
-    ("steel", [[-15, 0, -128], [30, 4, 16]]),
-    ("dark", [[-12, 4, -126], [24, 3, 12]]),
-    ("hazard", [[-15, 4, -129], [30, 1.5, 1.5]]),
-    ("dark", [[-14, 0, -129.5], [4, 3, 2]]),
-    ("dark", [[10, 0, -129.5], [4, 3, 2]]),
-    ("amber", [[-1.5, 12, -115], [3, 2, 2]]),
-    ("glow", [[-6.6, 7, -110], [0.6, 1, 18]]),
-    ("glow", [[6, 7, -110], [0.6, 1, 18]]),
+# Ground clamps (north side, two per side at x = +/-32 so the south stairs fit between them).
+# The leg bone pivots at the fortress edge: the deploy animation extends them from 12% length,
+# lifts them, then slams them down into the ground.
+def _clamp(cx):
+    return [
+        ("steel", [[cx - 5, 4, -112], [10, 7, 26]]),
+        ("paint", [[cx - 6, 11, -110], [12, 2, 20]]),
+        ("dark", [[cx - 2, 13, -106], [4, 4, 14]]),
+        ("steel", [[cx - 3, 13, -92], [6, 6, 5]]),
+        ("steel", [[cx - 9, 0, -124], [18, 4, 14]]),
+        ("dark", [[cx - 7, 4, -122], [14, 3, 10]]),
+        ("hazard", [[cx - 9, 4, -125], [18, 1.5, 1.5]]),
+        ("dark", [[cx - 8, -3, -123], [3, 3, 3]]),
+        ("dark", [[cx + 5, -3, -123], [3, 3, 3]]),
+        ("dark", [[cx - 8, -3, -114], [3, 3, 3]]),
+        ("dark", [[cx + 5, -3, -114], [3, 3, 3]]),
+        ("amber", [[cx - 1.5, 11, -113], [3, 2, 2]]),
+        ("glow", [[cx - 5.6, 6, -110], [0.6, 1, 16]]),
+        ("glow", [[cx + 5, 6, -110], [0.6, 1, 16]]),
+    ]
+
+
+OUTRIGGER = _clamp(-32) + _clamp(32)
+
+# Deploy stairs on the south face, from the ground up to the middle tier (y 36, apothem 75).
+STAIRS = [("concrete", [[-12, 0, 75 + 6 * k], [24, 35 - 5 * k, 6]]) for k in range(7)] + [
+    ("hazard", [[-12, 35 - 5 * k - 1, 80.5 + 6 * k], [24, 1, 0.5]]) for k in range(7)] + [
+    ("steel", [[-13, 0, 76], [1, 44, 1.5]]),
+    ("steel", [[12, 0, 76], [1, 44, 1.5]]),
+    ("steel", [[-13, 0, 118], [1, 12, 1.5]]),
+    ("steel", [[12, 0, 118], [1, 12, 1.5]]),
+]
+
+# Access console at the foot of the stairs (the deployed railgun's control panel).
+CONSOLE = [
+    ("steel", [[13, 0, 92], [7, 14, 7]]),
+    ("dark", [[12, 14, 90], [9, 4, 10]]),
+    ("glow", [[12.5, 18, 90.5], [8, 0.6, 9]]),
+    ("amber", [[15.5, 18.6, 98], [2, 1, 1]]),
+    ("hazard", [[12, 0, 99], [9, 2, 1]]),
 ]
 
 # Blast door + frame on each face of the middle tier (apothem 75).
@@ -437,12 +462,17 @@ def build_railgun():
     bone("base", "root", [0, 0, 0])
     for d, pivot in (("n", [0, 6, -88]), ("s", [0, 6, 88]), ("e", [88, 6, 0]), ("w", [-88, 6, 0])):
         bone(f"leg_{d}", "base", pivot)
+    bone("stairs", "base", [0, 0, 75])
+    bone("pod", "root", [0, 0, 0])
+    bone("pod_panel", "pod", [0, 40, 28])
     bone("turret", "root", [0, 56, 0])
+    bone("hull", "turret", [0, 56, 0])
     bone("barrel", "turret", [0, 120, 0])
     bone("vents", "barrel", [0, 120, 0])
     bone("coils", "barrel", [0, 120, 0])
     B = bones
-    base, tur, bar = B["base"], B["turret"], B["barrel"]
+    base, bar = B["base"], B["barrel"]
+    tur = B["hull"]  # turret geometry lives on "hull" so it can grow independently of the barrel
 
     # ---- Fortress ---------------------------------------------------------------------------
     octagon("found", base, "concrete", 0, 176, 14)
@@ -463,8 +493,33 @@ def build_railgun():
     make_part("tower_lamp", base, "amber", [([54, 61, 54], [7, 1, 7])], mirror=("x", "z"))
     make_part("tower_beacon", base, "glow", [([57.5, 67, 57.5], [2, 2, 2])], mirror=("x", "z"))
 
-    # ---- Outriggers -------------------------------------------------------------------------
-    parts4("outrigger", lambda d: B[f"leg_{d}"], OUTRIGGER)
+    # ---- Ground clamps, stairs, console --------------------------------------------------------
+    parts4("clamp", lambda d: B[f"leg_{d}"], OUTRIGGER)
+    for i, (kind, (o, sz)) in enumerate(STAIRS):
+        make_part(f"stairs_{i}", B["stairs"], kind, [(o, sz)])
+    for i, (kind, (o, sz)) in enumerate(CONSOLE):
+        make_part(f"console_{i}", base, kind, [(o, sz)])
+
+    # ---- Drop pod (compact pillar form; the rail pokes out of its top collar) -------------------
+    pod = B["pod"]
+    octagon("pod_skirt", pod, "dark", 0, 62, 6)
+    octagon("pod_hazard", pod, "hazard", 6, 59, 3)
+    octagon("pod_body", pod, "paint", 9, 56, 71)
+    octagon("pod_band1", pod, "glow", 30, 57, 1.5)
+    octagon("pod_band2", pod, "glow", 62, 57, 1.5)
+    octagon("pod_collar", pod, "steel", 80, 50, 8)
+    octagon("pod_lip", pod, "dark", 88, 42, 3)
+    parts4("pod_fin", lambda d: pod, [
+        ("steel", [[-2, 6, -40], [4, 52, 12]]),
+        ("dark", [[-2.5, 6, -42], [5, 8, 4]]),
+        ("glow", [[-0.5, 20, -40.6], [1, 30, 0.6]]),
+    ])
+    make_part("pod_screen", pod, "glow", [([-8, 34, 28], [16, 14, 0.4])])
+    make_part("pod_screen_frame", pod, "dark", [([-10, 32, 27.9], [20, 18, 0.3])])
+    make_part("pod_panel_cover", B["pod_panel"], "paint", [([-10, 31, 28.4], [20, 20, 2])])
+    make_part("pod_panel_stripe", B["pod_panel"], "hazard", [([-10, 31, 30.4], [20, 2.5, 0.4])])
+    make_part("pod_panel_light", B["pod_panel"], "amber", [([-2, 47, 30.4], [4, 2, 0.6])])
+    make_part("pod_panel_handle", B["pod_panel"], "dark", [([-5, 38, 30.4], [10, 2, 1.2])])
 
     # ---- Turret -----------------------------------------------------------------------------
     octagon("tt_ring", tur, "dark", 52, 88, 6)
@@ -551,17 +606,25 @@ def build_railgun():
 
 
 def build_remote(offset):
-    """The handheld uplink remote, in vanilla item space (0..16 px, centred on 8,8)."""
+    """
+    The uplink tablet (item id railgun_remote), in vanilla item space (0..16 px). A rugged
+    landscape slate held in both hands: rubber side grips, bezel, a glowing display on BOTH
+    faces (so it reads correctly however the hands orient it), status buttons and an antenna.
+    """
     bones = {"remote": make_bone("remote", None, [8, 0, 8], None, offset=offset)}
     R = bones["remote"]
-    make_part("remote_body", R, "paint", [([5, 0, 7], [6, 11, 2])])
-    make_part("remote_bezel", R, "dark", [([5.5, 5.5, 6.5], [5, 4.5, 0.5])])
-    make_part("remote_screen", R, "glow", [([6, 6, 6.25], [4, 3.5, 0.25])])
-    make_part("remote_button_fire", R, "glow", [([6, 2, 6.5], [1.5, 1.5, 0.5])])
-    make_part("remote_button_arm", R, "amber", [([8.5, 2, 6.5], [1.5, 1.5, 0.5])])
-    make_part("remote_grips", R, "dark", [([4.5, 1, 7.25], [0.5, 8, 1.5])], mirror=("x",))
-    make_part("remote_antenna", R, "dark", [([9, 11, 7.5], [1, 4, 1])])
-    make_part("remote_antenna_tip", R, "glow", [([9, 15, 7.5], [1, 1, 1])])
+    make_part("tab_body", R, "paint", [([1, 2.5, 7.25], [14, 11, 1.5])])
+    make_part("tab_bezel_f", R, "dark", [([1.5, 3.2, 7.18], [13, 9.6, 0.07])])
+    make_part("tab_bezel_b", R, "dark", [([1.5, 3.2, 8.75], [13, 9.6, 0.07])])
+    make_part("tab_screen_f", R, "glow", [([2.2, 4.2, 7.1], [11.6, 7.6, 0.08])])
+    make_part("tab_screen_b", R, "glow", [([2.2, 4.2, 8.82], [11.6, 7.6, 0.08])])
+    make_part("tab_grips", R, "dark", [([0, 3.5, 6.9], [1.5, 9, 2.2])], mirror=("x",))
+    make_part("tab_grip_ribs", R, "steel", [([-0.1, 5, 7.4], [0.1, 0.6, 1.2])], mirror=("x",), array=(4, [0, 2, 0]))
+    make_part("tab_bumpers", R, "hazard", [([1, 2, 7], [3, 0.6, 2])], mirror=("x",))
+    make_part("tab_btn_fire", R, "glow", [([6.6, 2.75, 7.08], [1.2, 0.5, 0.17])])
+    make_part("tab_btn_arm", R, "amber", [([8.2, 2.75, 7.08], [1.2, 0.5, 0.17])])
+    make_part("tab_antenna", R, "dark", [([12.4, 13.5, 7.6], [1, 2.4, 0.8])])
+    make_part("tab_antenna_tip", R, "glow", [([12.4, 15.9, 7.6], [1, 0.6, 0.8])])
     return bones
 
 
@@ -974,14 +1037,14 @@ def export_item_model(boxes, tex, path, texture_id):
         "elements": elements,
         "gui_light": "side",
         "display": {
-            "gui": {"rotation": [20, 200, 0], "translation": [0, -0.5, 0], "scale": [1.1, 1.1, 1.1]},
+            "gui": {"rotation": [12, 200, 0], "translation": [0, 0, 0], "scale": [1.0, 1.0, 1.0]},
             "ground": {"translation": [0, 2, 0], "scale": [0.5, 0.5, 0.5]},
-            "fixed": {"rotation": [0, 180, 0], "scale": [1.1, 1.1, 1.1]},
+            "fixed": {"rotation": [0, 180, 0], "scale": [1.0, 1.0, 1.0]},
             "head": {"translation": [0, 13, 7]},
-            "thirdperson_righthand": {"rotation": [-15, 180, 0], "translation": [0, 2.5, 1.5], "scale": [0.6, 0.6, 0.6]},
-            "thirdperson_lefthand": {"rotation": [-15, 180, 0], "translation": [0, 2.5, 1.5], "scale": [0.6, 0.6, 0.6]},
-            "firstperson_righthand": {"rotation": [5, 160, -5], "translation": [1, 3, 1], "scale": [0.7, 0.7, 0.7]},
-            "firstperson_lefthand": {"rotation": [5, 200, 5], "translation": [1, 3, 1], "scale": [0.7, 0.7, 0.7]},
+            "thirdperson_righthand": {"rotation": [-70, 180, 0], "translation": [-3.5, 2.5, -3], "scale": [0.65, 0.65, 0.65]},
+            "thirdperson_lefthand": {"rotation": [-70, 180, 0], "translation": [3.5, 2.5, -3], "scale": [0.65, 0.65, 0.65]},
+            "firstperson_righthand": {"rotation": [0, 180, 0], "translation": [-2, 2, 0], "scale": [0.7, 0.7, 0.7]},
+            "firstperson_lefthand": {"rotation": [0, 180, 0], "translation": [2, 2, 0], "scale": [0.7, 0.7, 0.7]},
         },
     }
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -994,27 +1057,68 @@ def export_item_model(boxes, tex, path, texture_id):
 # =============================================================================================
 
 FOLD = 0.12
+LEGS = ("leg_n", "leg_s", "leg_e", "leg_w")
 LEG_FOLD = {"leg_n": [1, 1, FOLD], "leg_s": [1, 1, FOLD], "leg_e": [FOLD, 1, 1], "leg_w": [FOLD, 1, 1]}
-LEG_OVER = {"leg_n": [1, 1, 1.05], "leg_s": [1, 1, 1.05], "leg_e": [1.05, 1, 1], "leg_w": [1.05, 1, 1]}
+LEG_OVER = {"leg_n": [1, 1, 1.06], "leg_s": [1, 1, 1.06], "leg_e": [1.06, 1, 1], "leg_w": [1.06, 1, 1]}
 ONE = [1, 1, 1]
+HIDE = [0.001, 0.001, 0.001]  # "invisible" (true zero would make GeckoLib's normal matrix singular)
+POD_TURRET = [0, -34, 0]       # lowers the barrel pivot into the pod
+POD_BARREL = [1, 1, 0.15]      # rail retracted; pitched straight up procedurally
+PANEL_OPEN = [0, -18, -1.5]    # pod panel cover slid down and in
+
+# Pod form, shared by falling / landed / packed / launching.
+POD_POSE = {
+    "base": {"scale": {0.0: HIDE, 1.0: HIDE}},
+    "hull": {"scale": {0.0: HIDE, 1.0: HIDE}},
+    "pod": {"scale": {0.0: ONE, 1.0: ONE}, "position": {0.0: [0, 0, 0], 1.0: [0, 0, 0]}},
+    "pod_panel": {"position": {0.0: [0, 0, 0], 1.0: [0, 0, 0]}},
+    "turret": {"position": {0.0: POD_TURRET, 1.0: POD_TURRET}},
+    "barrel": {"scale": {0.0: POD_BARREL, 1.0: POD_BARREL}},
+    "vents": {"position": {0.0: [0, -4, 0], 1.0: [0, -4, 0]}},
+    "coils": {"scale": {0.0: [0.9, 0.9, 1], 0.5: [0.97, 0.97, 1], 1.0: [0.9, 0.9, 1]}},
+}
+
+# The transformation: pod sinks, fortress rises, stairs extend, turret grows, rail lowers and
+# extends (pitch is procedural), clamps extend, lift, SLAM into the ground at 6.5 s, power-up.
+DEPLOY_LEN = 8.0
+DEPLOY = {
+    "pod": {"position": {0.0: [0, 0, 0], 0.3: [0, 0, 0], 1.8: [0, -92, 0]},
+            "scale": {0.0: ONE, 1.8: ONE, 1.85: HIDE, 8.0: HIDE}},
+    "pod_panel": {"position": {0.0: PANEL_OPEN, 8.0: PANEL_OPEN}},
+    "base": {"scale": {0.0: HIDE, 0.8: HIDE, 0.85: [0.85, 1, 0.85], 2.6: ONE},
+             "position": {0.0: [0, -54, 0], 0.85: [0, -54, 0], 2.6: [0, 0, 0]}},
+    "stairs": {"scale": {0.0: [1, 1, 0.05], 2.6: [1, 1, 0.05], 3.4: [1, 1, 1.04], 3.6: ONE}},
+    **{leg: {"scale": {0.0: LEG_FOLD[leg], 4.6: LEG_FOLD[leg], 5.3: LEG_OVER[leg], 5.5: ONE},
+             "position": {0.0: [0, 14, 0], 5.5: [0, 14, 0], 6.2: [0, 17, 0], 6.45: [0, -1.5, 0], 6.7: [0, 0, 0]}}
+       for leg in LEGS},
+    "turret": {"position": {0.0: POD_TURRET, 2.4: POD_TURRET, 3.8: [0, 2, 0], 4.0: [0, 0, 0]}},
+    "hull": {"scale": {0.0: HIDE, 2.2: HIDE, 2.25: [0.4, 0.4, 0.4], 3.6: [1.03, 1.03, 1.03], 3.8: ONE}},
+    "barrel": {"scale": {0.0: POD_BARREL, 4.6: POD_BARREL, 6.0: [1, 1, 1.03], 6.2: ONE}},
+    "vents": {"position": {0.0: [0, -4, 0], 6.8: [0, -4, 0], 7.3: [0, 1.5, 0], 7.6: [0, 0, 0]}},
+    "coils": {"scale": {0.0: [0.9, 0.9, 1], 6.8: [0.9, 0.9, 1], 7.4: [1.15, 1.15, 1], 8.0: ONE}},
+}
+
+
+def reverse_tracks(tracks, length):
+    return {bone: {ch: {round(length - t, 4): v for t, v in keys.items()} for ch, keys in chans.items()}
+            for bone, chans in tracks.items()}
+
+
+# Pack-up: the transformation in reverse, ending with the pod panel closing.
+PACK = reverse_tracks(DEPLOY, DEPLOY_LEN)
+PACK["pod_panel"] = {"position": {0.0: PANEL_OPEN, 7.0: PANEL_OPEN, 7.5: [0, 0, 0.6], 8.0: [0, 0, 0]}}
+
 ANIMATIONS = {
     # name: (length_s, loop, {bone: {"scale"/"position": {time_s: [x,y,z] in MC space}}})
     # Only position and scale are keyframed (sign-convention safe in GeckoLib); turret yaw and
     # barrel pitch are applied procedurally by RailgunModel.
-    "animation.railgun.falling": (1.0, True, {
-        **{b: {"scale": {0.0: s, 1.0: s}} for b, s in LEG_FOLD.items()},
-        "turret": {"position": {0.0: [0, -34, 0], 1.0: [0, -34, 0]}},
-        "barrel": {"scale": {0.0: [1, 1, 0.38], 1.0: [1, 1, 0.38]}},
-        "vents": {"position": {0.0: [0, -4, 0], 1.0: [0, -4, 0]}},
-        "coils": {"scale": {0.0: [0.9, 0.9, 1], 0.5: [0.95, 0.95, 1], 1.0: [0.9, 0.9, 1]}},
+    "animation.railgun.pod": (1.0, True, POD_POSE),
+    "animation.railgun.panel_open": (1.5, "hold_on_last_frame", {
+        **{k: v for k, v in POD_POSE.items() if k != "pod_panel"},
+        "pod_panel": {"position": {0.0: [0, 0, 0], 0.35: [0, 0, 0.8], 1.0: [0, -18, 0.8], 1.5: PANEL_OPEN}},
     }),
-    "animation.railgun.deploy": (3.0, "hold_on_last_frame", {
-        **{b: {"scale": {0.0: s, 0.25: s, 0.85: LEG_OVER[b], 1.05: ONE}} for b, s in LEG_FOLD.items()},
-        "turret": {"position": {0.0: [0, -34, 0], 1.0: [0, -34, 0], 1.75: [0, 2, 0], 1.95: [0, 0, 0]}},
-        "barrel": {"scale": {0.0: [1, 1, 0.38], 1.9: [1, 1, 0.38], 2.6: [1, 1, 1.03], 2.8: ONE}},
-        "vents": {"position": {0.0: [0, -4, 0], 2.6: [0, -4, 0], 2.9: [0, 1, 0], 3.0: [0, 0, 0]}},
-        "coils": {"scale": {0.0: [0.9, 0.9, 1], 2.5: [0.9, 0.9, 1], 2.8: [1.12, 1.12, 1], 3.0: ONE}},
-    }),
+    "animation.railgun.deploy": (DEPLOY_LEN, "hold_on_last_frame", DEPLOY),
+    "animation.railgun.pack": (DEPLOY_LEN, "hold_on_last_frame", PACK),
     "animation.railgun.idle": (4.0, True, {
         "coils": {"scale": {0.0: ONE, 2.0: [1.025, 1.025, 1], 4.0: ONE}},
         "vents": {"position": {0.0: [0, 0, 0], 2.0: [0, 0.4, 0], 4.0: [0, 0, 0]}},
@@ -1232,20 +1336,35 @@ def main():
     if not args.no_render:
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
-        pose(rg_bones, "animation.railgun.deploy", 3.0)
+        barrel = rg_bones["barrel"]
+
+        def rail_up(up):
+            barrel.rotation_euler = (math.radians(90) if up else 0.0, 0, 0)
+
+        pose(rg_bones, "animation.railgun.deploy", DEPLOY_LEN)
+        rail_up(False)
         render(os.path.join(out, "railgun_deployed.png"), cam, target, (24.0, 21.0, 11.0), (0.0, 7.0, 5.0), 1100, lens=30)
         render(os.path.join(assets, "icon.png"), cam, target, (26.0, 22.0, 14.0), (0.0, 6.0, 5.0), 128, samples=32, lens=30)
-        pose(rg_bones, "animation.railgun.falling", 0.0)
-        render(os.path.join(out, "railgun_folded.png"), cam, target, (24.0, -18.0, 14.0), (0.0, 1.0, 3.0), 900, lens=32)
+        render(os.path.join(out, "railgun_stairs.png"), cam, target, (6.0, -20.0, 5.0), (0.0, -3.0, 2.5), 1100, lens=30)
+        pose(rg_bones, "animation.railgun.pod", 0.0)
+        rail_up(True)
+        render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -9.0, 5.5), (0.0, 0.0, 4.0), 900, lens=32)
+        pose(rg_bones, "animation.railgun.panel_open", 1.5)
+        rail_up(True)
+        render(os.path.join(out, "railgun_pod_panel_open.png"), cam, target, (2.5, -7.0, 3.0), (0.0, -1.7, 2.6), 900, lens=35)
         pose(rg_bones, "animation.railgun.deploy", 3.0)
-        render(os.path.join(out, "railgun_side.png"), cam, target, (-30.0, 4.0, 9.0), (0.0, 6.0, 5.5), 1100, lens=30)
-        render(os.path.join(out, "railgun_closeup.png"), cam, target, (13.0, -9.0, 11.0), (0.0, 0.0, 6.5), 1100, lens=30)
+        rail_up(True)
+        render(os.path.join(out, "railgun_transform_3s.png"), cam, target, (20.0, -18.0, 12.0), (0.0, 0.0, 3.0), 900, lens=32)
+        pose(rg_bones, "animation.railgun.deploy", 6.3)
+        rail_up(False)
+        render(os.path.join(out, "railgun_transform_clamps.png"), cam, target, (20.0, -18.0, 12.0), (0.0, 0.0, 3.0), 900, lens=32)
         reset_pose(rg_bones)
+        rail_up(False)
 
         set_visible(rg_bake, False)
         set_visible(rm_bake, True)
         ground.location = (120, 0, -0.01)
-        render(os.path.join(out, "remote.png"), cam, target, (121.3, 1.5, 0.9), (120.5, -0.47, 0.5), 700, lens=60)
+        render(os.path.join(out, "tablet.png"), cam, target, (120.6, 1.4, 1.1), (120.5, -0.5, 0.5), 700, lens=50)
         set_visible(rg_bake, True)
         ground.location = (0, 0, 0)
 

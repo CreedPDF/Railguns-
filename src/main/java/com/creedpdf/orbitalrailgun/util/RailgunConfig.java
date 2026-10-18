@@ -25,8 +25,23 @@ public final class RailgunConfig {
     public static final double DROP_TERMINAL_SPEED = 2.6;
 
     // ---- Lifecycle timing ----------------------------------------------------------------
-    /** Must match the length of animation.railgun.deploy (3.0 s). */
-    public static final int DEPLOY_TICKS = 60;
+    /** Must match animation.railgun.panel_open (1.5 s). */
+    public static final int PANEL_TICKS = 30;
+    /** Must match animation.railgun.deploy / pack (8.0 s). */
+    public static final int TRANSFORM_TICKS = 160;
+    public static final int PACK_TICKS = 160;
+    /** Tick of the transformation at which the ground clamps slam down (6.45 s). */
+    public static final int CLAMP_SLAM_TICK = 129;
+    /** Tick of the transformation at which the rail starts lowering from vertical. */
+    public static final int RAIL_LOWER_TICK = 88;
+    /** How long a "confirm retract" prompt on the panel stays armed. */
+    public static final int CONFIRM_TICKS = 80;
+    /** Launch back to orbit: acceleration, top speed, and how high before it is removed. */
+    public static final double LAUNCH_ACCEL = 0.06;
+    public static final double LAUNCH_MAX_SPEED = 3.5;
+    public static final double LAUNCH_REMOVE_HEIGHT = 260;
+    /** Max distance from the player to the control panel to use it. */
+    public static final double PANEL_REACH = 7.0;
     public static final int CHARGE_TICKS = 120;
     public static final int FIRE_TICKS = 44;
     public static final int COOLDOWN_TICKS = 100;
@@ -45,6 +60,8 @@ public final class RailgunConfig {
 
     // ---- Interaction ---------------------------------------------------------------------
     public static final double MAX_INTERACT_DISTANCE = 24.0;
+    /** How often (ticks) an open tablet polls the server for railgun status. */
+    public static final int TABLET_POLL_TICKS = 5;
 
     // ---- Geometry (blocks) ---------------------------------------------------------------
     /** Height of the turret yaw/pitch pivot above the entity's feet. */

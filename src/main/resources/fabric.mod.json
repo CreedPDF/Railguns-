@@ -3,15 +3,23 @@
   "id": "orbital_railgun",
   "version": "${version}",
   "name": "Orbital Railgun",
-  "description": "Call down an autonomous orbital railgun platform, lock a target and fire a volumetric red beam.",
-  "authors": ["CreedPDF"],
-  "contact": { "sources": "https://github.com/CreedPDF/Railguns-" },
+  "description": "Call down an orbital railgun pod with a two-handed uplink tablet, deploy it with its panel, fire it remotely, then send it back to orbit.",
+  "authors": [
+    "CreedPDF"
+  ],
+  "contact": {
+    "sources": "https://github.com/CreedPDF/Railguns-"
+  },
   "license": "MIT",
   "icon": "assets/orbital_railgun/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.creedpdf.orbitalrailgun.RailgunMod"],
-    "client": ["com.creedpdf.orbitalrailgun.client.RailgunModClient"]
+    "main": [
+      "com.creedpdf.orbitalrailgun.RailgunMod"
+    ],
+    "client": [
+      "com.creedpdf.orbitalrailgun.client.RailgunModClient"
+    ]
   },
   "accessWidener": "orbital_railgun.accesswidener",
   "depends": {
@@ -20,5 +28,11 @@
     "java": ">=17",
     "fabric-api": "*",
     "geckolib": ">=4.2 <4.5"
-  }
+  },
+  "mixins": [
+    {
+      "config": "orbital_railgun.client.mixins.json",
+      "environment": "client"
+    }
+  ]
 }

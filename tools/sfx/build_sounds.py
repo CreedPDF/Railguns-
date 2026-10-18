@@ -376,6 +376,124 @@ def railgun_power_down():
     return reverb(buf, 1.2, 0.25)
 
 
+def ratchet(dur, rate, base=900):
+    """A run of small mechanical clicks (stairs extending, gears)."""
+    buf = np.zeros(int(dur * SR))
+    n = int(dur * rate)
+    for i in range(n):
+        tick = filt(white(0.03), "bandpass", [base, base * 4]) * env_exp(0.03, 0.004)
+        tick += osc(base * 0.6, 0.03) * env_exp(0.03, 0.006) * 0.5
+        place(buf, tick, i / rate, 0.6 + 0.4 * rng.random())
+    return buf
+
+
+def servo(dur, f0, f1):
+    x = filt(osc(exp_sweep(f0, f1, dur), dur, "saw"), "lowpass", 1800) * 0.4
+    return x * env_adsr(dur, 0.05, 0.1, 0.9, 0.15)
+
+
+def rumble(dur, f_lo=60, f_hi=260):
+    x = sweep_filter(brown(dur), "lowpass", f_lo, f_hi) * env_adsr(dur, 0.3, 0.2, 0.9, 0.4)
+    grind = filt(white(dur), "bandpass", [180, 700]) * (0.5 + 0.5 * np.sin(2 * np.pi * 13 * t_axis(dur))) * 0.25
+    return x + grind * env_adsr(dur, 0.2, 0.2, 0.8, 0.4)
+
+
+def slam():
+    d = 2.5
+    x = mix(osc(exp_sweep(120, 30, 1.2, 0.4), 1.2) * env_exp(1.2, 0.3) * 1.6,
+            filt(white(0.8), "lowpass", 1500) * env_exp(0.8, 0.07) * 1.2,
+            metal_clang(d, 140, 0.6) * 0.4,
+            filt(crackle(d, 60, 0.004, 300), "lowpass", 3000) * env_exp(d, 0.6) * 0.5)
+    return sat(x, 2.4)
+
+
+def railgun_panel():
+    d = 1.8
+    buf = np.zeros(int(d * SR))
+    place(buf, clunk(0.6) * 0.7, 0.0)
+    place(buf, hydraulic(0.35) * 0.4, 0.05)
+    place(buf, servo(0.6, 300, 520), 0.32)
+    place(buf, clunk(0.9) * 0.8, 0.95)
+    place(buf, servo(0.45, 420, 260), 1.0)
+    place(buf, clunk(0.7), 1.45)
+    beep = (osc(1568, 0.25) + 0.4 * osc(2093, 0.25)) * env_adsr(0.25, 0.005, 0.05, 0.6, 0.15) * 0.3
+    place(buf, beep, 1.5)
+    return reverb(buf, 0.9, 0.2)
+
+
+def railgun_transform():
+    """8 s, synced to animation.railgun.deploy."""
+    d = 8.3
+    buf = np.zeros(int(d * SR))
+    place(buf, hydraulic(0.6) * 0.6, 0.0)
+    place(buf, rumble(2.2, 50, 300) * 0.9, 0.3)                 # pod sinks / fortress rises
+    place(buf, clunk(1.3) * 0.9, 2.55)                          # fortress locks
+    place(buf, ratchet(0.9, 22), 2.6)                           # stairs extend
+    place(buf, servo(1.6, 150, 480), 2.2)                       # turret grows
+    place(buf, clunk(1.0) * 0.8, 3.75)
+    place(buf, hydraulic(1.6) * 0.5, 4.6)                       # rail lowers and extends
+    place(buf, servo(1.6, 200, 700) * 0.9, 4.6)
+    place(buf, clunk(1.1) * 0.9, 6.1)
+    place(buf, hydraulic(0.7) * 0.6, 5.5)                       # clamps extend and lift
+    place(buf, slam(), 6.45)                                    # clamps slam into the ground
+    power = osc(exp_sweep(80, 220, 1.4), 1.4, "saw") * env_adsr(1.4, 0.2, 0.3, 0.8, 0.5) * 0.3
+    place(buf, filt(power, "lowpass", 2500), 6.8)
+    chime = sum(osc(f, 1.0) for f in (880, 1318.5, 1760)) * env_adsr(1.0, 0.01, 0.2, 0.4, 0.7) * 0.15
+    place(buf, chime, 7.5)
+    return reverb(buf, 1.6, 0.25)
+
+
+def railgun_pack():
+    """8 s, synced to animation.railgun.pack (the transformation in reverse)."""
+    d = 8.3
+    buf = np.zeros(int(d * SR))
+    down = osc(exp_sweep(400, 80, 1.2), 1.2, "saw") * env_adsr(1.2, 0.02, 0.3, 0.6, 0.6) * 0.3
+    place(buf, filt(down, "lowpass", 2000), 0.0)
+    place(buf, hydraulic(0.9) * 0.6, 1.4)                       # clamps release
+    place(buf, clunk(1.0), 1.55)
+    place(buf, servo(1.6, 700, 200) * 0.9, 1.8)                 # rail retracts and rises
+    place(buf, hydraulic(1.4) * 0.4, 1.9)
+    place(buf, clunk(0.9), 3.9)
+    place(buf, servo(1.6, 480, 150), 4.2)                       # turret shrinks
+    place(buf, ratchet(0.9, 22, 750), 4.4)                      # stairs retract
+    place(buf, rumble(2.2, 300, 50) * 0.9, 5.4)                 # fortress sinks, pod rises
+    place(buf, clunk(1.2), 7.45)                                # panel closes
+    return reverb(buf, 1.6, 0.25)
+
+
+def railgun_launch():
+    d = 8.0
+    buf = np.zeros(int(d * SR))
+    ign = sat(mix(osc(exp_sweep(90, 30, 1.5, 0.5), 1.5) * env_exp(1.5, 0.4) * 1.5,
+                  filt(white(1.0), "lowpass", 2000) * env_exp(1.0, 0.15)), 2.5)
+    place(buf, ign, 0.0)
+    roar_d = 7.5
+    t = t_axis(roar_d)
+    shape = np.clip(t / 0.4, 0, 1) * np.exp(-np.maximum(t - 1.5, 0) / 2.2)
+    roar = (filt(brown(roar_d), "lowpass", 900) * 1.2 + filt(white(roar_d), "bandpass", [600, 5000]) * 0.4)
+    roar = sweep_filter(roar, "lowpass", 5000, 700) * shape
+    crack = crackle(roar_d, 160, 0.002, 1200) * shape * 0.6
+    place(buf, sat(roar + crack, 1.8), 0.05)
+    return reverb(buf, 2.5, 0.35, 3000)
+
+
+def ui_tablet_open():
+    d = 0.9
+    buf = np.zeros(int(d * SR))
+    place(buf, sweep_filter(white(0.45), "bandpass", 500, 5000) * env_adsr(0.45, 0.2, 0.1, 0.6, 0.15) * 0.4, 0)
+    for i, f in enumerate((660, 990, 1320)):
+        place(buf, osc(f, 0.12, "tri") * env_adsr(0.12, 0.003, 0.03, 0.6, 0.06) * 0.5, 0.3 + i * 0.07)
+    return reverb(buf, 0.5, 0.2)
+
+
+def ui_tablet_close():
+    d = 0.6
+    buf = np.zeros(int(d * SR))
+    place(buf, sweep_filter(white(0.35), "bandpass", 5000, 500) * env_adsr(0.35, 0.02, 0.1, 0.6, 0.2) * 0.4, 0)
+    place(buf, osc(exp_sweep(1200, 600, 0.1), 0.1, "tri") * env_adsr(0.1, 0.003, 0.03, 0.5, 0.05) * 0.5, 0.05)
+    return reverb(buf, 0.4, 0.2)
+
+
 SOUNDS = {
     "ui_click": ui_click,
     "ui_countdown_beep": ui_countdown_beep,
@@ -389,6 +507,12 @@ SOUNDS = {
     "railgun_fire": railgun_fire,
     "railgun_impact": railgun_impact,
     "railgun_power_down": railgun_power_down,
+    "railgun_panel": railgun_panel,
+    "railgun_transform": railgun_transform,
+    "railgun_pack": railgun_pack,
+    "railgun_launch": railgun_launch,
+    "ui_tablet_open": ui_tablet_open,
+    "ui_tablet_close": ui_tablet_close,
 }
 
 # sound event id -> (file, extra properties)
@@ -405,6 +529,12 @@ EVENTS = {
     "railgun.fire": ("railgun_fire", {"attenuation_distance": 256}),
     "railgun.impact": ("railgun_impact", {"attenuation_distance": 256}),
     "railgun.power_down": ("railgun_power_down", {"attenuation_distance": 48}),
+    "railgun.panel": ("railgun_panel", {"attenuation_distance": 24}),
+    "railgun.transform": ("railgun_transform", {"attenuation_distance": 96}),
+    "railgun.pack": ("railgun_pack", {"attenuation_distance": 96}),
+    "railgun.launch": ("railgun_launch", {"attenuation_distance": 256}),
+    "ui.tablet_open": ("ui_tablet_open", {}),
+    "ui.tablet_close": ("ui_tablet_close", {}),
 }
 
 
@@ -425,7 +555,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     for name, fn in SOUNDS.items():
         x = fn()
-        if name in ("railgun_fire", "railgun_land", "railgun_impact"):
+        if name in ("railgun_fire", "railgun_land", "railgun_impact", "railgun_launch"):
             x = loud(x, 2.6)
         if name != "railgun_charge_loop":
             x = fade(normalize(trim_tail(x)), 0.001, 0.08)

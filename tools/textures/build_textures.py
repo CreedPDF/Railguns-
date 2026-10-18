@@ -382,11 +382,73 @@ def hud_panel():
     img.save(A / "textures/gui/hud_countdown.png")
 
 
+def tablet_display():
+    """
+    Full-screen view of the uplink tablet when zoomed in: rugged rubber frame, metal bezel,
+    hazard bumpers, screws, camera, and a dark display area (UI is drawn on top in code).
+    Display area: x 36..476, y 26..262 of 512x288 (keep in sync with TabletScreen).
+    """
+    W, H = 512, 288
+    img = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    rubber = periodic_noise(H, W, 30, 30, 3)
+    rub = np.dstack([22 + rubber * 10, 23 + rubber * 10, 26 + rubber * 11, np.full((H, W), 255.0)])
+    mask = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, W - 1, H - 1], radius=26, fill=255)
+    img.paste(Image.fromarray(rub.astype(np.uint8), "RGBA"), (0, 0), mask)
+    # metal bezel ring
+    d.rounded_rectangle([14, 10, W - 15, H - 11], radius=14, fill=(70, 75, 84, 255), outline=(120, 126, 136, 255))
+    d.rounded_rectangle([22, 16, W - 23, H - 17], radius=8, fill=(30, 33, 38, 255), outline=(12, 13, 15, 255))
+    # hazard bumpers in the corners
+    for (x0, y0) in ((0, 0), (W - 40, 0), (0, H - 40), (W - 40, H - 40)):
+        tile = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+        td = ImageDraw.Draw(tile)
+        for k in range(-40, 80, 10):
+            td.polygon([(k, 40), (k + 5, 40), (k + 45, 0), (k + 40, 0)], fill=(214, 150, 20, 255))
+        cm = Image.new("L", (40, 40), 0)
+        ImageDraw.Draw(cm).pieslice([0 if x0 == 0 else -40, 0 if y0 == 0 else -40, 80 if x0 == 0 else 40,
+                                     80 if y0 == 0 else 40], 0, 360, fill=255)
+        inner = Image.new("L", (40, 40), 0)
+        ImageDraw.Draw(inner).rectangle([10 if x0 == 0 else 0, 8 if y0 == 0 else 0, 40 if x0 == 0 else 30,
+                                         40 if y0 == 0 else 32], fill=255)
+        cm = Image.fromarray(np.minimum(np.array(cm), 255 - np.array(inner)).astype(np.uint8))
+        img.paste(tile, (x0, y0), Image.fromarray((np.array(cm) * (np.array(mask.crop((x0, y0, x0 + 40, y0 + 40))) > 0)).astype(np.uint8)))
+    # screws, camera, LEDs
+    for (x, y) in ((30, 22), (W - 31, 22), (30, H - 23), (W - 31, H - 23)):
+        d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=(140, 146, 156, 255), outline=(20, 20, 24, 255))
+        d.line([(x - 2, y), (x + 2, y)], fill=(40, 40, 44, 255))
+    d.ellipse([W // 2 - 3, 18, W // 2 + 3, 24], fill=(8, 10, 14, 255), outline=(90, 96, 106, 255))
+    d.ellipse([W // 2 + 12, 19, W // 2 + 16, 23], fill=(255, 60, 40, 255))
+    # display
+    sx0, sy0, sx1, sy1 = 36, 26, 476, 262
+    sw, sh = sx1 - sx0, sy1 - sy0
+    yy = np.linspace(0, 1, sh)[:, None]
+    disp = np.dstack([np.broadcast_to(6 + 10 * (1 - yy), (sh, sw)), np.broadcast_to(9 + 12 * (1 - yy), (sh, sw)),
+                      np.broadcast_to(14 + 18 * (1 - yy), (sh, sw)), np.full((sh, sw), 255.0)]).copy()
+    disp[::2, :, :3] *= 0.85
+    gx = np.zeros((sh, sw), bool)
+    gx[:, ::20] = True
+    gx[::20, :] = True
+    disp[gx, 0] += 6
+    disp[gx, 1] += 14
+    disp[gx, 2] += 18
+    r = np.hypot((np.arange(sw)[None, :] - sw / 2) / sw, (np.arange(sh)[:, None] - sh / 2) / sh)
+    disp[..., :3] *= (1 - 0.6 * r[..., None] ** 2)
+    img.paste(Image.fromarray(np.clip(disp, 0, 255).astype(np.uint8), "RGBA"), (sx0, sy0))
+    d.rectangle([sx0 - 1, sy0 - 1, sx1, sy1], outline=(4, 5, 6, 255))
+    try:
+        font = ImageFont.load_default()
+        d.text((W // 2 - 30, H - 15), "ARES-9 UPLINK", fill=(110, 116, 126, 255), font=font)
+    except Exception:
+        pass
+    img.save(A / "textures/gui/tablet_display.png")
+
+
 def main():
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)
+    tablet_display()
     beam_textures()
     particles()
-    gui_panel()
     hud_panel()
     print("textures written:", len(list((A / "textures").rglob("*.png"))))
 

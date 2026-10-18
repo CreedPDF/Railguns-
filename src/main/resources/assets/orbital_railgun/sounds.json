@@ -101,5 +101,57 @@
         "attenuation_distance": 48
       }
     ]
+  },
+  "railgun.panel": {
+    "subtitle": "subtitles.orbital_railgun.railgun.panel",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_panel",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "railgun.transform": {
+    "subtitle": "subtitles.orbital_railgun.railgun.transform",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_transform",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "railgun.pack": {
+    "subtitle": "subtitles.orbital_railgun.railgun.pack",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_pack",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "railgun.launch": {
+    "subtitle": "subtitles.orbital_railgun.railgun.launch",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_launch",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "ui.tablet_open": {
+    "subtitle": "subtitles.orbital_railgun.ui.tablet_open",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_tablet_open"
+      }
+    ]
+  },
+  "ui.tablet_close": {
+    "subtitle": "subtitles.orbital_railgun.ui.tablet_close",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ui_tablet_close"
+      }
+    ]
   }
 }

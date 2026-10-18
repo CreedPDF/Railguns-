@@ -24,6 +24,12 @@ public final class ModSounds {
     public static final SoundEvent RAILGUN_FIRE = register("railgun.fire");
     public static final SoundEvent RAILGUN_IMPACT = register("railgun.impact");
     public static final SoundEvent RAILGUN_POWER_DOWN = register("railgun.power_down");
+    public static final SoundEvent RAILGUN_PANEL = register("railgun.panel");
+    public static final SoundEvent RAILGUN_TRANSFORM = register("railgun.transform");
+    public static final SoundEvent RAILGUN_PACK = register("railgun.pack");
+    public static final SoundEvent RAILGUN_LAUNCH = register("railgun.launch");
+    public static final SoundEvent UI_TABLET_OPEN = register("ui.tablet_open");
+    public static final SoundEvent UI_TABLET_CLOSE = register("ui.tablet_close");
 
     private static SoundEvent register(String path) {
         var id = RailgunMod.id(path);

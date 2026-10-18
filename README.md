@@ -12,21 +12,26 @@ is made by this repo's own tools (Blender, numpy, synthesized audio). No vanilla
 | Fabric API | 0.92.x+1.20.1 |
 | GeckoLib | 4.2 – 4.4.x (Fabric, 1.20.1) |
 
-No mixins, no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
+Two small client mixins (two-handed tablet in first and third person); no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
 layers, so it works alongside Sodium.
 
 ## Gameplay
-1. Craft the **Orbital Uplink Remote** (lightning rod, iron, eye of ender, netherite ingot).
-2. Right-click a block with open sky above it. A HUD countdown starts with an uplink chime.
-3. The platform re-enters in a plasma sheath with a rising roar, smashes down (clearing trees
-   and anything in its 10×10 footprint, with a shockwave), then unfolds its outriggers and raises
-   the turret.
-4. Right-click it to open **Fire Control**: type X/Y/Z (or **PAINT** the block under your
-   crosshair), **SET TARGET**, then **FIRE**. It charges for 6 s (energy motes, lightning arcs,
-   a swelling orb) and fires once the turret is aligned.
-5. **ABORT** cancels a charge. **RECALL** sends it back to orbit. Creative players can also
-   sneak-punch it to recall.
+1. Craft the **ARES-9 Uplink Tablet** (lightning rod, iron, eye of ender, netherite ingot). You
+   hold it in **both hands**.
+2. Aim at open ground and right-click: the tablet rises and the view **zooms into its display**.
+   On the *Orbital Drop* page press **CALL DOWN**. A HUD countdown runs, then a compact pod
+   re-enters in a plasma sheath and lands with its rail pointing straight up, retracted.
+3. Walk up to the pod and right-click its **panel** (`[ RETRACT PANEL ]` hologram). The cover slides
+   away and the pod transforms: it sinks while the fortress rises, the stairs fold out, the turret
+   grows, the rail lowers and extends, and the ground clamps lift and **slam** into the ground.
+4. Raise the tablet again for *Fire Control*: type X/Y/Z or **PAINT** the block you were aiming
+   at, **SET**, then **FIRE** (from any distance; deployed railguns keep their chunk loaded). The
+   tablet lowers so you can watch. No beam is visible until the shot.
+5. To pack up, use the console at the foot of the stairs: `[ RETRACT ]`, then `[ CONFIRM RETRACT ]`.
+   It folds back into a pod. Use the panel again (`[ RETURN TO ORBIT ]`) and it **launches back
+   into the sky** on its thrusters.
 
+One railgun per player. Creative players can sneak-punch a railgun to remove it instantly.
 Tuning (ranges, timings, blast power, block damage) lives in `RailgunConfig.java`.
 
 ## Building
@@ -41,15 +46,15 @@ Locally: `./gradlew build` (jar in `build/libs/`), `./gradlew runClient`.
 ## Asset pipeline
 | Tool | Produces |
 |---|---|
-| `tools/blender/build_models.py` | The railgun emplacement (~380 cubes, 11-block fortress, 19-block barrel) and the remote as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
+| `tools/blender/build_models.py` | The railgun (~510 cubes: drop pod with sliding panel, 11-block fortress with stairs, console and ground clamps, 19-block barrel) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
-| `tools/sfx/build_sounds.py` | 12 sounds synthesized from oscillators, filtered noise, FM and convolution reverb, encoded to Ogg Vorbis. |
+| `tools/sfx/build_sounds.py` | 18 sounds synthesized from oscillators, filtered noise, FM and convolution reverb, encoded to Ogg Vorbis. |
 
 Model contracts the Java code relies on:
 - Bone **`turret`** yaws; bone **`barrel`** (pivot 120 px = `PIVOT_Y` 7.5 blocks) pitches and
   points toward −Z, muzzle 312 px = `BARREL_LENGTH` 19.5 blocks from the pivot.
-- Bones `leg_n/s/e/w`, `vents`, `coils` are animated by the keyframes.
-- Animations: `falling`, `deploy` (3 s, holds), `idle`, `charge`, `fire`.
+- Bones `pod`, `pod_panel`, `base` (with `leg_*` clamps and `stairs`), `hull`, `vents`, `coils` are animated by keyframes.
+- Animations: `pod`, `panel_open` (1.5 s), `deploy` (8 s), `pack` (8 s, deploy reversed), `idle`, `charge`, `fire`.
 - Only boxes (rotated ones only in ±45° pairs). The exporter refuses anything else.
 - The glowmask must have lit pixels (GeckoLib crashes on an empty glow layer); CI enforces it.
 
@@ -63,23 +68,27 @@ common (src/main)                            client (src/client)
 ├─ network/ModPackets      C2S/S2C + checks  │   ├─ BeamRenderLayers        additive glow + textured layers
 ├─ registry/ModSounds                        │   └─ BeamRenderer            3D beam geometry
 ├─ registry/ModParticles                     ├─ particle/RailgunParticle(s) custom particle behaviour
-├─ util/RailgunFx          FX-free explosions├─ screen/RailgunControlScreen
+├─ util/RailgunFx          FX-free explosions├─ tablet/TabletScreen       zoom-in tablet UI
+│                                            ├─ mixin/                   two-handed tablet render + pose
 ├─ util/DeploymentScheduler                  ├─ hud/RailgunHud          countdown, flash, camera shake
 └─ util/RailgunConfig                        └─ sound/                  charge + re-entry loops
 ```
 
-State machine: `FALLING → DEPLOYING → IDLE ⇄ CHARGING → FIRING → COOLDOWN → IDLE`, owned by the
+State machine: `FALLING → POD → PANEL_OPEN → TRANSFORMING → IDLE ⇄ CHARGING → FIRING → COOLDOWN → IDLE → PACKING → POD_READY → LAUNCHING`, owned by the
 server; state, charge and target are `TrackedData`, so no extra sync packets are needed.
 
 ### Networking
 | Dir | Channel | Payload | Purpose |
 |---|---|---|---|
-| C2S | `request_deploy` | BlockPos | Remote right-click. Server checks item, cooldown, range, sky. |
-| C2S | `set_target` | entityId, BlockPos | Menu target. Range & world-bounds checked. |
-| C2S | `start_charge` | entityId | FIRE button. IDLE → CHARGING, auto-fires at 100 %. |
-| C2S | `abort` | entityId | Cancel charge. |
-| C2S | `recall` | entityId | Remove platform. |
-| S2C | `drop_countdown` | BlockPos, ticks | Start HUD countdown + local uplink sound. |
+| C2S | `request_deploy` | BlockPos | Tablet CALL DOWN. Server checks item, cooldown, one-per-player, range, sky. |
+| C2S | `tablet_status` | – | Tablet poll; server replies with `tablet_info`. |
+| C2S | `tablet_target` | BlockPos | SET / PAINT. Owner's railgun only; range & bounds checked. |
+| C2S | `tablet_fire` | – | Remote FIRE. IDLE → CHARGING, auto-fires at 100 %. |
+| C2S | `tablet_abort` | – | Cancel charge. |
+| S2C | `drop_countdown` | BlockPos, ticks | HUD countdown + uplink sound. |
+| S2C | `tablet_info` | status snapshot | What the tablet displays. |
+
+Tablet commands resolve the sender's railgun by owner UUID, so nobody can command someone else's. The pod panel / console are plain entity interactions.
 
 ### Beam rendering
 Two kinds of layer, both additive with no depth write and no culling: an untextured glow layer

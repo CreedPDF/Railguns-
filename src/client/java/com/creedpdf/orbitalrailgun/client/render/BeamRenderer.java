@@ -26,11 +26,10 @@ import org.joml.Vector3f;
  *   <li>A wispy textured <b>halo</b>, then two very faint untextured glow shells for bloom.</li>
  *   <li>Three textured <b>helix ribbons</b> spiralling around the beam.</li>
  *   <li><b>Accelerator rings</b> racing from the muzzle to the target.</li>
- *   <li>Muzzle fireball, impact fireball, a rising energy plume and expanding ground
- *       shockwaves at the target.</li>
+ *   <li>Muzzle fireball, impact fireball and expanding ground shockwaves at the target.</li>
  * </ol>
- * While charging there's a thickening targeting laser, a swelling plasma orb at the muzzle,
- * collapsing rings, spiralling ribbons and procedural lightning arcs crawling up the barrel.
+ * There is no beam before the shot: while charging, only a swelling plasma orb at the muzzle,
+ * collapsing rings and procedural lightning arcs crawling up the barrel are drawn.
  *
  * <h2>Texture mapping</h2>
  * Tubes map U around the circumference and V along the length (in blocks / texture repeat
@@ -58,7 +57,7 @@ public final class BeamRenderer {
         if (beam.length < 0.5f) return;
 
         if (railgun.getState() == RailgunState.CHARGING) {
-            renderCharging(consumers, m, beam, railgun, railgun.getCharge(), time);
+            renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time);
         } else if (railgun.getState() == RailgunState.FIRING) {
             float p = MathHelper.clamp((railgun.getStateTicks() + tickDelta) / RailgunConfig.FIRE_TICKS, 0f, 1f);
             renderFiring(consumers, m, beam, p, time);
@@ -69,21 +68,9 @@ public final class BeamRenderer {
     // Charging
     // =========================================================================================
 
-    private static void renderCharging(VertexConsumerProvider cp, Matrix4f m, Beam b, RailgunEntity railgun, float c, float time) {
+    /** Charging: no beam yet, only energy gathering at the muzzle and arcs along the barrel. */
+    private static void renderChargeUp(VertexConsumerProvider cp, Matrix4f m, Beam b, RailgunEntity railgun, float c, float time) {
         float pulse = 0.75f + 0.25f * MathHelper.sin(time * (0.3f + c * 1.2f));
-
-        // Targeting laser that thickens with charge.
-        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 0.10f + 0.32f * c,
-                1f, 0.6f, 0.55f, (0.45f + 0.5f * c) * pulse, 6f, time * (0.4f + 2.5f * c), 0f, 0.15f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 0.3f + 0.9f * c,
-                1f, 0.35f, 0.3f, (0.1f + 0.5f * c) * pulse, 10f, time * (0.3f + 1.6f * c), time * 0.02f, 0.2f, time);
-        glowTube(glow(cp), m, b, 0.8f + 1.8f * c, 1f, 0.06f, 0.03f, (0.05f + 0.12f * c) * pulse, time);
-
-        if (c > 0.35f) {
-            float a = (c - 0.35f) / 0.65f;
-            helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 0.5f + 1.2f * a,
-                    0.25f + 0.3f * a, 0.12f, time * (0.1f + 0.25f * a), 1f, 0.4f, 0.35f, 0.7f * a, time);
-        }
 
         // Swelling plasma orb at the muzzle.
         float orb = 0.4f + 3.2f * c;
@@ -151,15 +138,11 @@ public final class BeamRenderer {
         glowSphere(glow(cp), m, b.a, 1.0f * B, 1f, 0.95f, 0.9f, 0.9f * i);
         glowSphere(glow(cp), m, b.a, 3.0f * B, 1f, 0.15f, 0.05f, 0.25f * i);
 
-        // Impact: fireball, energy plume and ground shockwaves.
+        // Impact: fireball and ground shockwaves.
         texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.b, 3.5f * B, 1f, 0.55f, 0.45f, 0.9f * i, time * 0.06f, -time * 0.05f);
         glowSphere(glow(cp), m, b.b, 2.2f * B, 1f, 0.95f, 0.9f, 0.95f * i);
         glowSphere(glow(cp), m, b.b, 6.0f * B, 1f, 0.2f, 0.06f, 0.3f * i);
         glowSphere(glow(cp), m, b.b, 11f * B, 1f, 0.06f, 0.02f, 0.10f * i);
-        Beam plume = new Beam(b.b, new Vector3f(b.b).add(0, 50f + 30f * p, 0));
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, plume, 1.6f * B * (1f - p * 0.5f), 1f, 0.4f, 0.3f, 0.6f * i, 12f, -time * 1.4f, 0f, 0.3f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, plume, 3.2f * B, 1f, 0.2f, 0.15f, 0.35f * i, 18f, -time * 0.8f, 0f, 0.35f, time);
-
         ringTex = tex(cp, BeamRenderLayers.TEX_SHOCKWAVE);
         Vector3f ground = new Vector3f(b.b).add(0, -0.4f, 0);
         Vector3f up = new Vector3f(0, 1, 0);
