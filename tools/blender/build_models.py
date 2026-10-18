@@ -114,9 +114,10 @@ PALETTE = {
     "hazard": ("#2a2000", "#c89a14", "#e2b628"),
     "glow": ("#5a0000", "#c8120c", "#ff4a30"),
     "amber": ("#5a3000", "#d68a10", "#ffc040"),
+    "screen": ("#020407", "#07121c", "#0e2436"),   # display glass; UI painted by paint_faces
 }
 KINDS = list(PALETTE)
-GLOW_KINDS = {"glow", "amber"}
+GLOW_KINDS = {"glow", "amber", "screen"}
 
 
 def viewport_material(kind):
@@ -296,16 +297,23 @@ def make_part(name, bone, kind, boxes, mirror=(), array=None):
     return obj
 
 
-def make_rot_part(name, bone, kind, center_xz, y0, size_x, size_z, height, angle):
+def make_rcube(name, bone, kind, origin, size, pivot, axis, angle):
     """
-    A box rotated around the vertical axis (Bedrock cube "rotation"), centred on center_xz.
-    Used in pairs at +45/-45 (= 135) degrees, a set that is identical whichever sign convention
-    the renderer uses for Y rotation.
+    A box rotated about its own pivot around the Y or Z axis (Bedrock cube "rotation").
+
+    Convention (checked against GeckoLib's BakedModelFactory / RenderUtils): GeckoLib mirrors X
+    and negates the JSON Y rotation, which together make a JSON rotation of [0, a, 0] rotate the
+    cube by R_y(a) in model space, where R_y(a) maps (x, z) -> (x cos a + z sin a, -x sin a +
+    z cos a). A JSON [0, 0, c] rotates it by R_z(-c). In Blender that is rotation_euler.z = a
+    for Y, and rotation_euler.y = c for Z, so the previews match the game.
     """
-    pivot = Vector(bone["pivot_mc"])
-    hx, hz = size_x / 2.0, size_z / 2.0
+    pv = Vector(bone["pivot_mc"])
+    lo_mc = [origin[i] - pivot[i] for i in range(3)]
+    hi_mc = [origin[i] + size[i] - pivot[i] for i in range(3)]
+    a_b, b_b = mc_to_b(lo_mc), mc_to_b(hi_mc)
+    lo = Vector((min(a_b.x, b_b.x), min(a_b.y, b_b.y), min(a_b.z, b_b.z)))
+    hi = Vector((max(a_b.x, b_b.x), max(a_b.y, b_b.y), max(a_b.z, b_b.z)))
     bm = bmesh.new()
-    lo, hi = Vector((-hx / 16, -hz / 16, 0)), Vector((hx / 16, hz / 16, height / 16))
     v = [bm.verts.new((x, y, z)) for x in (lo.x, hi.x) for y in (lo.y, hi.y) for z in (lo.z, hi.z)]
     for quad in ((0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)):
         bm.faces.new([v[i] for i in quad])
@@ -315,142 +323,102 @@ def make_rot_part(name, bone, kind, center_xz, y0, size_x, size_z, height, angle
     mesh.materials.append(viewport_material(kind))
     obj = link(bpy.data.objects.new(name, mesh))
     obj.parent = bone
-    obj.location = mc_to_b([center_xz[0], y0, center_xz[1]]) - mc_to_b(list(pivot))
-    obj.rotation_euler = (0, 0, math.radians(angle))
+    obj.location = mc_to_b(list(pivot)) - mc_to_b(list(pv))
+    obj.rotation_euler = (0, 0, math.radians(angle)) if axis == "y" else (0, math.radians(angle), 0)
     obj["kind"] = kind
     obj["export"] = True
-    obj["rot_y"] = angle
-    obj["cube_mc"] = [center_xz[0] - hx, y0, center_xz[1] - hz, size_x, height, size_z]
+    obj["rot_axis"] = axis
+    obj["rot_angle"] = float(angle)
+    obj["rot_pivot"] = [float(c) for c in pivot]
+    obj["cube_mc"] = [float(c) for c in list(origin) + list(size)]
     return obj
 
 
 TAN22 = math.tan(math.radians(22.5))
+_uid = [0]
 
 
-def octagon(name, bone, kind, y0, width, height, center_xz=(0, 0)):
+def _n(prefix):
+    _uid[0] += 1
+    return f"{prefix}_{_uid[0]}"
+
+
+def box(bone, kind, origin, size, off=(0, 0, 0), mirror=(), array=None, name="p"):
+    o = [origin[i] + off[i] for i in range(3)]
+    return make_part(_n(name), bone, kind, [(o, list(size))], mirror=mirror, array=array)
+
+
+def rbox(bone, kind, origin, size, pivot, axis, angle, off=(0, 0, 0), name="r"):
+    o = [origin[i] + off[i] for i in range(3)]
+    pv = [pivot[i] + off[i] for i in range(3)]
+    return make_rcube(_n(name), bone, kind, o, list(size), pv, axis, angle)
+
+
+def octagon(name, bone, kind, y0, width, height, center_xz=(0, 0), off=(0, 0, 0)):
     """
-    Regular octagon slab of the given flat-to-flat width, built as the union of four rectangles
-    (width x width*tan(22.5)) at 0, 90, 45 and 135 degrees. Their top faces are staggered by
-    0.15 px so overlapping tops never z-fight.
+    Vertical regular-octagon prism (flat-to-flat width): two axis rects + two rects at +/-45 deg.
+    Overlapping tops are staggered by 0.15 px so they never z-fight.
     """
-    cx, cz = center_xz
+    cx, cz = center_xz[0] + off[0], center_xz[1] + off[2]
+    y0 = y0 + off[1]
     a = width / 2.0
     b = round(a * TAN22, 3)
     make_part(f"{name}_a", bone, kind, [([cx - a, y0, cz - b], [width, height, 2 * b])])
     make_part(f"{name}_b", bone, kind, [([cx - b, y0, cz - a], [2 * b, height + 0.15, width])])
-    make_rot_part(f"{name}_c", bone, kind, center_xz, y0, width, 2 * b, height + 0.3, 45.0)
-    make_rot_part(f"{name}_d", bone, kind, center_xz, y0, width, 2 * b, height + 0.45, -45.0)
+    make_rcube(f"{name}_c", bone, kind, [cx - a, y0, cz - b], [width, height + 0.3, 2 * b], [cx, y0, cz], "y", 45.0)
+    make_rcube(f"{name}_d", bone, kind, [cx - a, y0, cz - b], [width, height + 0.45, 2 * b], [cx, y0, cz], "y", -45.0)
 
 
-def rot4(boxes, direction):
-    """Rotates boxes authored for the north side (-Z) to n/s/e/w in 90-degree steps around Y."""
-    out = []
-    for kind, (o, sz) in boxes:
-        x0, y0, z0 = o
-        x1, z1 = x0 + sz[0], z0 + sz[2]
-        if direction == "n":
-            out.append((kind, (o, sz)))
-        elif direction == "s":
-            out.append((kind, ([x0, y0, -z1], sz)))
-        elif direction == "e":
-            out.append((kind, ([-z1, y0, x0], [sz[2], sz[1], sz[0]])))
-        else:
-            out.append((kind, ([z0, y0, -x1], [sz[2], sz[1], sz[0]])))
-    return out
+def octagon_z(name, bone, kind, cx, cy, z0, z1, width):
+    """Horizontal octagonal tube along Z (barrel segments, rings): rects at 0/90 and +/-45 deg about Z."""
+    a = width / 2.0
+    b = round(a * TAN22, 3)
+    L = z1 - z0
+    make_part(f"{name}_a", bone, kind, [([cx - a, cy - b, z0], [width, 2 * b, L])])
+    make_part(f"{name}_b", bone, kind, [([cx - b, cy - a, z0 - 0.05], [2 * b, width, L + 0.1])])
+    make_rcube(f"{name}_c", bone, kind, [cx - a, cy - b, z0 - 0.1], [width, 2 * b, L + 0.2], [cx, cy, (z0 + z1) / 2], "z", 45.0)
+    make_rcube(f"{name}_d", bone, kind, [cx - a, cy - b, z0 - 0.15], [width, 2 * b, L + 0.3], [cx, cy, (z0 + z1) / 2], "z", -45.0)
 
 
-def parts4(prefix, bone_for, boxes):
-    """Creates one part per box for each of the four sides."""
-    for d in ("n", "s", "e", "w"):
-        bone = bone_for(d)
-        for i, (kind, (o, sz)) in enumerate(rot4(boxes, d)):
-            make_part(f"{prefix}_{d}_{i}", bone, kind, [(o, sz)])
+def diag_box(bone, kind, sx, sz, base, r0, r1, width, y0, y1, off=(0, 0, 0)):
+    """A box lying along the diagonal (sx, sz) from point `base`, from radius r0 to r1."""
+    L = r1 - r0
+    rm = (r0 + r1) / 2.0
+    k = rm / math.sqrt(2)
+    cx, cz = base[0] + sx * k, base[1] + sz * k
+    ang = -45.0 * sx * sz   # R_y(ang) maps +X onto the (sx, sz) diagonal (180-deg symmetric)
+    rbox(bone, kind, [cx - L / 2, y0, cz - width / 2], [L, y1 - y0, width], [cx, y0, cz], "y", ang, off=off, name="diag")
 
 
-# Ground clamps (north side, two per side at x = +/-32 so the south stairs fit between them).
-# The leg bone pivots at the fortress edge: the deploy animation extends them from 12% length,
-# lifts them, then slams them down into the ground.
-def _clamp(cx):
-    return [
-        ("steel", [[cx - 5, 4, -112], [10, 7, 26]]),
-        ("paint", [[cx - 6, 11, -110], [12, 2, 20]]),
-        ("dark", [[cx - 2, 13, -106], [4, 4, 14]]),
-        ("steel", [[cx - 3, 13, -92], [6, 6, 5]]),
-        ("steel", [[cx - 9, 0, -124], [18, 4, 14]]),
-        ("dark", [[cx - 7, 4, -122], [14, 3, 10]]),
-        ("hazard", [[cx - 9, 4, -125], [18, 1.5, 1.5]]),
-        ("dark", [[cx - 8, -3, -123], [3, 3, 3]]),
-        ("dark", [[cx + 5, -3, -123], [3, 3, 3]]),
-        ("dark", [[cx - 8, -3, -114], [3, 3, 3]]),
-        ("dark", [[cx + 5, -3, -114], [3, 3, 3]]),
-        ("amber", [[cx - 1.5, 11, -113], [3, 2, 2]]),
-        ("glow", [[cx - 5.6, 6, -110], [0.6, 1, 16]]),
-        ("glow", [[cx + 5, 6, -110], [0.6, 1, 16]]),
-    ]
-
-
-OUTRIGGER = _clamp(-32) + _clamp(32)
-
-# Deploy stairs on the south face, from the ground up to the middle tier (y 36, apothem 75).
-STAIRS = [("concrete", [[-12, 0, 75 + 6 * k], [24, 35 - 5 * k, 6]]) for k in range(7)] + [
-    ("hazard", [[-12, 35 - 5 * k - 1, 80.5 + 6 * k], [24, 1, 0.5]]) for k in range(7)] + [
-    ("steel", [[-13, 0, 76], [1, 44, 1.5]]),
-    ("steel", [[12, 0, 76], [1, 44, 1.5]]),
-    ("steel", [[-13, 0, 118], [1, 12, 1.5]]),
-    ("steel", [[12, 0, 118], [1, 12, 1.5]]),
-]
-
-# Access console at the foot of the stairs (the deployed railgun's control panel).
-CONSOLE = [
-    ("steel", [[13, 0, 92], [7, 14, 7]]),
-    ("dark", [[12, 14, 90], [9, 4, 10]]),
-    ("glow", [[12.5, 18, 90.5], [8, 0.6, 9]]),
-    ("amber", [[15.5, 18.6, 98], [2, 1, 1]]),
-    ("hazard", [[12, 0, 99], [9, 2, 1]]),
-]
-
-# Blast door + frame on each face of the middle tier (apothem 75).
-BLAST_DOOR = [
-    ("dark", [[-16, 14, -76.5], [32, 19, 1.5]]),
-    ("steel", [[-0.5, 14, -77], [1, 19, 0.5]]),
-    ("steel", [[-20, 33, -77.5], [40, 3, 2.5]]),
-    ("steel", [[-20, 14, -77.5], [4, 19, 2.5]]),
-    ("steel", [[16, 14, -77.5], [4, 19, 2.5]]),
-    ("hazard", [[-16, 14, -79], [32, 1.5, 3]]),
-    ("amber", [[-3, 36, -76.5], [6, 1.5, 2]]),
-    ("glow", [[-12, 28, -77.1], [8, 1, 0.6]]),
-    ("glow", [[4, 28, -77.1], [8, 1, 0.6]]),
-]
-
-# Vent bank on each face of the upper tier (apothem 61) and pipes on the foundation ledge.
-TIER3_VENTS = [
-    ("vent", [[-22, 38, -62], [44, 7, 1]]),
-    ("steel", [[-23, 37, -62.5], [46, 1, 1.5]]),
-    ("steel", [[-23, 45, -62.5], [46, 1, 1.5]]),
-]
-LEDGE_PIPES = [
-    ("steel", [[-34, 14, -86], [68, 4, 4]]),
-    ("dark", [[-30, 14, -87], [3, 6, 6]]),
-    ("dark", [[-1.5, 14, -87], [3, 6, 6]]),
-    ("dark", [[27, 14, -87], [3, 6, 6]]),
-]
+# ---- Layout constants (px, 16 px = 1 block) ----------------------------------------------------
+SHELL_A = 34.0          # pod shell outer apothem
+SHELL_T = 5.0           # shell wall thickness
+SHELL_TOP = 108.0
+BULWARK_D = 62.0        # how far each shell quarter glides out (per axis) to become a bulwark
+DECK_OUT = 56.0         # how far deck plates slide out
+TURRET_Y = 72.0
+BARREL_Y = 118.0
+POD_TURRET_DROP = -70.0
+SEG1_IN, SEG2_IN = 105.0, 95.0
 
 
 def build_railgun():
     """
-    Heavy orbital railgun emplacement (roughly 11 blocks across, barrel ~19 blocks long).
+    ARES-9 orbital railgun. The REST pose (modelled geometry) is the deployed emplacement; the
+    pod is reached by animation offsets, so everything the emplacement has physically fits inside
+    and comes out of the pod:
 
-      base      three-tier octagonal concrete fortress, hazard deck, blast doors, vent banks,
-                ledge pipes, four floodlight towers
-      leg_*     hydraulic outriggers with foot pads (deploy outward)
-      turret    turntable with glowing ring, armoured hull, side skirts, control cab, exhaust
-                stacks, ladder, rails, capacitor tanks, massive yoke cheeks with trunnion hubs
-      barrel    segmented white armour walls, glowing accelerator rail core, conductor rails,
-                energy lines, roof, breech block with fins and couplings, muzzle brake
-      vents     cooling fins on the barrel roof (rise when charging / firing)
-      coils     glowing accelerator coil frames around the open front of the barrel
-
-    Returns {bone_name: empty} in parent-before-child order.
+      core        octagonal pedestal (always visible) carrying the mounted control tablet
+      shell_*     the pod's four armour quarters; deployed they stand at the corners as bulwarks
+        clamp_*   diagonal ground clamps stowed inside each quarter
+        bolt_*    locking bolts on the quarter seams
+        beacon_*  rotating warning beacons on top
+      deck_n/e/s/w  walkway plates that slide out from under the pod
+        step_1..3   stairs nested in the +Z deck plate, extending one by one
+      turret      yaw; hull rises out of the pod
+        radar     telescoping mast with a spinning dish; antenna
+      barrel      pitch; three telescoping octagonal segments (barrel > seg1 > seg2) with coil
+                  rings that light up in sequence and cooling fins (vents)
     """
     bones = {}
 
@@ -459,149 +427,219 @@ def build_railgun():
         bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None)
 
     bone("root", None, [0, 0, 0])
-    bone("base", "root", [0, 0, 0])
-    for d, pivot in (("n", [0, 6, -88]), ("s", [0, 6, 88]), ("e", [88, 6, 0]), ("w", [-88, 6, 0])):
-        bone(f"leg_{d}", "base", pivot)
-    bone("stairs", "base", [0, 0, 75])
-    bone("pod", "root", [0, 0, 0])
-    bone("pod_panel", "pod", [0, 40, 28])
-    bone("turret", "root", [0, 56, 0])
-    bone("hull", "turret", [0, 56, 0])
-    bone("barrel", "turret", [0, 120, 0])
-    bone("vents", "barrel", [0, 120, 0])
-    bone("coils", "barrel", [0, 120, 0])
+    bone("core", "root", [0, 0, 0])
+    bone("pod_panel", "core", [0, 48, 30])
+    quads = [(1, 1), (1, -1), (-1, 1), (-1, -1)]
+    qname = {(1, 1): "pp", (1, -1): "pn", (-1, 1): "np", (-1, -1): "nn"}
+    for q in quads:
+        sx, sz = q
+        n = qname[q]
+        D = (sx * BULWARK_D, 0, sz * BULWARK_D)
+        bone(f"shell_{n}", "root", [D[0], 0, D[2]])
+        bone(f"clamp_{n}", f"shell_{n}", [D[0] + sx * 26, 4, D[2] + sz * 26])
+        bone(f"bolt_{n}", f"shell_{n}", [D[0], 60, D[2]])
+        bone(f"beacon_{n}", f"shell_{n}", [D[0] + sx * 22, SHELL_TOP + 2, D[2] + sz * 22])
+    for d in ("n", "e", "s", "w"):
+        bone(f"deck_{d}", "root", [0, 0, 0])
+    bone("step_1", "deck_s", [0, 0, 84])
+    bone("step_2", "deck_s", [0, 0, 84])
+    bone("step_3", "deck_s", [0, 0, 84])
+    bone("turret", "root", [0, TURRET_Y, 0])
+    bone("hull", "turret", [0, TURRET_Y, 0])
+    bone("radar", "hull", [15, 107, 16])
+    bone("dish", "radar", [15, 121, 16])
+    bone("antenna", "hull", [-16, 107, 18])
+    bone("barrel", "turret", [0, BARREL_Y, 0])
+    bone("vents", "barrel", [0, BARREL_Y, 0])
+    bone("coils_a", "barrel", [0, BARREL_Y, -60])
+    bone("seg1", "barrel", [0, BARREL_Y, 0])
+    bone("coils_b", "seg1", [0, BARREL_Y, -180])
+    bone("seg2", "seg1", [0, BARREL_Y, 0])
+    bone("coils_c", "seg2", [0, BARREL_Y, -260])
     B = bones
-    base, bar = B["base"], B["barrel"]
-    tur = B["hull"]  # turret geometry lives on "hull" so it can grow independently of the barrel
+    Y = BARREL_Y
 
-    # ---- Fortress ---------------------------------------------------------------------------
-    octagon("found", base, "concrete", 0, 176, 14)
-    octagon("tier2", base, "concrete", 14, 150, 22)
-    octagon("tier2_band", base, "dark", 27, 152, 2)
-    octagon("tier3", base, "concrete", 36, 122, 10)
-    octagon("tier3_cap", base, "steel", 46, 125, 2)
-    octagon("deck", base, "hazard", 48, 100, 4)
-    parts4("door", lambda d: base, BLAST_DOOR)
-    parts4("t3vent", lambda d: base, TIER3_VENTS)
-    parts4("pipes", lambda d: base, LEDGE_PIPES)
+    # ---- Core pedestal + mounted tablet ------------------------------------------------------
+    core = B["core"]
+    octagon("core_foot", core, "dark", 0, 64, 5)
+    octagon("core_hazard", core, "hazard", 5, 59.5, 2)
+    octagon("core_body", core, "steel", 7, 58, 61)
+    octagon("core_band1", core, "glow", 22, 58.8, 1.2)
+    octagon("core_band2", core, "glow", 62, 58.8, 1.2)
+    octagon("core_cap", core, "dark", 68, 60, 4)
+    box(core, "dark", [-13, 34, 28.4], [26, 28, 1.2])                      # tablet recess frame
+    box(core, "vent", [-8, 10, 28.5], [16, 8, 0.8])
+    P = B["pod_panel"]
+    box(P, "dark", [-3, 44, 29], [6, 8, 2])                                # mount arm
+    box(P, "dark", [-11, 37, 31], [22, 22, 1.6])                           # tablet bezel
+    box(P, "steel", [-12.5, 39, 30.6], [1.5, 18, 2.4], mirror=("x",))      # rubber grips
+    box(P, "screen", [-9, 39, 32.6], [18, 18, 0.3])                        # display
+    box(P, "amber", [-6, 37.4, 32.6], [2, 0.9, 0.3])
+    box(P, "glow", [4, 37.4, 32.6], [2, 0.9, 0.3])
+    box(P, "glow", [-1, 57.3, 32.6], [2, 1, 0.3])
 
-    # Floodlight towers on the diagonal ledges.
-    make_part("tower_foot", base, "dark", [([55, 14, 55], [7, 2, 7])], mirror=("x", "z"))
-    make_part("tower_pole", base, "steel", [([57, 16, 57], [3, 46, 3])], mirror=("x", "z"))
-    make_part("tower_brace", base, "steel", [([56, 30, 56], [5, 1.5, 5])], mirror=("x", "z"))
-    make_part("tower_head", base, "dark", [([53, 62, 53], [9, 5, 9])], mirror=("x", "z"))
-    make_part("tower_lamp", base, "amber", [([54, 61, 54], [7, 1, 7])], mirror=("x", "z"))
-    make_part("tower_beacon", base, "glow", [([57.5, 67, 57.5], [2, 2, 2])], mirror=("x", "z"))
+    # ---- Shell quarters (pod armour) -> corner bulwarks, with clamps, bolts, beacons -----------
+    A, T = SHELL_A, SHELL_T
+    half = A * TAN22                       # half length of an octagon face
+    for q in quads:
+        sx, sz = q
+        n = qname[q]
+        sh = B[f"shell_{n}"]
+        off = (sx * BULWARK_D, 0, sz * BULWARK_D)
+        x0 = 0 if sx > 0 else -half
+        z0 = 0 if sz > 0 else -half
+        # base ring quarter + hazard band
+        box(sh, "dark", [(A - 1) if sx > 0 else -(A + 1), 0, z0], [2, 6, half], off)
+        # +/-X face half (full height)
+        box(sh, "paint", [(A - T) if sx > 0 else -A, 6, z0], [T, SHELL_TOP - 6, half], off)
+        # +/-Z face half: on the +Z (panel) side leave the hatch open (|x| < 12)
+        if sz > 0:
+            box(sh, "paint", [13 if sx > 0 else -half, 6, A - T], [half - 13, SHELL_TOP - 6, T], off)
+            box(sh, "hazard", [13 if sx > 0 else -14, 6, A - T - 0.4], [1, SHELL_TOP - 6, T + 0.8], off)
+        else:
+            box(sh, "paint", [x0, 6, -A], [half, SHELL_TOP - 6, T], off)
+        # diagonal face: centre on the diagonal at the wall's mid-thickness
+        cxz = (A - T / 2) / math.sqrt(2)   # mid-wall point on the diagonal
+        cx, cz = sx * cxz, sz * cxz
+        L = 2 * half + 1.0
+        ang = 45.0 * sx * sz                # tangent of the (sx, sz) face
+        rbox(sh, "paint", [cx - L / 2, 6, cz - T / 2], [L, SHELL_TOP - 6, T], [cx, 6, cz], "y", ang, off)
+        rbox(sh, "hazard", [cx - L / 2, 6, cz - T / 2 - 0.3], [L, 3, T + 0.6], [cx, 6, cz], "y", ang, off)
+        rbox(sh, "glow", [cx - L / 2, 40, cz - T / 2 - 0.4], [L, 1.2, T + 0.8], [cx, 40, cz], "y", ang, off)
+        rbox(sh, "glow", [cx - L / 2, 86, cz - T / 2 - 0.4], [L, 1.2, T + 0.8], [cx, 86, cz], "y", ang, off)
+        # armour panel lines on the axis faces
+        box(sh, "steel", [(A - 0.2) if sx > 0 else -(A + 0.2) - 0.4, 30, z0 + (2 if sz > 0 else 2)], [0.6, 40, half - 4], off)
+        # top collar quarter
+        box(sh, "dark", [(A - T - 2) if sx > 0 else -(A - 0), SHELL_TOP, z0], [T + 2, 4, half], off)
+        rbox(sh, "dark", [cx - L / 2, SHELL_TOP, cz - (T + 2) / 2], [L, 4, T + 2], [cx, SHELL_TOP, cz], "y", ang, off)
+        # re-entry fin on the diagonal (never on the panel face)
+        diag_box(sh, "steel", sx, sz, (sx * 20, sz * 20), 12, 34, 3, 18, 84, off)
+        diag_box(sh, "glow", sx, sz, (sx * 20, sz * 20), 30, 34.6, 3.6, 24, 78, off)
+        diag_box(sh, "dark", sx, sz, (sx * 20, sz * 20), 22, 36, 5, 84, 92, off)
+        # corner deck slab (bulwark floor)
+        box(sh, "steel", [4 if sx > 0 else -30, 0, 4 if sz > 0 else -30], [26, 18, 26], off)
+        box(sh, "vent", [6 if sx > 0 else -28, 18, 6 if sz > 0 else -28], [22, 1, 22], off)
+        # locking bolts on the seams (bolt bone)
+        bb = B[f"bolt_{n}"]
+        bz0 = 1.5 if sz > 0 else -4.5
+        box(bb, "steel", [(A - 2) if sx > 0 else -(A + 1), 56, bz0], [3, 8, 3], off)
+        box(bb, "amber", [(A + 0.4) if sx > 0 else -(A + 1.4), 58, bz0 + 0.5], [1, 3, 2], off)
+        # beacon (spins)
+        be = B[f"beacon_{n}"]
+        bx_, bz_ = sx * 22, sz * 22
+        box(be, "dark", [bx_ - 3, SHELL_TOP + 2, bz_ - 3], [6, 2, 6], off)
+        box(be, "amber", [bx_ - 2.5, SHELL_TOP + 4, bz_ - 1], [5, 3, 2], off)
+        box(be, "glow", [bx_ - 1, SHELL_TOP + 4, bz_ - 2.5], [2, 3, 5], off)
+        # ground clamp (stowed inside; slides out along the diagonal and slams down)
+        cl = B[f"clamp_{n}"]
+        base = (sx * 26, sz * 26)
+        diag_box(cl, "steel", sx, sz, base, 0, 34, 9, 4, 12, off)            # arm
+        diag_box(cl, "paint", sx, sz, base, 2, 30, 10, 12, 14, off)          # arm cover
+        diag_box(cl, "dark", sx, sz, base, 6, 26, 4, 14, 18, off)            # hydraulic ram
+        diag_box(cl, "steel", sx, sz, base, 26, 42, 16, 0, 5, off)           # foot pad
+        diag_box(cl, "hazard", sx, sz, base, 27, 41, 14, 5, 6, off)
+        diag_box(cl, "dark", sx, sz, base, 30, 38, 6, -3, 0, off)            # ground spike
+        diag_box(cl, "amber", sx, sz, base, 33, 35, 2, 12, 14, off)
 
-    # ---- Ground clamps, stairs, console --------------------------------------------------------
-    parts4("clamp", lambda d: B[f"leg_{d}"], OUTRIGGER)
-    for i, (kind, (o, sz)) in enumerate(STAIRS):
-        make_part(f"stairs_{i}", B["stairs"], kind, [(o, sz)])
-    for i, (kind, (o, sz)) in enumerate(CONSOLE):
-        make_part(f"console_{i}", base, kind, [(o, sz)])
+    # ---- Deck plates (slide out from under the pod) + nested stairs -----------------------------
+    def deck(bn, rot):
+        db = B[bn]
+        for kind, o, sz_ in (
+            ("steel", [-24, 0, 26], [48, 16, 58]),
+            ("vent", [-22, 16, 28], [44, 3.5, 54]),
+            ("hazard", [-24, 16, 82], [48, 4, 2]),
+            ("dark", [-26, 0, 30], [2, 14, 50]),
+            ("dark", [24, 0, 30], [2, 14, 50]),
+            ("glow", [-26.4, 10, 34], [0.4, 1, 42]),
+            ("glow", [26, 10, 34], [0.4, 1, 42]),
+            ("amber", [-22, 16, 80], [3, 1.5, 2]),
+            ("amber", [19, 16, 80], [3, 1.5, 2]),
+        ):
+            x0, y0, z0 = o
+            w, h, d = sz_
+            if rot == "s":
+                oo, ss = [x0, y0, z0], [w, h, d]
+            elif rot == "n":
+                oo, ss = [x0, y0, -(z0 + d)], [w, h, d]
+            elif rot == "e":
+                oo, ss = [z0, y0, x0], [d, h, w]
+            else:
+                oo, ss = [-(z0 + d), y0, x0], [d, h, w]
+            box(db, kind, oo, ss, name=f"deck{rot}")
+    deck("deck_s", "s")
+    deck("deck_n", "n")
+    deck("deck_e", "e")
+    deck("deck_w", "w")
+    for i, h in enumerate((15, 10, 5)):
+        st = B[f"step_{i + 1}"]
+        z = 84 + i * 7
+        box(st, "steel", [-18, 0, z], [36, h, 7])
+        box(st, "hazard", [-18, h, z + 5.5], [36, 0.4, 1.5])
+        box(st, "dark", [-19, 0, z + 1], [1, h - 1, 5], mirror=("x",))
 
-    # ---- Drop pod (compact pillar form; the rail pokes out of its top collar) -------------------
-    pod = B["pod"]
-    octagon("pod_skirt", pod, "dark", 0, 62, 6)
-    octagon("pod_hazard", pod, "hazard", 6, 59, 3)
-    octagon("pod_body", pod, "paint", 9, 56, 71)
-    octagon("pod_band1", pod, "glow", 30, 57, 1.5)
-    octagon("pod_band2", pod, "glow", 62, 57, 1.5)
-    octagon("pod_collar", pod, "steel", 80, 50, 8)
-    octagon("pod_lip", pod, "dark", 88, 42, 3)
-    parts4("pod_fin", lambda d: pod, [
-        ("steel", [[-2, 6, -40], [4, 52, 12]]),
-        ("dark", [[-2.5, 6, -42], [5, 8, 4]]),
-        ("glow", [[-0.5, 20, -40.6], [1, 30, 0.6]]),
-    ])
-    make_part("pod_screen", pod, "glow", [([-8, 34, 28], [16, 14, 0.4])])
-    make_part("pod_screen_frame", pod, "dark", [([-10, 32, 27.9], [20, 18, 0.3])])
-    make_part("pod_panel_cover", B["pod_panel"], "paint", [([-10, 31, 28.4], [20, 20, 2])])
-    make_part("pod_panel_stripe", B["pod_panel"], "hazard", [([-10, 31, 30.4], [20, 2.5, 0.4])])
-    make_part("pod_panel_light", B["pod_panel"], "amber", [([-2, 47, 30.4], [4, 2, 0.6])])
-    make_part("pod_panel_handle", B["pod_panel"], "dark", [([-5, 38, 30.4], [10, 2, 1.2])])
+    # ---- Turret ------------------------------------------------------------------------------------
+    H = B["hull"]
+    octagon("tt_ring", H, "dark", 72, 54, 4)
+    octagon("tt_glow", H, "glow", 73.5, 55.5, 1.2)
+    octagon("hull_low", H, "steel", 76, 52, 8)
+    octagon("hull_body", H, "paint", 84, 56, 20)
+    octagon("hull_roof", H, "dark", 104, 48, 3)
+    box(H, "paint", [-22, 84, -34], [44, 7, 6])          # stepped front glacis
+    box(H, "paint", [-18, 91, -33], [36, 6, 5])
+    box(H, "hazard", [-22, 84, -34.4], [44, 1.6, 0.4])
+    box(H, "paint", [-32, 96, -14], [7, 24, 28], mirror=("x",))   # trunnion cheeks
+    box(H, "paint", [-31, 120, -10], [5, 3, 20], mirror=("x",))
+    box(H, "steel", [-32.3, 100, -10], [0.3, 14, 20], mirror=("x",))
+    box(H, "dark", [-35, 112, -6], [3, 12, 12], mirror=("x",))    # trunnion hubs
+    box(H, "glow", [-35.5, 116, -2], [0.5, 4, 4], mirror=("x",))
+    box(H, "dark", [-30, 86, -26], [6, 8, 10], mirror=("x",))     # sensor pods
+    box(H, "screen", [-30.3, 88, -25], [0.3, 4, 8], mirror=("x",))
+    box(H, "vent", [-16, 88, 27.5], [32, 12, 1])                  # rear exhaust
+    box(H, "steel", [-14, 104, 18], [28, 3, 1], array=(4, [0, 0, -4]))   # heat sink fins
+    R = B["radar"]
+    box(R, "steel", [13.5, 107, 14.5], [3, 14, 3])
+    box(R, "dark", [12.5, 107, 13.5], [5, 2, 5])
+    Dh = B["dish"]
+    box(Dh, "dark", [7, 121, 12], [16, 1.5, 8])
+    box(Dh, "paint", [8, 122.5, 15.5], [14, 4, 1])
+    box(Dh, "glow", [14, 122.5, 14], [2, 2, 1.5])
+    An = B["antenna"]
+    box(An, "steel", [-16.5, 107, 17.5], [1, 22, 1])
+    box(An, "glow", [-17, 129, 17], [2, 2, 2])
 
-    # ---- Turret -----------------------------------------------------------------------------
-    octagon("tt_ring", tur, "dark", 52, 88, 6)
-    octagon("tt_glow", tur, "glow", 54.5, 90, 1.5)
-    octagon("tt_plate", tur, "steel", 58, 80, 4)
-    make_part("hull_low", tur, "paint", [([-34, 62, -40], [68, 22, 80])])
-    make_part("hull_mid", tur, "paint", [([-30, 84, -34], [60, 8, 68])])
-    make_part("hull_top", tur, "paint", [([-26, 92, -28], [52, 3, 56])])
-    make_part("hull_front_vent", tur, "vent", [([-24, 66, -40.6], [48, 12, 0.6])])
-    make_part("hull_front_trim", tur, "hazard", [([-34, 62, -41], [68, 2.5, 1])])
-    make_part("hull_rear_grille", tur, "vent", [([-22, 66, 40], [44, 14, 1])])
-    make_part("skirts", tur, "paint", [([-38, 64, -36], [4, 18, 72])], mirror=("x",))
-    make_part("skirt_trim", tur, "dark", [([-38.5, 62, -36], [4.5, 2, 72])], mirror=("x",))
-    make_part("skirt_plates", tur, "steel", [([-38.6, 67, -32], [0.6, 11, 26])], mirror=("x",), array=(2, [0, 0, 36]))
-    make_part("skirt_glow", tur, "glow", [([-38.7, 80, -30], [0.7, 1, 60])], mirror=("x",))
-    make_part("exhaust", tur, "dark", [([-18, 84, 34], [8, 16, 6])], array=(3, [14, 0, 0]))
-    make_part("exhaust_heat", tur, "glow", [([-17, 99.9, 35], [6, 0.4, 4])], array=(3, [14, 0, 0]))
-    make_part("cab", tur, "paint", [([-30, 95, -32], [16, 11, 14])])
-    make_part("cab_roof", tur, "dark", [([-31, 106, -33], [18, 2, 16])])
-    make_part("cab_window_front", tur, "glass", [([-28, 99, -32.5], [12, 5, 0.5])])
-    make_part("cab_window_side", tur, "glass", [([-30.5, 99, -30], [0.5, 5, 10])])
-    make_part("cab_light", tur, "amber", [([-23, 108, -26], [2, 1.5, 2])])
-    make_part("ladder_rails", tur, "steel", [([38, 62, 18], [1.2, 30, 1]), ([38, 62, 27], [1.2, 30, 1])])
-    make_part("ladder_rungs", tur, "steel", [([38, 64, 19], [1.2, 1, 8])], array=(7, [0, 4, 0]))
-    make_part("rail_bars", tur, "steel", [([-27, 100, -12], [1, 1, 40])], mirror=("x",))
-    make_part("rail_posts", tur, "steel", [([-27, 95, -12], [1, 5, 1])], mirror=("x",), array=(3, [0, 0, 19.5]))
-    # Capacitor tanks (vertical octagonal prisms) behind the yoke.
-    for side in (-1, 1):
-        cx = side * 20
-        octagon(f"tank{side}", tur, "steel", 95, 12, 20, (cx, 22))
-        octagon(f"tank_band{side}", tur, "glow", 101, 12.8, 1.5, (cx, 22))
-        octagon(f"tank_band2{side}", tur, "glow", 108, 12.8, 1.5, (cx, 22))
-        octagon(f"tank_cap{side}", tur, "dark", 115, 9, 2, (cx, 22))
-    # Yoke
-    make_part("cheeks", tur, "paint", [([-30, 95, -18], [10, 41, 36])], mirror=("x",))
-    make_part("cheek_bevel", tur, "paint", [([-29, 136, -14], [8, 4, 28])], mirror=("x",))
-    make_part("cheek_plates", tur, "steel", [([-30.6, 99, -14], [0.6, 10, 28])], mirror=("x",))
-    make_part("cheek_hazard", tur, "hazard", [([-30, 128, -18.6], [10, 4, 0.6])], mirror=("x",))
-    make_part("hubs", tur, "dark", [([-33, 112, -8], [3, 16, 16])], mirror=("x",))
-    make_part("hub_caps", tur, "steel", [([-34, 115, -5], [1, 10, 10])], mirror=("x",))
-    make_part("hub_glow", tur, "glow", [([-34.6, 118, -2], [0.6, 4, 4])], mirror=("x",))
-    make_part("cables", tur, "dark", [([-12, 95, 26], [6, 19, 6])], mirror=("x",))
-
-    # ---- Barrel (points to -Z / north) ---------------------------------------------------------
-    make_part("wall_under", bar, "dark", [([-17, 109, -300], [9, 24, 322])], mirror=("x",))
-    make_part("wall_armour", bar, "paint", [([-18, 108, -300], [10, 26, 34])], mirror=("x",), array=(9, [0, 0, 36]))
-    make_part("floor", bar, "paint", [([-16, 104, -296], [32, 4, 318])])
-    make_part("keel", bar, "dark", [([-6, 100, -280], [12, 4, 296])])
-    make_part("slot_bed", bar, "dark", [([-8, 108, -300], [16, 6, 322])])
-    make_part("rail_core", bar, "glow", [([-3, 117, -298], [6, 6, 318])])
-    make_part("conductors", bar, "steel", [([-8, 114, -298], [3, 12, 318])], mirror=("x",))
-    make_part("roof", bar, "paint", [([-18, 134, -150], [36, 4, 172])])
-    make_part("conduit", bar, "steel", [([-18.8, 127, -292], [0.8, 3, 312])], mirror=("x",))
-    make_part("energy_line", bar, "glow", [([-18.6, 122, -282], [0.6, 1, 270])], mirror=("x",))
-    make_part("groove", bar, "dark", [([-18.4, 113, -296], [0.4, 1, 316])], mirror=("x",))
-    make_part("sensor", bar, "dark", [([-6, 138, -24], [12, 6, 14])])
-    make_part("sensor_lens", bar, "glow", [([-3, 140, -24.6], [6, 3, 0.6])])
-    # Muzzle brake
-    make_part("muzzle_top", bar, "dark", [([-22, 134, -312], [44, 6, 14])])
-    make_part("muzzle_bottom", bar, "dark", [([-22, 100, -312], [44, 8, 14])])
-    make_part("muzzle_sides", bar, "dark", [([-22, 108, -312], [8, 26, 14])], mirror=("x",))
-    make_part("muzzle_vents", bar, "vent", [([-22.6, 112, -310], [0.6, 18, 10])], mirror=("x",))
-    make_part("muzzle_rim_tb", bar, "glow", [([-14, 108, -312.6], [28, 1.5, 0.6]), ([-14, 132.5, -312.6], [28, 1.5, 0.6])])
-    make_part("muzzle_rim_s", bar, "glow", [([-14, 109.5, -312.6], [1.5, 23, 0.6])], mirror=("x",))
-    make_part("muzzle_hazard", bar, "hazard", [([-22, 140, -312], [44, 1, 14])])
-    # Breech
-    make_part("breech", bar, "paint", [([-24, 100, 22], [48, 40, 34])])
-    make_part("breech_cap", bar, "dark", [([-20, 104, 56], [40, 32, 4])])
-    make_part("breech_fins", bar, "steel", [([-18, 106, 60], [36, 2, 3])], array=(7, [0, 4, 0]))
-    make_part("breech_lights", bar, "amber", [([-22, 140, 26], [4, 2, 4])], mirror=("x",))
-    make_part("breech_hazard", bar, "hazard", [([-24.6, 128, 24], [0.6, 6, 30])], mirror=("x",))
-    make_part("couplings", bar, "dark", [([-28, 108, 30], [4, 12, 18])], mirror=("x",))
-    make_part("coupling_glow", bar, "glow", [([-28.6, 112, 36], [0.6, 4, 6])], mirror=("x",))
-
-    # ---- Cooling fins (vents bone) and accelerator coils (coils bone) -------------------------
-    make_part("fins", B["vents"], "steel", [([-16, 138, -140], [32, 6, 2])], array=(12, [0, 0, 10]))
-    make_part("fin_tips", B["vents"], "glow", [([-14, 144, -140], [28, 0.5, 2])], array=(12, [0, 0, 10]))
-    for i in range(5):
-        z = -280 + i * 30
-        make_part(f"coil{i}_tb", B["coils"], "glow", [([-21, 134, z], [42, 3, 4]), ([-21, 101, z], [42, 3, 4])])
-        make_part(f"coil{i}_s", B["coils"], "glow", [([-21, 104, z], [3, 30, 4])], mirror=("x",))
-        make_part(f"coil{i}_mount", B["coils"], "dark", [([-23, 114, z + 0.5], [2, 10, 3])], mirror=("x",))
+    # ---- Barrel: three telescoping octagonal segments -----------------------------------------
+    b0, s1, s2 = B["barrel"], B["seg1"], B["seg2"]
+    octagon_z("breech", b0, "paint", 0, Y, 10, 48, 44)
+    octagon_z("breech_cap", b0, "dark", 0, Y, 48, 52, 36)
+    for i, z in enumerate((14, 26, 38)):
+        octagon_z(f"breech_fin{i}", b0, "dark", 0, Y, z, z + 2, 48)
+    box(b0, "dark", [-26, Y - 8, 18], [4, 16, 20], mirror=("x",))           # power couplings
+    box(b0, "glow", [-26.4, Y - 2, 24], [0.4, 4, 8], mirror=("x",))
+    octagon_z("seg0_tube", b0, "paint", 0, Y, -120, 10, 40)
+    box(b0, "steel", [-23, Y - 8, -118], [4, 16, 126], mirror=("x",))      # rails
+    box(b0, "glow", [-23.4, Y - 1, -116], [0.4, 2, 120], mirror=("x",))
+    box(b0, "glow", [-1, Y + 19.6, -118], [2, 0.6, 122])
+    box(b0, "dark", [-14, Y + 19, -118], [3, 1, 122], mirror=("x",))
+    octagon_z("seg0_mouth", b0, "dark", 0, Y, -124, -118, 44)
+    V = B["vents"]
+    box(V, "steel", [-11, Y + 19, -100], [22, 5, 2], array=(8, [0, 0, 10]))
+    box(V, "glow", [-9, Y + 24, -100], [18, 0.4, 2], array=(8, [0, 0, 10]))
+    for i, z in enumerate((-40, -80)):
+        octagon_z(f"coil_a{i}", B["coils_a"], "glow", 0, Y, z - 1.5, z + 1.5, 48)
+    octagon_z("seg1_tube", s1, "paint", 0, Y, -220, -110, 34)
+    box(s1, "steel", [-19, Y - 6, -216], [3, 12, 104], mirror=("x",))
+    box(s1, "glow", [-19.4, Y - 1, -214], [0.4, 2, 100], mirror=("x",))
+    box(s1, "glow", [-1, Y + 16.6, -216], [2, 0.6, 104])
+    octagon_z("seg1_mouth", s1, "dark", 0, Y, -224, -218, 38)
+    for i, z in enumerate((-160, -200)):
+        octagon_z(f"coil_b{i}", B["coils_b"], "glow", 0, Y, z - 1.5, z + 1.5, 42)
+    octagon_z("seg2_tube", s2, "paint", 0, Y, -300, -210, 28)
+    box(s2, "glow", [-1, Y + 13.6, -296], [2, 0.6, 84])
+    octagon_z("muzzle", s2, "dark", 0, Y, -316, -300, 39)
+    octagon_z("muzzle_ring", s2, "steel", 0, Y, -306, -304, 38.5)
+    box(s2, "vent", [-20.6, Y - 5, -314], [0.6, 10, 8], mirror=("x",))
+    octagon_z("bore", s2, "glow", 0, Y, -316.6, -316, 22)
+    octagon_z("coil_c0", B["coils_c"], "glow", 0, Y, -261.5, -258.5, 36)
     return bones
 
 
@@ -616,8 +654,8 @@ def build_remote(offset):
     make_part("tab_body", R, "paint", [([1, 2.5, 7.25], [14, 11, 1.5])])
     make_part("tab_bezel_f", R, "dark", [([1.5, 3.2, 7.18], [13, 9.6, 0.07])])
     make_part("tab_bezel_b", R, "dark", [([1.5, 3.2, 8.75], [13, 9.6, 0.07])])
-    make_part("tab_screen_f", R, "glow", [([2.2, 4.2, 7.1], [11.6, 7.6, 0.08])])
-    make_part("tab_screen_b", R, "glow", [([2.2, 4.2, 8.82], [11.6, 7.6, 0.08])])
+    make_part("tab_screen_f", R, "screen", [([2.2, 4.2, 7.1], [11.6, 7.6, 0.08])])
+    make_part("tab_screen_b", R, "screen", [([2.2, 4.2, 8.82], [11.6, 7.6, 0.08])])
     make_part("tab_grips", R, "dark", [([0, 3.5, 6.9], [1.5, 9, 2.2])], mirror=("x",))
     make_part("tab_grip_ribs", R, "steel", [([-0.1, 5, 7.4], [0.1, 0.6, 1.2])], mirror=("x",), array=(4, [0, 2, 0]))
     make_part("tab_bumpers", R, "hazard", [([1, 2, 7], [3, 0.6, 2])], mirror=("x",))
@@ -646,11 +684,12 @@ def extract_boxes(bones, offset=Vector((0, 0, 0))):
     for obj in bpy.context.scene.objects:
         if not obj.get("export") or obj.parent is None or obj.parent.name not in bone_names:
             continue
-        if obj.get("rot_y") is not None:
+        if obj.get("rot_axis") is not None:
             x, y, z, sx, sy, sz = list(obj["cube_mc"])
             boxes.append({"bone": obj.parent.name, "kind": obj["kind"],
                           "min": [x, y, z], "max": [x + sx, y + sy, z + sz],
-                          "rot_y": float(obj["rot_y"]), "rot_pivot": [x + sx / 2, y, z + sz / 2]})
+                          "rot_axis": obj["rot_axis"], "rot_angle": float(obj["rot_angle"]),
+                          "rot_pivot": list(obj["rot_pivot"])})
             continue
         ev = obj.evaluated_get(depsgraph)
         mesh = ev.to_mesh()
@@ -753,6 +792,17 @@ def pack_faces(boxes, texels_per_px, start_size):
     return tex
 
 
+def rotate_point(c, box):
+    """Model-space rotation of a cube corner, matching what GeckoLib renders (see make_rcube)."""
+    px, py, pz = box["rot_pivot"]
+    a = math.radians(box["rot_angle"])
+    dx, dy, dz = c[0] - px, c[1] - py, c[2] - pz
+    if box["rot_axis"] == "y":       # R_y(a)
+        return (px + dx * math.cos(a) + dz * math.sin(a), c[1], pz - dx * math.sin(a) + dz * math.cos(a))
+    b = -a                           # JSON z rotation c renders as R_z(-c)
+    return (px + dx * math.cos(b) - dy * math.sin(b), py + dx * math.sin(b) + dy * math.cos(b), c[2])
+
+
 def build_bake_objects(boxes, bones, tex, kinds, offset=Vector((0, 0, 0))):
     """One UV-mapped mesh per bone, parented to the bone Empty, faces mapped into the atlas."""
     objs = []
@@ -767,12 +817,8 @@ def build_bake_objects(boxes, bones, tex, kinds, offset=Vector((0, 0, 0))):
                 u, v, w, h = box["rects"][face]
                 base = len(verts)
                 for c in corners:
-                    if "rot_y" in box:
-                        px, _, pz = box["rot_pivot"]
-                        a = math.radians(box["rot_y"])
-                        dx, dz = c[0] - px, c[2] - pz
-                        c = (px + dx * math.cos(a) + dz * math.sin(a), c[1],
-                             pz - dx * math.sin(a) + dz * math.cos(a))
+                    if "rot_axis" in box:
+                        c = rotate_point(c, box)
                     verts.append(mc_to_b(c) + offset - pivot_world)
                 faces.append((base, base + 1, base + 2, base + 3))
                 # TL, TR, BR, BL -> Blender UV origin is bottom-left.
@@ -807,6 +853,55 @@ def _hex01(h):
 SIDE_FACES = {"north", "south", "east", "west"}
 
 
+def paint_screen(R, w, h, seed=0):
+    """
+    A tablet / console display: dark glass with a glowing UI — frame, header bar, radar scope
+    with sweep and contacts, status bars and text-like rows. Big faces get the full layout, thin
+    faces just a dark display with a scanline glow.
+    """
+    r = np.random.default_rng(seed)
+    bg = np.array([0.02, 0.05, 0.08])
+    R[:] = bg
+    yy, xx = np.mgrid[0:h, 0:w]
+    R[yy % 2 == 0] *= 0.8
+    if w < 6 or h < 6:
+        R[h // 2, :] = [0.1, 0.55, 0.7]
+        return
+    cyan, red, amber, green = (np.array(c) for c in ([0.25, 0.85, 1.0], [1.0, 0.25, 0.15], [1.0, 0.7, 0.15], [0.3, 1.0, 0.5]))
+    R[0, :] = R[-1, :] = R[:, 0] = R[:, -1] = cyan * 0.6
+    hb = max(1, h // 8)
+    R[1:1 + hb, 1:-1] = cyan * 0.35
+    R[1:1 + hb, 2:min(w - 2, 2 + w // 3)] = cyan * 0.9
+    R[1:1 + hb, w - 2 - max(1, w // 8):w - 2] = red
+    # radar scope on the left
+    rad = max(2, min(h - hb - 4, w // 2 - 3) // 2)
+    cy, cx = hb + 2 + rad, 2 + rad
+    d = np.hypot(yy - cy, xx - cx)
+    R[np.abs(d - rad) < 0.7] = cyan * 0.9
+    R[np.abs(d - rad * 0.5) < 0.6] = cyan * 0.45
+    R[(np.abs(yy - cy) < 0.5) & (d < rad)] = cyan * 0.35
+    R[(np.abs(xx - cx) < 0.5) & (d < rad)] = cyan * 0.35
+    ang = np.arctan2(yy - cy, xx - cx)
+    sweep = (d < rad) & (((ang - 0.6) % (2 * np.pi)) < 0.9)
+    R[sweep] = R[sweep] * 0.5 + green * 0.45
+    for _ in range(3):
+        a = r.uniform(0, 2 * np.pi)
+        rr = r.uniform(0.2, 0.85) * rad
+        py, px = int(round(cy + np.sin(a) * rr)), int(round(cx + np.cos(a) * rr))
+        if 0 <= py < h and 0 <= px < w:
+            R[py, px] = red
+    # bars and text rows on the right
+    x0 = cx + rad + 3
+    if x0 < w - 3:
+        rows = range(hb + 2, h - 2, 2)
+        for i, y in enumerate(rows):
+            L = int((w - 2 - x0) * (0.35 + 0.65 * r.random()))
+            col = amber if i % 4 == 0 else (cyan * 0.8 if i % 2 else green * 0.8)
+            R[y, x0:x0 + L] = col
+    R[-3, 2:w - 2] = cyan * 0.3
+    R[-3, 2:2 + int((w - 4) * 0.7)] = red * 0.9
+
+
 def paint_faces(td, boxes, seed=7):
     """
     Hand-painting in code. td is the atlas as [row(top->bottom), col, rgba] in sRGB 0..1.
@@ -825,6 +920,10 @@ def paint_faces(td, boxes, seed=7):
             R = td[v:v + h, u:u + w, :3]
             side = face in SIDE_FACES
             yy, xx = np.mgrid[0:h, 0:w]
+
+            if kind == "screen":
+                paint_screen(R, w, h, seed=bi * 7 + len(face))
+                continue
 
             if kind in GLOW_KINDS:
                 cy, cx = (h - 1) / 2, (w - 1) / 2
@@ -955,7 +1054,12 @@ def bake(objs, boxes, kinds, tex, label):
         for (u, v, w, h) in b["rects"].values():
             mask[tex - (v + h):tex - v, u:u + w] = True
 
-    glow_px = color[mask]
+    red_mask = np.zeros((tex, tex), dtype=bool)
+    for b in boxes:
+        if b["kind"] in ("glow", "amber"):
+            for (u, v, w, h) in b["rects"].values():
+                red_mask[tex - (v + h):tex - v, u:u + w] = True
+    glow_px = color[red_mask]
     if not mask.any():
         raise RuntimeError(f"{label}: glowmask is empty")
     reddish = (glow_px[:, 0] > glow_px[:, 2] + 0.15).mean()
@@ -998,9 +1102,9 @@ def export_geo(bones, boxes, tex, path):
             uv = {f: {"uv": [b["rects"][f][0], b["rects"][f][1]],
                       "uv_size": [b["rects"][f][2], b["rects"][f][3]]} for f in FACES}
             cube = {"origin": b["min"], "size": size, "uv": uv}
-            if "rot_y" in b:
-                cube["pivot"] = b["rot_pivot"]
-                cube["rotation"] = [0, b["rot_y"], 0]
+            if "rot_axis" in b:
+                cube["pivot"] = [round(v, 3) for v in b["rot_pivot"]]
+                cube["rotation"] = [0, b["rot_angle"], 0] if b["rot_axis"] == "y" else [0, 0, b["rot_angle"]]
             cubes.append(cube)
         if cubes:
             entry["cubes"] = cubes
@@ -1056,17 +1160,20 @@ def export_item_model(boxes, tex, path, texture_id):
 # Collision heightfield (consumed by the mod to place invisible collider blocks)
 # =============================================================================================
 
-COLLISION_BONES = {"base", "stairs"}
-TURRET_COLLISION_RADIUS = 36.0   # px, the turret hull footprint (it rotates, so a disc)
-TURRET_COLLISION_TOP = 95.0      # px, hull roof
+COLLISION_BONES = {"core", "deck_n", "deck_e", "deck_s", "deck_w", "step_1", "step_2", "step_3",
+                   "shell_pp", "shell_pn", "shell_np", "shell_nn"}
+TURRET_COLLISION_RADIUS = 28.0   # px, the turret hull footprint (it rotates, so a disc)
+TURRET_COLLISION_TOP = 107.0     # px, hull roof
 
 
 def _inside(box, mx, mz):
     x0, _, z0 = box["min"]
     x1, _, z1 = box["max"]
-    if "rot_y" in box:
+    if "rot_axis" in box:
+        if box["rot_axis"] != "y":
+            return False
         px, _, pz = box["rot_pivot"]
-        a = math.radians(box["rot_y"])
+        a = math.radians(box["rot_angle"])
         dx, dz = mx - px, mz - pz
         # rotate the point into the box's unrotated frame
         lx = px + dx * math.cos(a) - dz * math.sin(a)
@@ -1078,13 +1185,13 @@ def _inside(box, mx, mz):
 def collision_heightfield(boxes, radius=8):
     """
     Height (px above the entity's feet) of the deployed emplacement at the centre of every block
-    column around it. World offsets are converted to model space with the 180-degree yaw GeckoLib
-    applies to entity models: model (x, z) = (-dx * 16, -dz * 16).
+    column around it. GeckoLib mirrors model X and renders entities rotated 180 degrees about Y,
+    which together give world (dx, dz) = (model x, -model z) / 16.
     """
     cols = []
     for dx in range(-radius, radius + 1):
         for dz in range(-radius, radius + 1):
-            mx, mz = -dx * 16.0, -dz * 16.0
+            mx, mz = dx * 16.0, -dz * 16.0
             # Stack upward: a box counts if it starts on the ground or on geometry already counted
             # (foundation -> tier 2 -> tier 3 -> cap -> deck), so floating details are ignored.
             here = [b for b in boxes if b["bone"] in COLLISION_BONES and _inside(b, mx, mz)]
@@ -1116,47 +1223,103 @@ def export_collision(boxes, path):
 # Animation: authored as Blender Actions, exported to GeckoLib JSON
 # =============================================================================================
 
-FOLD = 0.12
-LEGS = ("leg_n", "leg_s", "leg_e", "leg_w")
-LEG_FOLD = {"leg_n": [1, 1, FOLD], "leg_s": [1, 1, FOLD], "leg_e": [FOLD, 1, 1], "leg_w": [FOLD, 1, 1]}
-LEG_OVER = {"leg_n": [1, 1, 1.06], "leg_s": [1, 1, 1.06], "leg_e": [1.06, 1, 1], "leg_w": [1.06, 1, 1]}
+QUADS = {"pp": (1, 1), "pn": (1, -1), "np": (-1, 1), "nn": (-1, -1)}
+DECKS = {"deck_s": (0, 1), "deck_n": (0, -1), "deck_e": (1, 0), "deck_w": (-1, 0)}
 ONE = [1, 1, 1]
-HIDE = [0.001, 0.001, 0.001]  # "invisible" (true zero would make GeckoLib's normal matrix singular)
-POD_TURRET = [0, -34, 0]       # lowers the barrel pivot into the pod
-POD_BARREL = [1, 1, 0.15]      # rail retracted; pitched straight up procedurally
-PANEL_OPEN = [0, -18, -1.5]    # pod panel cover slid down and in
+ZERO = [0, 0, 0]
+DEPLOY_LEN = 12.0
+PANEL_IN = [0, 0, -4.2]          # tablet slid into the core
 
-# Pod form, shared by falling / landed / packed / launching.
-POD_POSE = {
-    "base": {"scale": {0.0: HIDE, 1.0: HIDE}},
-    "hull": {"scale": {0.0: HIDE, 1.0: HIDE}},
-    "pod": {"scale": {0.0: ONE, 1.0: ONE}, "position": {0.0: [0, 0, 0], 1.0: [0, 0, 0]}},
-    "pod_panel": {"position": {0.0: [0, 0, 0], 1.0: [0, 0, 0]}},
-    "turret": {"position": {0.0: POD_TURRET, 1.0: POD_TURRET}},
-    "barrel": {"scale": {0.0: POD_BARREL, 1.0: POD_BARREL}},
-    "vents": {"position": {0.0: [0, -4, 0], 1.0: [0, -4, 0]}},
-    "coils": {"scale": {0.0: [0.9, 0.9, 1], 0.5: [0.97, 0.97, 1], 1.0: [0.9, 0.9, 1]}},
-}
 
-# The transformation: pod sinks, fortress rises, stairs extend, turret grows, rail lowers and
-# extends (pitch is procedural), clamps extend, lift, SLAM into the ground at 6.5 s, power-up.
-DEPLOY_LEN = 8.0
-DEPLOY = {
-    "pod": {"position": {0.0: [0, 0, 0], 0.3: [0, 0, 0], 1.8: [0, -92, 0]},
-            "scale": {0.0: ONE, 1.8: ONE, 1.85: HIDE, 8.0: HIDE}},
-    "pod_panel": {"position": {0.0: PANEL_OPEN, 8.0: PANEL_OPEN}},
-    "base": {"scale": {0.0: HIDE, 0.8: HIDE, 0.85: [0.85, 1, 0.85], 2.6: ONE},
-             "position": {0.0: [0, -54, 0], 0.85: [0, -54, 0], 2.6: [0, 0, 0]}},
-    "stairs": {"scale": {0.0: [1, 1, 0.05], 2.6: [1, 1, 0.05], 3.4: [1, 1, 1.04], 3.6: ONE}},
-    **{leg: {"scale": {0.0: LEG_FOLD[leg], 4.6: LEG_FOLD[leg], 5.3: LEG_OVER[leg], 5.5: ONE},
-             "position": {0.0: [0, 14, 0], 5.5: [0, 14, 0], 6.2: [0, 17, 0], 6.45: [0, -1.5, 0], 6.7: [0, 0, 0]}}
-       for leg in LEGS},
-    "turret": {"position": {0.0: POD_TURRET, 2.4: POD_TURRET, 3.8: [0, 2, 0], 4.0: [0, 0, 0]}},
-    "hull": {"scale": {0.0: HIDE, 2.2: HIDE, 2.25: [0.4, 0.4, 0.4], 3.6: [1.03, 1.03, 1.03], 3.8: ONE}},
-    "barrel": {"scale": {0.0: POD_BARREL, 4.6: POD_BARREL, 6.0: [1, 1, 1.03], 6.2: ONE}},
-    "vents": {"position": {0.0: [0, -4, 0], 6.8: [0, -4, 0], 7.3: [0, 1.5, 0], 7.6: [0, 0, 0]}},
-    "coils": {"scale": {0.0: [0.9, 0.9, 1], 6.8: [0.9, 0.9, 1], 7.4: [1.15, 1.15, 1], 8.0: ONE}},
-}
+def _q_in(q, f=1.0):
+    sx, sz = QUADS[q]
+    return [-sx * BULWARK_D * f, 0, -sz * BULWARK_D * f]
+
+
+def _deck_in(d, f=1.0):
+    ax, az = DECKS[d]
+    return [-ax * DECK_OUT * f, 0, -az * DECK_OUT * f]
+
+
+def _clamp_in(q, lift=6.0):
+    sx, sz = QUADS[q]
+    k = 30 / math.sqrt(2)
+    return [-sx * k, lift, -sz * k]
+
+
+def _pod_pose():
+    """Everything stowed inside the pod."""
+    t = {}
+    for q in QUADS:
+        t[f"shell_{q}"] = {"position": {0.0: _q_in(q)}}
+        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q)}}
+        t[f"bolt_{q}"] = {"position": {0.0: ZERO}}
+        t[f"beacon_{q}"] = {"rotation": {0.0: ZERO}}
+    for d in DECKS:
+        t[d] = {"position": {0.0: _deck_in(d)}}
+    t["step_1"] = {"position": {0.0: [0, 0, -7]}}
+    t["step_2"] = {"position": {0.0: [0, 0, -14]}}
+    t["step_3"] = {"position": {0.0: [0, 0, -21]}}
+    t["turret"] = {"position": {0.0: [0, POD_TURRET_DROP, 0]}}
+    t["radar"] = {"scale": {0.0: [1, 0.08, 1]}}
+    t["antenna"] = {"scale": {0.0: [1, 0.08, 1]}}
+    t["dish"] = {"rotation": {0.0: ZERO}}
+    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN]}}
+    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN]}}
+    for c in ("coils_a", "coils_b", "coils_c"):
+        t[c] = {"scale": {0.0: [0.8, 0.8, 1]}}
+    t["vents"] = {"position": {0.0: [0, -4, 0]}}
+    t["pod_panel"] = {"position": {0.0: ZERO}}
+    return t
+
+
+def _deploy():
+    """
+    12 s, synced to RailgunConfig (TRANSFORM_TICKS 240, CLAMP_SLAM_TICK 111, RAIL_LOWER_TICK 160)
+    and to railgun_transform.ogg:
+      0.0-1.0   locking bolts pop, beacons start spinning
+      1.0-1.5   shell quarters unlatch (crack open 15 %)
+      1.5-3.4   quarters glide out diagonally to become corner bulwarks
+      2.0-3.8   deck plates slide out from under the pod, staggered
+      3.8-4.9   stairs extend one step at a time
+      3.4-5.75  clamps slide out raised, wind up, SLAM at 5.55 s, settle
+      5.6-7.6   turret rises out of the pod
+      7.0-8.4   radar mast and antenna telescope up; dish starts turning
+      8.0-9.6   (procedural) rail lowers from vertical
+      9.6-11.0  barrel telescopes: segment 1, then segment 2
+      11.0-11.8 coil rings light up in sequence; cooling fins rise
+      11.4-12.0 control tablet slides back out of the core
+    """
+    t = {}
+    for i, q in enumerate(QUADS):
+        sx, sz = QUADS[q]
+        t[f"bolt_{q}"] = {"position": {0.0: ZERO, 0.2 + 0.1 * i: ZERO, 0.6 + 0.1 * i: [sx * 3, 4, 0],
+                                       1.0: [sx * 3, 4, 0], 1.3: ZERO}}
+        t[f"beacon_{q}"] = {"rotation": {0.0: ZERO, 12.0: [0, 360 * 9, 0]}}
+        t[f"shell_{q}"] = {"position": {0.0: _q_in(q), 1.0: _q_in(q), 1.5: _q_in(q, 0.85),
+                                        3.2: [sx * 1.5, 0, sz * 1.5], 3.4: ZERO}}
+        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q), 3.4: _clamp_in(q), 4.8: [0, 10, 0],
+                                        5.35: [0, 13, 0], 5.55: [0, -1.5, 0], 5.75: ZERO}}
+    for i, d in enumerate(("deck_s", "deck_e", "deck_n", "deck_w")):
+        t0 = 2.0 + 0.2 * i
+        t[d] = {"position": {0.0: _deck_in(d), t0: _deck_in(d), t0 + 1.2: [v * -0.03 for v in _deck_in(d)],
+                             t0 + 1.4: ZERO}}
+    for i in range(3):
+        t0 = 3.8 + i * 0.35
+        t[f"step_{i + 1}"] = {"position": {0.0: [0, 0, -7 * (i + 1)], t0: [0, 0, -7 * (i + 1)], t0 + 0.4: ZERO}}
+    t["turret"] = {"position": {0.0: [0, POD_TURRET_DROP, 0], 5.6: [0, POD_TURRET_DROP, 0],
+                                7.4: [0, 2, 0], 7.6: ZERO}}
+    t["radar"] = {"scale": {0.0: [1, 0.08, 1], 7.0: [1, 0.08, 1], 7.8: [1, 1.05, 1], 8.0: ONE}}
+    t["antenna"] = {"scale": {0.0: [1, 0.08, 1], 7.4: [1, 0.08, 1], 8.2: [1, 1.05, 1], 8.4: ONE}}
+    t["dish"] = {"rotation": {0.0: ZERO, 8.0: ZERO, 12.0: [0, 360, 0]}}
+    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN], 9.6: [0, 0, SEG1_IN], 10.3: [0, 0, -1.5], 10.4: ZERO}}
+    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN], 10.2: [0, 0, SEG2_IN], 10.9: [0, 0, -1.5], 11.0: ZERO}}
+    for i, c in enumerate(("coils_a", "coils_b", "coils_c")):
+        t0 = 11.0 + 0.2 * i
+        t[c] = {"scale": {0.0: [0.8, 0.8, 1], t0: [0.8, 0.8, 1], t0 + 0.15: [1.18, 1.18, 1], t0 + 0.35: ONE}}
+    t["vents"] = {"position": {0.0: [0, -4, 0], 11.5: [0, -4, 0], 11.8: [0, 1, 0], 12.0: ZERO}}
+    t["pod_panel"] = {"position": {0.0: PANEL_IN, 11.4: PANEL_IN, 11.9: [0, 0, 0.5], 12.0: ZERO}}
+    return t
 
 
 def reverse_tracks(tracks, length):
@@ -1164,16 +1327,24 @@ def reverse_tracks(tracks, length):
             for bone, chans in tracks.items()}
 
 
-# Pack-up: the transformation in reverse, ending with the pod panel closing.
+DEPLOY = _deploy()
+# Pack-up: the deployment in reverse; the tablet slides in first and back out at the very end.
 PACK = reverse_tracks(DEPLOY, DEPLOY_LEN)
-PACK["pod_panel"] = {"position": {0.0: PANEL_OPEN, 7.0: PANEL_OPEN, 7.5: [0, 0, 0.6], 8.0: [0, 0, 0]}}
+PACK["pod_panel"] = {"position": {0.0: ZERO, 0.6: PANEL_IN, 11.4: PANEL_IN, 11.9: [0, 0, 0.5], 12.0: ZERO}}
+PACK["beacon_pp"] = PACK["beacon_pn"] = PACK["beacon_np"] = PACK["beacon_nn"] = {"rotation": {0.0: ZERO, 12.0: [0, 360 * 9, 0]}}
+PACK["dish"] = {"rotation": {0.0: ZERO, 4.0: [0, 360, 0], 12.0: [0, 360, 0]}}
+
+POD_POSE = _pod_pose()
+PANEL_OPEN_ANIM = dict(POD_POSE)
+PANEL_OPEN_ANIM["pod_panel"] = {"position": {0.0: ZERO, 0.35: [0, 0, 0.8], 1.5: PANEL_IN}}
+PANEL_OPEN_ANIM.update({f"beacon_{q}": {"rotation": {0.0: ZERO, 1.5: [0, 540, 0]}} for q in QUADS})
+
 
 def full_tracks(tracks, length):
     """
     Gives every channel explicit keyframes at 0 and at the end of the animation (holding its
     first/last value). GeckoLib interpolates the span before a channel's first keyframe from the
-    default value (scale 0!), so a track that starts late makes the bone vanish and pop. This is
-    what broke the pack-up animation, which is the deploy reversed.
+    default value (scale 0!), so a track that starts late makes the bone vanish and pop.
     """
     out = {}
     for bone, chans in tracks.items():
@@ -1190,30 +1361,36 @@ def full_tracks(tracks, length):
 
 
 _RAW_ANIMATIONS = {
-    # name: (length_s, loop, {bone: {"scale"/"position": {time_s: [x,y,z] in MC space}}})
-    # Only position and scale are keyframed (sign-convention safe in GeckoLib); turret yaw and
-    # barrel pitch are applied procedurally by RailgunModel.
+    # name: (length_s, loop, {bone: {"scale"/"position"/"rotation": {time_s: [x,y,z]}}})
+    # Turret yaw and barrel pitch are procedural (RailgunModel). Rotation keys are only used
+    # for spinning parts (beacons, radar dish), where the sign convention does not matter.
     "animation.railgun.pod": (1.0, True, POD_POSE),
-    "animation.railgun.panel_open": (1.5, "hold_on_last_frame", {
-        **{k: v for k, v in POD_POSE.items() if k != "pod_panel"},
-        "pod_panel": {"position": {0.0: [0, 0, 0], 0.35: [0, 0, 0.8], 1.0: [0, -18, 0.8], 1.5: PANEL_OPEN}},
-    }),
+    "animation.railgun.panel_open": (1.5, "hold_on_last_frame", PANEL_OPEN_ANIM),
     "animation.railgun.deploy": (DEPLOY_LEN, "hold_on_last_frame", DEPLOY),
     "animation.railgun.pack": (DEPLOY_LEN, "hold_on_last_frame", PACK),
     "animation.railgun.idle": (4.0, True, {
-        "coils": {"scale": {0.0: ONE, 2.0: [1.025, 1.025, 1], 4.0: ONE}},
-        "vents": {"position": {0.0: [0, 0, 0], 2.0: [0, 0.4, 0], 4.0: [0, 0, 0]}},
+        "coils_a": {"scale": {0.0: ONE, 2.0: [1.025, 1.025, 1], 4.0: ONE}},
+        "coils_b": {"scale": {0.0: [1.02, 1.02, 1], 2.0: ONE, 4.0: [1.02, 1.02, 1]}},
+        "dish": {"rotation": {0.0: ZERO, 4.0: [0, 360, 0]}},
+        "vents": {"position": {0.0: ZERO, 2.0: [0, 0.4, 0], 4.0: ZERO}},
     }),
     "animation.railgun.charge": (0.5, True, {
-        "coils": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.12, 1.12, 1], 0.5: [1.04, 1.04, 1]}},
+        "coils_a": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.14, 1.14, 1], 0.5: [1.04, 1.04, 1]}},
+        "coils_b": {"scale": {0.0: [1.14, 1.14, 1], 0.25: [1.04, 1.04, 1], 0.5: [1.14, 1.14, 1]}},
+        "coils_c": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.14, 1.14, 1], 0.5: [1.04, 1.04, 1]}},
         "vents": {"position": {0.0: [0, 2.5, 0], 0.25: [0, 3.2, 0], 0.5: [0, 2.5, 0]}},
-        "turret": {"position": {0.0: [0, 0, 0], 0.125: [0, -0.35, 0], 0.25: [0, 0, 0], 0.375: [0, -0.2, 0], 0.5: [0, 0, 0]}},
+        "dish": {"rotation": {0.0: ZERO, 0.5: [0, 180, 0]}},
+        "turret": {"position": {0.0: ZERO, 0.125: [0, -0.35, 0], 0.25: ZERO, 0.375: [0, -0.2, 0], 0.5: ZERO}},
     }),
     "animation.railgun.fire": (1.8, False, {
-        "barrel": {"position": {0.0: [0, 0, 0], 0.05: [0, 0, 16], 0.25: [0, 0, 12], 0.9: [0, 0, 0]}},
-        "turret": {"position": {0.0: [0, 0, 0], 0.05: [0, -3, 0], 0.3: [0, 0.5, 0], 0.6: [0, 0, 0]}},
-        "vents": {"position": {0.0: [0, 3, 0], 0.08: [0, 6, 0], 1.3: [0, 6, 0], 1.8: [0, 0, 0]}},
-        "coils": {"scale": {0.0: [1.35, 1.35, 1], 0.4: [1.1, 1.1, 1], 1.8: ONE}},
+        "seg1": {"position": {0.0: ZERO, 0.05: [0, 0, 10], 0.5: [0, 0, 6], 1.2: ZERO}},
+        "seg2": {"position": {0.0: ZERO, 0.05: [0, 0, 8], 0.6: [0, 0, 4], 1.4: ZERO}},
+        "barrel": {"position": {0.0: ZERO, 0.05: [0, 0, 6], 0.9: ZERO}},
+        "turret": {"position": {0.0: ZERO, 0.05: [0, -3, 0], 0.3: [0, 0.5, 0], 0.6: ZERO}},
+        "vents": {"position": {0.0: [0, 3, 0], 0.08: [0, 6, 0], 1.3: [0, 6, 0], 1.8: ZERO}},
+        "coils_a": {"scale": {0.0: [1.35, 1.35, 1], 0.4: [1.1, 1.1, 1], 1.8: ONE}},
+        "coils_b": {"scale": {0.0: [1.35, 1.35, 1], 0.5: [1.1, 1.1, 1], 1.8: ONE}},
+        "coils_c": {"scale": {0.0: [1.35, 1.35, 1], 0.6: [1.1, 1.1, 1], 1.8: ONE}},
     }),
 }
 
@@ -1404,7 +1581,7 @@ def main():
     offset = Vector((120, 0, 0))  # keep it away from the railgun in the scene
     rm_bones = build_remote(offset)
     rm_boxes = extract_boxes(rm_bones, offset=offset)
-    rm_tex = pack_faces(rm_boxes, texels_per_px=2, start_size=32)
+    rm_tex = pack_faces(rm_boxes, texels_per_px=4, start_size=64)
     rm_bake = build_bake_objects(rm_boxes, rm_bones, rm_tex, kinds, offset=offset)
     rm_atlas, rm_glow = bake(rm_bake, rm_boxes, kinds, rm_tex, "remote")
     save_png(rm_atlas, os.path.join(assets, "textures/item/railgun_remote.png"))
@@ -1431,21 +1608,17 @@ def main():
 
         pose(rg_bones, "animation.railgun.deploy", DEPLOY_LEN)
         rail_up(False)
-        render(os.path.join(out, "railgun_deployed.png"), cam, target, (24.0, 21.0, 11.0), (0.0, 7.0, 5.0), 1100, lens=30)
-        render(os.path.join(assets, "icon.png"), cam, target, (26.0, 22.0, 14.0), (0.0, 6.0, 5.0), 128, samples=32, lens=30)
-        render(os.path.join(out, "railgun_stairs.png"), cam, target, (6.0, -20.0, 5.0), (0.0, -3.0, 2.5), 1100, lens=30)
+        render(os.path.join(out, "railgun_deployed.png"), cam, target, (22.0, 19.0, 10.0), (0.0, 5.0, 4.5), 1100, lens=30)
+        render(os.path.join(assets, "icon.png"), cam, target, (24.0, 20.0, 13.0), (0.0, 5.0, 5.0), 128, samples=32, lens=30)
+        render(os.path.join(out, "railgun_front.png"), cam, target, (5.0, 16.0, 6.0), (0.0, 0.0, 3.5), 1100, lens=32)
         pose(rg_bones, "animation.railgun.pod", 0.0)
         rail_up(True)
-        render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -9.0, 5.5), (0.0, 0.0, 4.0), 900, lens=32)
-        pose(rg_bones, "animation.railgun.panel_open", 1.5)
-        rail_up(True)
-        render(os.path.join(out, "railgun_pod_panel_open.png"), cam, target, (2.5, -7.0, 3.0), (0.0, -1.7, 2.6), 900, lens=35)
-        pose(rg_bones, "animation.railgun.deploy", 3.0)
-        rail_up(True)
-        render(os.path.join(out, "railgun_transform_3s.png"), cam, target, (20.0, -18.0, 12.0), (0.0, 0.0, 3.0), 900, lens=32)
-        pose(rg_bones, "animation.railgun.deploy", 6.3)
-        rail_up(False)
-        render(os.path.join(out, "railgun_transform_clamps.png"), cam, target, (20.0, -18.0, 12.0), (0.0, 0.0, 3.0), 900, lens=32)
+        render(os.path.join(out, "railgun_pod.png"), cam, target, (10.0, 9.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)
+        render(os.path.join(out, "railgun_pod_panel.png"), cam, target, (1.2, 4.6, 3.1), (0.0, 1.9, 3.0), 900, lens=35)
+        for t_s in (2.2, 4.4, 6.6, 8.8):
+            pose(rg_bones, "animation.railgun.deploy", t_s)
+            rail_up(t_s < 9.0)
+            render(os.path.join(out, f"railgun_deploy_{t_s:04.1f}s.png"), cam, target, (16.0, 15.0, 9.0), (0.0, 0.0, 3.5), 800, lens=30)
         reset_pose(rg_bones)
         rail_up(False)
 

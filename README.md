@@ -21,17 +21,21 @@ layers, so it works alongside Sodium.
 2. Aim at open ground and right-click: the tablet rises and the view **zooms into its display**.
    On the *Orbital Drop* page press **CALL DOWN**. A HUD countdown runs, then a compact pod
    re-enters in a plasma sheath and lands with its rail pointing straight up, retracted.
-3. Walk up to the pod and right-click its **panel**: the camera flies up to the physical panel on
-   the pod and its screen becomes the UI. Press **DEPLOY RAILGUN**; the cover slides away and the
-   pod transforms: it sinks while the fortress rises, the stairs fold out, the turret
-   grows, the rail lowers and extends, and the ground clamps lift and **slam** into the ground.
+3. Walk up to the pod and right-click the **tablet mounted in its hatch**: the camera flies up to
+   it and its screen becomes the UI. Press **DEPLOY RAILGUN**. The tablet slides into the core and
+   the pod unfolds over 12 seconds: locking bolts pop, the four armour quarters unlatch and glide
+   out along the diagonals to become corner bulwarks, deck plates slide out from under the pod,
+   the stairs extend one step at a time, the ground clamps slide out, wind up and **slam** down,
+   the turret rises out of the core, the radar mast and antenna telescope up, the rail lowers,
+   the barrel telescopes out segment by segment and the coil rings light up in sequence. Nothing
+   comes out of the ground: every part was stowed inside the pod.
 4. Raise the tablet again for *Fire Control*: type X/Y/Z or **PAINT** the block you were aiming
    at, **SET**, then **FIRE** (from any distance; deployed railguns keep their chunk loaded). The
    tablet lowers so you can watch. No beam is visible until the shot.
-5. To pack up, right-click the console at the foot of the stairs (the camera zooms into it):
-   **RETRACT RAILGUN**, then **CONFIRM RETRACT**. It folds back into its pod (the transformation
-   in reverse). Use the pod's panel again, **RETURN TO ORBIT**, and it **launches back into the
-   sky** on its thrusters.
+5. To pack up, use the same tablet in the core (it slides back out at the end of the deployment):
+   **RETRACT RAILGUN**, then **CONFIRM RETRACT**. Everything folds back into the pod (the
+   deployment in reverse). Use the tablet again, **RETURN TO ORBIT**, and it **launches back into
+   the sky** on its thrusters.
 
 The deployed emplacement has real collision: when it finishes deploying it fills its footprint
 with invisible collider blocks following a heightfield exported from the Blender model
@@ -53,16 +57,19 @@ Locally: `./gradlew build` (jar in `build/libs/`), `./gradlew runClient`.
 ## Asset pipeline
 | Tool | Produces |
 |---|---|
-| `tools/blender/build_models.py` | The railgun (~510 cubes: drop pod with sliding panel, 11-block fortress with stairs, console and ground clamps, 19-block barrel) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
+| `tools/blender/build_models.py` | The railgun (~350 cubes: an octagonal drop pod whose armour quarters, decks, stairs, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from oscillators, filtered noise, FM and convolution reverb, encoded to Ogg Vorbis. |
 
 Model contracts the Java code relies on:
-- Bone **`turret`** yaws; bone **`barrel`** (pivot 120 px = `PIVOT_Y` 7.5 blocks) pitches and
-  points toward −Z, muzzle 312 px = `BARREL_LENGTH` 19.5 blocks from the pivot.
-- Bones `pod`, `pod_panel`, `base` (with `leg_*` clamps and `stairs`), `hull`, `vents`, `coils` are animated by keyframes.
-- Animations: `pod`, `panel_open` (1.5 s), `deploy` (8 s), `pack` (8 s, deploy reversed), `idle`, `charge`, `fire`.
-- Only boxes (rotated ones only in ±45° pairs). The exporter refuses anything else.
+- Bone **`turret`** yaws; bone **`barrel`** (pivot 118 px = `PIVOT_Y` 7.375 blocks) pitches and
+  points toward −Z, muzzle 316 px = `BARREL_LENGTH` 19.75 blocks from the pivot.
+- The rest pose is the deployed emplacement; the pod is a pose where everything is stowed:
+  `shell_*` quarters (with `clamp_*`, `bolt_*`, `beacon_*`), `deck_*`, `step_1..3`, `turret`
+  (`hull`, `radar` → `dish`, `antenna`), `barrel` (`vents`, `coils_a`, `seg1` → `coils_b`,
+  `seg2` → `coils_c`) and `pod_panel` (the tablet in the core's hatch).
+- Animations: `pod`, `panel_open` (1.5 s), `deploy` (12 s), `pack` (12 s, deploy reversed), `idle`, `charge`, `fire`.
+- Boxes only, optionally rotated about Y or Z around their own pivot (octagonal hull, barrel and diagonal bulwarks).
 - The glowmask must have lit pixels (GeckoLib crashes on an empty glow layer); CI enforces it.
 
 ## Architecture
@@ -95,7 +102,7 @@ server; state, charge and target are `TrackedData`, so no extra sync packets are
 | S2C | `drop_countdown` | BlockPos, ticks | HUD countdown + uplink sound. |
 | S2C | `tablet_info` | status snapshot | What the tablet displays. |
 
-Tablet commands resolve the sender's railgun by owner UUID, so nobody can command someone else's. The pod panel / console are plain entity interactions.
+Tablet commands resolve the sender's railgun by owner UUID, so nobody can command someone else's. The tablet panel is a plain entity interaction.
 
 ### Beam rendering
 Two kinds of layer, both additive with no depth write and no culling: an untextured glow layer

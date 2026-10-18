@@ -96,18 +96,15 @@ public class RailgunEntity extends Entity implements GeoEntity {
             .thenPlay("animation.railgun.fire")
             .thenLoop("animation.railgun.idle");
 
-    /** Pod-form hitbox: a 3.5-block-wide pillar. */
-    private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(3.5f, 6.5f);
+    /** Pod-form hitbox: the armoured pillar (shell apothem 34 px) with the rail pointing up. */
+    private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(4.4f, 10.75f);
 
     /*
-     * Control panel positions relative to the entity. GeckoLib renders entity models rotated
-     * 180 degrees about Y, so model +Z (where the panel, stairs and console were modelled) is
-     * world -Z: model (x, y, z) px -> world (-x, y, -z) / 16.
+     * GeckoLib renders entity models rotated 180 degrees about Y, so model +Z (where the tablet
+     * panel is modelled) is world -Z: model (x, y, z) px -> world (-x, y, -z) / 16.
      */
-    /** Centre of the pod's panel screen (model z 28.4 px face) and the direction it faces. */
-    public static final Vec3d POD_PANEL = new Vec3d(0.0, 41.0 / 16, -28.6 / 16);
-    /** Top of the access console beside the stairs (model x 16.5, y 18.6, z 95). */
-    public static final Vec3d CONSOLE_PANEL = new Vec3d(-16.5 / 16, 18.6 / 16, -95.0 / 16);
+    /** Centre of the tablet mounted in the core's hatch (model y 48, front face z 33). */
+    public static final Vec3d POD_PANEL = new Vec3d(0.0, 48.0 / 16, -33.0 / 16);
 
     private final AnimatableInstanceCache geoCache = GeckoLibUtil.createInstanceCache(this);
 
@@ -226,23 +223,34 @@ public class RailgunEntity extends Entity implements GeoEntity {
             clearFootprint(world, getBoundingBox());
             world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_TRANSFORM, SoundCategory.BLOCKS, 4.0f, 1.0f);
         }
-        if (t >= 16 && t <= 52 && t % 4 == 0) {
-            // Fortress pushing up out of the ground.
-            ring(world, ModParticles.SHOCK_DUST, base, 5.5, 20, 0.12);
-            RailgunFx.burst(world, ModParticles.DEBRIS, base.add(0, 0.5, 0), 6, 5.0, 0.3, 0.25);
+        if (t >= 4 && t <= 24 && t % 6 == 0) {
+            // Locking bolts popping: little vents of steam at the four seams.
+            for (int i = 0; i < 4; i++) {
+                double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
+                RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(sx * 2.1, 3.5, sz * 2.1), 2, 0.1, 0.1, 0.03);
+            }
         }
-        if (t == 52) RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(0, 0.5, -6), 12, 1.2, 0.4, 0.04);
+        if (t >= 30 && t <= 68 && t % 4 == 0) {
+            // Shell quarters sliding out along the diagonals, decks scraping out after them.
+            double r = 1.6 + (t - 30) / 38.0 * 3.4;
+            for (int i = 0; i < 4; i++) {
+                double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, base.add(sx * r * 0.7071, 0, sz * r * 0.7071), 3, 0.6, 0.05, 0.08);
+            }
+        }
+        if (t == 90) RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(0, 0.4, -5.6), 10, 1.2, 0.3, 0.04);
+        if (t >= 112 && t <= 150 && t % 5 == 0) {
+            // Turret rising out of the core: venting.
+            ring(world, ModParticles.PLASMA_SMOKE, base.add(0, 4.4, 0), 2.2, 8, 0.05);
+        }
         if (t == RailgunConfig.CLAMP_SLAM_TICK) {
             for (int i = 0; i < 4; i++) {
-                double a = i * Math.PI / 2;
-                Vec3d dir = new Vec3d(Math.sin(a), 0, Math.cos(a));
-                Vec3d side = new Vec3d(dir.z, 0, -dir.x);
-                for (int s = -1; s <= 1; s += 2) {
-                    Vec3d foot = base.add(dir.multiply(7.4)).add(side.multiply(2.0 * s));
-                    RailgunFx.burst(world, ModParticles.SHOCK_DUST, foot, 6, 0.8, 0.1, 0.18);
-                    RailgunFx.burst(world, ModParticles.DEBRIS, foot.add(0, 0.4, 0), 10, 0.8, 0.2, 0.35);
-                    RailgunFx.burst(world, ModParticles.PLASMA_SPARK, foot.add(0, 0.4, 0), 8, 0.6, 0.2, 0.4);
-                }
+                // Clamp feet sit on the diagonals, ~6.3 blocks out on each axis.
+                double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
+                Vec3d foot = base.add(sx * 6.3, 0, sz * 6.3);
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, foot, 10, 1.0, 0.1, 0.2);
+                RailgunFx.burst(world, ModParticles.DEBRIS, foot.add(0, 0.4, 0), 14, 0.9, 0.2, 0.38);
+                RailgunFx.burst(world, ModParticles.PLASMA_SPARK, foot.add(0, 0.4, 0), 10, 0.6, 0.2, 0.45);
             }
             for (LivingEntity victim : world.getEntitiesByClass(LivingEntity.class, getBoundingBox().expand(3, 1, 3), LivingEntity::isAlive)) {
                 victim.addVelocity(0, 0.45, 0);
@@ -263,8 +271,19 @@ public class RailgunEntity extends Entity implements GeoEntity {
             dataTracker.set(HAS_TARGET, false);
             setCharge(0f);
         }
-        if (t >= 108 && t <= 150 && t % 4 == 0) {
-            ring(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 5.5, 20, 0.1);
+        int r = RailgunConfig.PACK_TICKS - t; // mirror of the deploy timeline
+        if (r == RailgunConfig.TRANSFORM_TICKS - RailgunConfig.CLAMP_SLAM_TICK) {
+            for (int i = 0; i < 4; i++) {
+                double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * 6.3, 0.3, sz * 6.3), 8, 0.8, 0.1, 0.15);
+            }
+        }
+        if (r >= 30 && r <= 68 && t % 4 == 0) {
+            double rad = 1.6 + (r - 30) / 38.0 * 3.4;
+            for (int i = 0; i < 4; i++) {
+                double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * rad * 0.7071, 0.3, sz * rad * 0.7071), 3, 0.6, 0.05, 0.08);
+            }
         }
         if (t >= RailgunConfig.PACK_TICKS) setState(RailgunState.POD_READY);
     }
@@ -534,10 +553,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
     // Control panel
     // =========================================================================================
 
-    /** World position of the control panel for the current form. */
+    /** World position of the tablet panel (the same in every form: it lives in the core). */
     public Vec3d getPanelPos() {
-        Vec3d local = getState().isPodForm() || getState() == RailgunState.TRANSFORMING ? POD_PANEL : CONSOLE_PANEL;
-        return getPos().add(local);
+        return getPos().add(POD_PANEL);
     }
 
     /** Physical panel / console: right-clicking it zooms the view into it (client). */
@@ -596,8 +614,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
     private void updateAim() {
         float targetYaw = aimYaw;
         float targetPitch = 0f;
-        if (railStowed()) {
+        if (getState() == RailgunState.PACKING && stateTicks < RailgunConfig.PACK_RAIL_RAISE_TICK) {
+            // Hold the aim while the barrel segments telescope back in, then raise and centre it.
+            targetPitch = aimPitch;
+            targetYaw = 0f;
+        } else if (railStowed()) {
             targetPitch = 90f;
+            targetYaw = 0f;
         } else if (hasTarget() && getState().isOperational()) {
             Vec3d to = Vec3d.ofCenter(getTarget()).subtract(getPos().add(0, RailgunConfig.PIVOT_Y, 0));
             double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);

@@ -24,7 +24,7 @@ import java.util.Locale;
 /**
  * The railgun's physical control panel, zoomed into.
  *
- * <p>Right-clicking the panel on the pod (or the console beside the deployed fortress's stairs)
+ * <p>Right-clicking the panel in the core's hatch (pod or deployed)
  * opens this screen. Over {@link #ZOOM_TICKS} the camera flies from the player's eyes to a point
  * just in front of that panel on the model, squared up to it ({@code CameraMixin} reads
  * {@link #cameraTarget}); the player's own body stays visible behind. When the camera arrives
@@ -52,18 +52,12 @@ public class PanelScreen extends Screen {
     public PanelScreen(RailgunEntity railgun) {
         super(Text.literal("ARES-9 Control Panel"));
         this.railgun = railgun;
-        // Where the camera ends up: squarely in front of the panel. Panels face world -Z, so we
-        // look along +Z (yaw 0). The deployed console's screen is on its top, so look down at it.
-        Vec3d panel = railgun.getPanelPos();
-        if (railgun.getState().isPodForm() || railgun.getState() == RailgunState.TRANSFORMING) {
-            camPos = panel.add(0, 0.02, -0.92);
-            camYaw = 0f;
-            camPitch = 1.5f;
-        } else {
-            camPos = panel.add(0, 0.8, -0.56);
-            camYaw = 0f;
-            camPitch = (float) Math.toDegrees(Math.atan2(0.8, 0.56));
-        }
+        // Where the camera ends up: squarely in front of the tablet mounted in the core's hatch.
+        // It faces world -Z, so we look along +Z (yaw 0). Same spot in pod and deployed form.
+        camPos = railgun.getPanelPos().add(0, 0.02, -1.02);
+        camYaw = 0f;
+        camPitch = 1.0f;
+    }
     }
 
     // ---- Camera hook (CameraMixin) -------------------------------------------------------------

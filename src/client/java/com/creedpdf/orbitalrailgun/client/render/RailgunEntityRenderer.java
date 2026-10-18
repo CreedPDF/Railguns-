@@ -39,7 +39,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
     @Override
     public void render(RailgunEntity entity, float entityYaw, float partialTick, MatrixStack poseStack,
                        VertexConsumerProvider bufferSource, int packedLight) {
-        this.shadowRadius = entity.getState().isPodForm() ? 2.5f : 6.5f;
+        this.shadowRadius = entity.getState().isPodForm() ? 2.4f : 7.0f;
         super.render(entity, entityYaw, partialTick, poseStack, bufferSource, packedLight);
 
         if (entity.isBeamActive() || entity.isChargeVisible()) {
@@ -67,7 +67,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
 
         Vec3d origin = entity.getLerpedPos(tickDelta);
         matrices.push();
-        matrices.translate(panel.x - origin.x, panel.y - origin.y + 0.9, panel.z - origin.z);
+        matrices.translate(panel.x - origin.x, panel.y - origin.y + 1.25, panel.z - origin.z);
         matrices.multiply(this.dispatcher.getRotation());
         matrices.scale(-0.022f, -0.022f, 0.022f);
         Matrix4f m = matrices.peek().getPositionMatrix();
@@ -91,7 +91,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
             case PANEL_OPEN -> List.of("PANEL RETRACTING");
             case TRANSFORMING -> List.of(String.format(Locale.ROOT, "DEPLOYING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.TRANSFORM_TICKS)));
-            case IDLE, COOLDOWN -> List.of(s == RailgunState.IDLE ? "ONLINE" : "COOLING", "[ USE CONSOLE ]");
+            case IDLE, COOLDOWN -> List.of(s == RailgunState.IDLE ? "ONLINE" : "COOLING", "[ USE PANEL ]");
             case CHARGING, FIRING -> List.of("WEAPON HOT");
             case PACKING -> List.of(String.format(Locale.ROOT, "RETRACTING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.PACK_TICKS)));

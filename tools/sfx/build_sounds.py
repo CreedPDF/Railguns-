@@ -421,43 +421,84 @@ def railgun_panel():
     return reverb(buf, 0.9, 0.2)
 
 
+def bolt_pops(n=4, start=0.2, gap=0.1):
+    buf = np.zeros(int((start + gap * n + 0.6) * SR))
+    for i in range(n):
+        pop = mix(filt(white(0.12), "highpass", 1500) * env_exp(0.12, 0.02) * 0.7,
+                  osc(exp_sweep(900, 300, 0.1), 0.1, "tri") * env_exp(0.1, 0.03) * 0.5)
+        place(buf, pop, start + i * gap + 0.4)
+        place(buf, filt(white(0.4), "bandpass", [2000, 7000]) * env_exp(0.4, 0.12) * 0.25, start + i * gap + 0.42)
+    return buf
+
+
 def railgun_transform():
-    """8 s, synced to animation.railgun.deploy."""
-    d = 8.3
+    """12 s, synced to animation.railgun.deploy (see build_models._deploy)."""
+    d = 12.6
     buf = np.zeros(int(d * SR))
-    place(buf, hydraulic(0.6) * 0.6, 0.0)
-    place(buf, rumble(2.2, 50, 300) * 0.9, 0.3)                 # pod sinks / fortress rises
-    place(buf, clunk(1.3) * 0.9, 2.55)                          # fortress locks
-    place(buf, ratchet(0.9, 22), 2.6)                           # stairs extend
-    place(buf, servo(1.6, 150, 480), 2.2)                       # turret grows
-    place(buf, clunk(1.0) * 0.8, 3.75)
-    place(buf, hydraulic(1.6) * 0.5, 4.6)                       # rail lowers and extends
-    place(buf, servo(1.6, 200, 700) * 0.9, 4.6)
-    place(buf, clunk(1.1) * 0.9, 6.1)
-    place(buf, hydraulic(0.7) * 0.6, 5.5)                       # clamps extend and lift
-    place(buf, slam(), 6.45)                                    # clamps slam into the ground
-    power = osc(exp_sweep(80, 220, 1.4), 1.4, "saw") * env_adsr(1.4, 0.2, 0.3, 0.8, 0.5) * 0.3
-    place(buf, filt(power, "lowpass", 2500), 6.8)
+    place(buf, hydraulic(0.5) * 0.5, 0.0)                         # tablet slides in
+    place(buf, bolt_pops(), 0.0)                                  # locking bolts pop 0.6-0.9
+    place(buf, clunk(0.9) * 0.8, 1.0)                             # shell unlatches
+    place(buf, rumble(2.0, 70, 260) * 0.7, 1.4)                   # quarters glide out
+    place(buf, servo(1.9, 140, 260) * 0.6, 1.5)
+    for i in range(4):                                            # deck plates
+        place(buf, hydraulic(1.2) * 0.35, 2.0 + 0.2 * i)
+        place(buf, clunk(0.7) * 0.5, 3.3 + 0.2 * i)
+    place(buf, clunk(1.1) * 0.9, 3.35)                            # bulwarks lock
+    for i in range(3):                                            # stairs, one step at a time
+        place(buf, ratchet(0.4, 26), 3.8 + 0.35 * i)
+        place(buf, clunk(0.5) * 0.5, 4.2 + 0.35 * i)
+    place(buf, hydraulic(1.4) * 0.6, 3.4)                         # clamps slide out
+    place(buf, servo(0.5, 300, 600) * 0.6, 4.85)                  # wind up
+    place(buf, slam(), 5.55)                                      # SLAM
+    place(buf, rumble(2.0, 60, 220) * 0.8, 5.6)                   # turret rises
+    place(buf, servo(2.0, 120, 420) * 0.8, 5.6)
+    place(buf, clunk(1.2) * 0.9, 7.55)
+    place(buf, ratchet(1.2, 18, 1200) * 0.6, 7.0)                 # radar mast / antenna telescope
+    place(buf, servo(1.6, 220, 520) * 0.7, 8.0)                   # rail lowers
+    place(buf, hydraulic(1.6) * 0.4, 8.0)
+    place(buf, clunk(0.8) * 0.7, 9.6)
+    place(buf, servo(0.7, 300, 800) * 0.8, 9.6)                   # barrel segment 1
+    place(buf, clunk(0.9) * 0.8, 10.35)
+    place(buf, servo(0.7, 400, 1000) * 0.8, 10.2)                 # barrel segment 2
+    place(buf, clunk(0.9) * 0.8, 10.95)
+    for i in range(3):                                            # coils power up
+        hum = osc(exp_sweep(110 + 40 * i, 330 + 80 * i, 0.35), 0.35, "saw") * env_adsr(0.35, 0.02, 0.1, 0.7, 0.15) * 0.25
+        place(buf, filt(hum, "lowpass", 2400), 11.0 + 0.2 * i)
+    place(buf, hydraulic(0.4) * 0.4, 11.5)                        # cooling fins
+    place(buf, hydraulic(0.5) * 0.4, 11.4)                        # tablet slides back out
     chime = sum(osc(f, 1.0) for f in (880, 1318.5, 1760)) * env_adsr(1.0, 0.01, 0.2, 0.4, 0.7) * 0.15
-    place(buf, chime, 7.5)
+    place(buf, chime, 11.9)
     return reverb(buf, 1.6, 0.25)
 
 
 def railgun_pack():
-    """8 s, synced to animation.railgun.pack (the transformation in reverse)."""
-    d = 8.3
+    """12 s, synced to animation.railgun.pack (the deployment in reverse)."""
+    d = 12.6
     buf = np.zeros(int(d * SR))
     down = osc(exp_sweep(400, 80, 1.2), 1.2, "saw") * env_adsr(1.2, 0.02, 0.3, 0.6, 0.6) * 0.3
-    place(buf, filt(down, "lowpass", 2000), 0.0)
-    place(buf, hydraulic(0.9) * 0.6, 1.4)                       # clamps release
-    place(buf, clunk(1.0), 1.55)
-    place(buf, servo(1.6, 700, 200) * 0.9, 1.8)                 # rail retracts and rises
-    place(buf, hydraulic(1.4) * 0.4, 1.9)
-    place(buf, clunk(0.9), 3.9)
-    place(buf, servo(1.6, 480, 150), 4.2)                       # turret shrinks
-    place(buf, ratchet(0.9, 22, 750), 4.4)                      # stairs retract
-    place(buf, rumble(2.2, 300, 50) * 0.9, 5.4)                 # fortress sinks, pod rises
-    place(buf, clunk(1.2), 7.45)                                # panel closes
+    place(buf, filt(down, "lowpass", 2000), 0.0)                  # power down, tablet slides in
+    place(buf, hydraulic(0.5) * 0.5, 0.05)
+    place(buf, servo(0.7, 1000, 400) * 0.8, 1.0)                  # barrel segment 2 in
+    place(buf, clunk(0.8) * 0.7, 1.8)
+    place(buf, servo(0.7, 800, 300) * 0.8, 1.6)                   # segment 1 in
+    place(buf, clunk(0.8) * 0.7, 2.4)
+    place(buf, servo(1.8, 600, 220) * 0.8, 2.0)                   # rail rises to vertical
+    place(buf, hydraulic(1.6) * 0.4, 2.0)
+    place(buf, ratchet(1.2, 18, 1200) * 0.6, 3.6)                 # radar / antenna retract
+    place(buf, rumble(2.0, 220, 60) * 0.8, 4.4)                   # turret sinks into the core
+    place(buf, servo(2.0, 420, 120) * 0.8, 4.4)
+    place(buf, clunk(1.1) * 0.9, 6.4)
+    place(buf, hydraulic(0.9) * 0.7, 6.25)                        # clamps unlock and pull in
+    place(buf, clunk(0.9), 6.3)
+    for i in range(3):                                            # stairs
+        place(buf, ratchet(0.4, 26, 750), 7.1 + 0.35 * i)
+    for i in range(4):                                            # deck plates slide under
+        place(buf, hydraulic(1.2) * 0.35, 8.2 + 0.2 * i)
+    place(buf, rumble(2.0, 260, 70) * 0.7, 8.6)                   # shell quarters close in
+    place(buf, clunk(1.2) * 0.95, 10.55)                          # shell latches
+    place(buf, bolt_pops(start=10.6), 0.0)                        # bolts seat
+    place(buf, hydraulic(0.5) * 0.4, 11.4)                        # tablet back out
+    place(buf, clunk(0.8) * 0.6, 11.95)
     return reverb(buf, 1.6, 0.25)
 
 

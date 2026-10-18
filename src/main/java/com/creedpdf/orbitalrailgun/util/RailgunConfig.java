@@ -27,13 +27,15 @@ public final class RailgunConfig {
     // ---- Lifecycle timing ----------------------------------------------------------------
     /** Must match animation.railgun.panel_open (1.5 s). */
     public static final int PANEL_TICKS = 30;
-    /** Must match animation.railgun.deploy / pack (8.0 s). */
-    public static final int TRANSFORM_TICKS = 160;
-    public static final int PACK_TICKS = 160;
-    /** Tick of the transformation at which the ground clamps slam down (6.45 s). */
-    public static final int CLAMP_SLAM_TICK = 129;
+    /** Must match animation.railgun.deploy / pack (12.0 s). */
+    public static final int TRANSFORM_TICKS = 240;
+    public static final int PACK_TICKS = 240;
+    /** Tick of the transformation at which the ground clamps slam down (5.55 s). */
+    public static final int CLAMP_SLAM_TICK = 111;
     /** Tick of the transformation at which the rail starts lowering from vertical. */
-    public static final int RAIL_LOWER_TICK = 88;
+    public static final int RAIL_LOWER_TICK = 160;
+    /** Tick of the pack-up at which the rail starts rising to vertical (barrel already telescoped in). */
+    public static final int PACK_RAIL_RAISE_TICK = 40;
     /** How long a "confirm retract" prompt on the panel stays armed. */
     public static final int CONFIRM_TICKS = 80;
     /** Launch back to orbit: acceleration, top speed, and how high before it is removed. */
@@ -65,9 +67,9 @@ public final class RailgunConfig {
 
     // ---- Geometry (blocks) ---------------------------------------------------------------
     /** Height of the turret yaw/pitch pivot above the entity's feet. */
-    public static final double PIVOT_Y = 7.5;
+    public static final double PIVOT_Y = 118.0 / 16;
     /** Distance from pivot to muzzle along the barrel. */
-    public static final double BARREL_LENGTH = 19.5;
+    public static final double BARREL_LENGTH = 316.0 / 16;
     /** Max degrees per tick the turret slews while tracking a new target. */
     public static final float SLEW_DEG_PER_TICK = 2.5f;
     /** Half-extent of the rendered model, used for frustum culling (barrel reach + margin). */
