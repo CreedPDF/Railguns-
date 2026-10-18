@@ -223,23 +223,29 @@ public class RailgunEntity extends Entity implements GeoEntity {
             clearFootprint(world, getBoundingBox());
             world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_TRANSFORM, SoundCategory.BLOCKS, 4.0f, 1.0f);
         }
-        if (t >= 4 && t <= 24 && t % 6 == 0) {
-            // Locking bolts popping: little vents of steam at the four seams.
-            for (int i = 0; i < 4; i++) {
+        if (t >= 6 && t <= 21 && t % 3 == 0) {
+            // Locking bolts popping one after another: a puff of steam at each seam.
+            int i = (t - 6) / 3;
+            if (i < 4) {
                 double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
-                RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(sx * 2.1, 3.5, sz * 2.1), 2, 0.1, 0.1, 0.03);
+                RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(sx * 2.2, 3.5, sz * 2.2), 4, 0.1, 0.15, 0.04);
             }
         }
-        if (t >= 30 && t <= 68 && t % 4 == 0) {
-            // Shell quarters sliding out along the diagonals, decks scraping out after them.
-            double r = 1.6 + (t - 30) / 38.0 * 3.4;
+        if (t >= 46 && t <= 76 && t % 3 == 0) {
+            // Shell quarters gliding out along the diagonals.
+            double r = 2.2 + (t - 46) / 30.0 * 5.4;
             for (int i = 0; i < 4; i++) {
                 double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
-                RailgunFx.burst(world, ModParticles.SHOCK_DUST, base.add(sx * r * 0.7071, 0, sz * r * 0.7071), 3, 0.6, 0.05, 0.08);
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, base.add(sx * r * 0.7071, 0, sz * r * 0.7071), 3, 0.5, 0.05, 0.06);
             }
         }
-        if (t == 90) RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, base.add(0, 0.4, -5.6), 10, 1.2, 0.3, 0.04);
-        if (t >= 112 && t <= 150 && t % 5 == 0) {
+        if (t >= 80 && t <= 102 && t % 3 == 0) {
+            // Deck plates scraping out (east, north, west in model terms).
+            int i = Math.min(2, (t - 80) / 5);
+            Vec3d dir = i == 0 ? new Vec3d(1, 0, 0) : i == 1 ? new Vec3d(0, 0, 1) : new Vec3d(-1, 0, 0);
+            RailgunFx.burst(world, ModParticles.SHOCK_DUST, base.add(dir.multiply(4.8)), 3, 0.8, 0.05, 0.05);
+        }
+        if (t >= 136 && t <= 166 && t % 4 == 0) {
             // Turret rising out of the core: venting.
             ring(world, ModParticles.PLASMA_SMOKE, base.add(0, 4.4, 0), 2.2, 8, 0.05);
         }
@@ -272,17 +278,17 @@ public class RailgunEntity extends Entity implements GeoEntity {
             setCharge(0f);
         }
         int r = RailgunConfig.PACK_TICKS - t; // mirror of the deploy timeline
-        if (r == RailgunConfig.TRANSFORM_TICKS - RailgunConfig.CLAMP_SLAM_TICK) {
+        if (r == RailgunConfig.CLAMP_SLAM_TICK) {
             for (int i = 0; i < 4; i++) {
                 double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
                 RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * 6.3, 0.3, sz * 6.3), 8, 0.8, 0.1, 0.15);
             }
         }
-        if (r >= 30 && r <= 68 && t % 4 == 0) {
-            double rad = 1.6 + (r - 30) / 38.0 * 3.4;
+        if (r >= 46 && r <= 76 && t % 3 == 0) {
+            double rad = 2.2 + (r - 46) / 30.0 * 5.4;
             for (int i = 0; i < 4; i++) {
                 double sx = (i & 1) == 0 ? 1 : -1, sz = (i & 2) == 0 ? 1 : -1;
-                RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * rad * 0.7071, 0.3, sz * rad * 0.7071), 3, 0.6, 0.05, 0.08);
+                RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * rad * 0.7071, 0.3, sz * rad * 0.7071), 3, 0.5, 0.05, 0.06);
             }
         }
         if (t >= RailgunConfig.PACK_TICKS) setState(RailgunState.POD_READY);
@@ -355,6 +361,19 @@ public class RailgunEntity extends Entity implements GeoEntity {
             RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, impact.add(0, (t / 3) * RailgunConfig.PENETRATION_STEP_DEPTH, 0),
                     20, 3.0, 1.5, 0.08);
         }
+        if (t == 8 || t == 16) {
+            // Secondary ring of blasts around the crater as the shockwave rolls out.
+            Vec3d impact = Vec3d.ofCenter(getTarget());
+            double rr = RailgunConfig.RING_BLAST_RADIUS * (t == 8 ? 0.7 : 1.15);
+            for (int i = 0; i < RailgunConfig.RING_BLASTS; i++) {
+                double a = (i + (t == 16 ? 0.5 : 0)) * Math.PI * 2 / RailgunConfig.RING_BLASTS;
+                Vec3d p = impact.add(Math.cos(a) * rr, 0, Math.sin(a) * rr);
+                RailgunFx.detonate(world, this, p, RailgunConfig.RING_BLAST_POWER, RailgunConfig.BREAK_BLOCKS);
+                RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, p.add(0, 1, 0), 18, 2.0, 1.5, 0.1);
+                RailgunFx.burst(world, ModParticles.EMBER, p.add(0, 1, 0), 14, 1.5, 1.0, 0.6);
+            }
+            ring(world, ModParticles.SHOCK_DUST, impact, rr, 48, 0.9);
+        }
         if (t > 0 && t % 4 == 0 && t < RailgunConfig.FIRE_TICKS - 8) {
             // Sustained beam: keep the impact zone boiling.
             Vec3d impact = Vec3d.ofCenter(getTarget());
@@ -400,17 +419,19 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunFx.detonate(world, this, impact, RailgunConfig.IMPACT_EXPLOSION_POWER, RailgunConfig.BREAK_BLOCKS);
 
         // Impact
-        RailgunFx.burst(world, ModParticles.FLASH, impact.add(0, 2, 0), 4, 1.5, 1.0, 0);
-        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, impact, 120, 5.0, 3.0, 0.12);
-        RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), 140, 2.5, 1.5, 0.9);
-        RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 100, 3.0, 2.0, 0.8);
-        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 120, 2.0, 2.0, 1.2);
-        ring(world, ModParticles.SHOCK_DUST, impact, 3.0, 64, 1.1);
+        RailgunFx.burst(world, ModParticles.FLASH, impact.add(0, 2, 0), 8, 3.0, 2.0, 0);
+        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, impact, 260, 8.0, 5.0, 0.18);
+        RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), 300, 3.5, 2.0, 1.4);
+        RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 220, 4.0, 3.0, 1.2);
+        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 260, 3.0, 3.0, 1.8);
+        ring(world, ModParticles.SHOCK_DUST, impact, 3.0, 96, 1.7);
+        ring(world, ModParticles.SHOCK_DUST, impact, 6.0, 96, 1.2);
         // Muzzle blast + recoil dust around the fortress
-        RailgunFx.burst(world, ModParticles.FLASH, muzzle, 2, 0.5, 0.5, 0);
-        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 60, 2.5, 2.5, 0.25);
-        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, muzzle, 80, 1.0, 1.0, 1.4);
-        RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 60, 6.0, 0.2, 0.25);
+        RailgunFx.burst(world, ModParticles.FLASH, muzzle, 4, 1.0, 1.0, 0);
+        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 140, 3.5, 3.5, 0.35);
+        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, muzzle, 160, 1.5, 1.5, 2.0);
+        RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 140, 8.0, 0.2, 0.45);
+        ring(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 6.0, 64, 0.9);
 
         world.playSound(null, muzzle.x, muzzle.y, muzzle.z, ModSounds.RAILGUN_FIRE, SoundCategory.BLOCKS, 16.0f, 1.0f);
         world.playSound(null, impact.x, impact.y, impact.z, ModSounds.RAILGUN_IMPACT, SoundCategory.BLOCKS, 16.0f, 1.0f);
@@ -506,7 +527,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
             case FIRING -> {
                 Vec3d muzzle = getMuzzlePos(1f);
                 Vec3d impact = Vec3d.ofCenter(getTarget());
-                for (int i = 0; i < 6; i++) {
+                float left = 1f - (float) t / RailgunConfig.FIRE_TICKS;
+                RailgunMod.client().shake(this, 0.25f + 0.55f * left);
+                for (int i = 0; i < 4; i++) {
+                    Vec3d p = impact.add((rand.nextDouble() - 0.5) * 10, rand.nextDouble() * 2, (rand.nextDouble() - 0.5) * 10);
+                    world.addParticle(ModParticles.PLASMA_SPARK, p.x, p.y, p.z, (rand.nextDouble() - 0.5) * 0.6, 0.4 + rand.nextDouble() * 0.6, (rand.nextDouble() - 0.5) * 0.6);
+                }
+                for (int i = 0; i < 14; i++) {
                     Vec3d p = muzzle.lerp(impact, rand.nextDouble())
                             .add((rand.nextDouble() - 0.5) * 3, (rand.nextDouble() - 0.5) * 3, (rand.nextDouble() - 0.5) * 3);
                     world.addParticle(ModParticles.EMBER, p.x, p.y, p.z, 0, 0.05, 0);
@@ -611,17 +638,44 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 || (s == RailgunState.TRANSFORMING && stateTicks < RailgunConfig.RAIL_LOWER_TICK);
     }
 
+    /** Aim at the start of the pack-up, so the rail can ease from there to vertical. */
+    private float packFromYaw, packFromPitch;
+    private boolean packCaptured;
+
+    private static float smooth(float f) {
+        f = MathHelper.clamp(f, 0f, 1f);
+        return f * f * (3f - 2f * f);
+    }
+
     private void updateAim() {
+        RailgunState s = getState();
+        if (s != RailgunState.PACKING) packCaptured = false;
+        if (s == RailgunState.TRANSFORMING) {
+            // Eased swing from vertical to level once the turret is up.
+            float f = smooth((stateTicks - RailgunConfig.RAIL_LOWER_TICK) / (float) RailgunConfig.RAIL_MOVE_TICKS);
+            aimPitch = 90f * (1f - f);
+            return;
+        }
+        if (s == RailgunState.PACKING) {
+            if (!packCaptured) {
+                packCaptured = true;
+                packFromYaw = MathHelper.wrapDegrees(aimYaw);
+                packFromPitch = aimPitch;
+            }
+            // Centre the turret while the barrel telescopes in, then swing the rail up (eased).
+            float fy = smooth(stateTicks / (float) RailgunConfig.PACK_RAIL_RAISE_TICK);
+            aimYaw = packFromYaw * (1f - fy);
+            float fp = smooth((stateTicks - RailgunConfig.PACK_RAIL_RAISE_TICK) / (float) RailgunConfig.RAIL_MOVE_TICKS);
+            aimPitch = packFromPitch + (90f - packFromPitch) * fp;
+            if (Math.abs(aimYaw - prevAimYaw) > 180f) prevAimYaw = aimYaw;
+            return;
+        }
         float targetYaw = aimYaw;
         float targetPitch = 0f;
-        if (getState() == RailgunState.PACKING && stateTicks < RailgunConfig.PACK_RAIL_RAISE_TICK) {
-            // Hold the aim while the barrel segments telescope back in, then raise and centre it.
-            targetPitch = aimPitch;
-            targetYaw = 0f;
-        } else if (railStowed()) {
+        if (railStowed()) {
             targetPitch = 90f;
             targetYaw = 0f;
-        } else if (hasTarget() && getState().isOperational()) {
+        } else if (hasTarget() && s.isOperational()) {
             Vec3d to = Vec3d.ofCenter(getTarget()).subtract(getPos().add(0, RailgunConfig.PIVOT_Y, 0));
             double horizontal = Math.sqrt(to.x * to.x + to.z * to.z);
             targetYaw = (float) Math.toDegrees(Math.atan2(to.x, to.z));

@@ -44,7 +44,7 @@ public final class BeamRenderer {
     private BeamRenderer() {}
 
     private static final int SIDES = 16;
-    private static final int MAX_SEGMENTS = 140;
+    private static final int MAX_SEGMENTS = 160;
     private static final int LIGHT = LightmapTextureManager.MAX_LIGHT_COORDINATE;
 
     public static void render(RailgunEntity railgun, float tickDelta, MatrixStack matrices, VertexConsumerProvider consumers) {
@@ -73,7 +73,7 @@ public final class BeamRenderer {
         float pulse = 0.75f + 0.25f * MathHelper.sin(time * (0.3f + c * 1.2f));
 
         // Swelling plasma orb at the muzzle.
-        float orb = 0.4f + 3.2f * c;
+        float orb = 0.5f + 4.6f * c;
         texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.a, orb * 0.7f,
                 1f, 0.5f, 0.4f, 0.75f, time * 0.05f, time * 0.03f);
         glowSphere(glow(cp), m, b.a, orb * 0.35f, 1f, 0.95f, 0.9f, 0.5f + 0.5f * c);
@@ -91,7 +91,7 @@ public final class BeamRenderer {
         // Lightning arcs crawling up the barrel, re-rolled every 2 ticks.
         Random rand = Random.create(railgun.getId() * 31L + (long) (time / 2));
         VertexConsumer glow = glow(cp);
-        int arcs = 2 + (int) (c * 6);
+        int arcs = 3 + (int) (c * 12);
         Vector3f back = new Vector3f(b.dir).mul((float) -RailgunConfig.BARREL_LENGTH);
         for (int i = 0; i < arcs; i++) {
             float along = 0.15f + rand.nextFloat() * 0.8f;
@@ -109,49 +109,84 @@ public final class BeamRenderer {
     // =========================================================================================
 
     private static void renderFiring(VertexConsumerProvider cp, Matrix4f m, Beam b, float p, float time) {
-        float intensity = (float) Math.pow(1f - p, 1.2);
-        float flicker = 0.88f + 0.12f * MathHelper.sin(time * 7.3f) * MathHelper.sin(time * 3.1f);
-        float i = intensity * flicker;
-        float bloom = p < 0.06f ? 2.5f * (1f - p / 0.06f) : 0f;
-        float B = 1.0f + 1.8f * intensity + bloom;
+        // Envelope: a blinding ignition flash, a long sustained burn, then a fast collapse.
+        float sustain = p < 0.6f ? 1f : (float) Math.pow(1f - (p - 0.6f) / 0.4f, 1.6);
+        float flicker = 0.9f + 0.1f * MathHelper.sin(time * 7.3f) * MathHelper.sin(time * 3.1f);
+        float i = sustain * flicker;
+        float bloom = p < 0.05f ? 3.0f * (1f - p / 0.05f) : 0f;
+        float B = 1.0f + 0.9f * sustain + bloom;
+        float throb = 1f + 0.08f * MathHelper.sin(time * 2.2f);
 
-        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 0.45f * B, 1f, 0.95f, 0.9f, Math.min(1f, 1.1f * i), 5f, time * 2.6f, 0f, 0.08f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 0.9f * B, 1f, 0.45f, 0.35f, 0.85f * i, 10f, time * 1.9f, time * 0.05f, 0.12f, time);
-        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 1.08f * B, 1f, 0.3f, 0.25f, 0.5f * i, 14f, time * 1.2f, -time * 0.08f, 0.16f, time + 40f);
-        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, b, 1.9f * B, 1f, 0.25f, 0.2f, 0.55f * i, 16f, time * 0.6f, time * 0.02f, 0.22f, time);
-        glowTube(glow(cp), m, b, 3.2f * B, 1f, 0.05f, 0.02f, 0.10f * i, time);
-        glowTube(glow(cp), m, b, 5.0f * B, 0.9f, 0.02f, 0.01f, 0.04f * i, time);
+        // Beam body, inside out.
+        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 0.9f * B, 1f, 0.97f, 0.94f, Math.min(1f, 1.2f * i), 5f, time * 3.4f, 0f, 0.06f, time);
+        texTube(tex(cp, BeamRenderLayers.TEX_CORE), m, b, 1.3f * B, 1f, 0.75f, 0.65f, 0.6f * i, 7f, time * 2.8f, 0.5f, 0.08f, time + 13f);
+        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 1.8f * B * throb, 1f, 0.45f, 0.33f, 0.9f * i, 10f, time * 2.2f, time * 0.06f, 0.12f, time);
+        texTube(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b, 2.2f * B, 1f, 0.28f, 0.2f, 0.6f * i, 14f, time * 1.4f, -time * 0.09f, 0.16f, time + 40f);
+        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, b, 3.4f * B * throb, 1f, 0.25f, 0.18f, 0.6f * i, 16f, time * 0.8f, time * 0.03f, 0.22f, time);
+        texTube(tex(cp, BeamRenderLayers.TEX_HALO), m, b, 4.6f * B, 0.9f, 0.15f, 0.1f, 0.3f * i, 22f, time * 0.5f, -time * 0.02f, 0.28f, time + 7f);
+        glowTube(glow(cp), m, b, 6.0f * B, 1f, 0.06f, 0.02f, 0.12f * i, time);
+        glowTube(glow(cp), m, b, 9.5f * B, 0.9f, 0.03f, 0.01f, 0.05f * i, time);
+        glowTube(glow(cp), m, b, 15f * B, 0.8f, 0.02f, 0.01f, 0.022f * i, time);
 
-        helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 1.35f * B, 0.55f * B, 0.25f, time * 0.35f, 1f, 0.55f, 0.45f, 0.8f * i, time);
+        // Two counter-rotating sets of helix ribbons.
+        helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 2.6f * B, 1.0f * B, 0.22f, time * 0.45f, 1f, 0.6f, 0.5f, 0.85f * i, time);
+        helix(tex(cp, BeamRenderLayers.TEX_HELIX), m, b, 3.6f * B, 0.6f * B, -0.13f, -time * 0.3f, 1f, 0.35f, 0.25f, 0.55f * i, time + 20f);
 
-        // Accelerator rings racing down the beam.
-        VertexConsumer ringTex = tex(cp, BeamRenderLayers.TEX_SHOCKWAVE);
-        float spacing = 10f;
-        float offset = (time * 3f) % spacing;
-        for (float d = offset; d < b.length; d += spacing) {
-            Vector3f c = new Vector3f(b.dir).mul(d).add(b.a);
-            texRing(ringTex, m, c, b.dir, 1.6f * B, 2.7f * B, 1f, 0.5f, 0.4f, 0.6f * i, time * 0.03f + d * 0.01f);
+        // Lightning crawling around the beam, re-rolled every 2 ticks.
+        Random rand = Random.create((long) (time / 2) * 977L + 13L);
+        int arcs = (int) (6 + 14 * i);
+        for (int k = 0; k < arcs; k++) {
+            float d0 = rand.nextFloat() * b.length;
+            float d1 = Math.min(b.length, d0 + 4f + rand.nextFloat() * 14f);
+            float a0 = rand.nextFloat() * MathHelper.TAU, a1 = a0 + (rand.nextFloat() - 0.5f) * 2.5f;
+            float r0 = (2.2f + rand.nextFloat() * 3f) * B, r1 = (2.2f + rand.nextFloat() * 3f) * B;
+            Vector3f s0 = new Vector3f(b.dir).mul(d0).add(b.a)
+                    .add(new Vector3f(b.u).mul(MathHelper.cos(a0) * r0)).add(new Vector3f(b.v).mul(MathHelper.sin(a0) * r0));
+            Vector3f s1 = new Vector3f(b.dir).mul(d1).add(b.a)
+                    .add(new Vector3f(b.u).mul(MathHelper.cos(a1) * r1)).add(new Vector3f(b.v).mul(MathHelper.sin(a1) * r1));
+            arc(glow(cp), m, s0, s1, rand, 0.07f + 0.05f * i, 1f, 0.8f, 0.75f, 0.9f * i);
         }
 
-        // Muzzle fireball
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.a, 1.6f * B, 1f, 0.6f, 0.5f, 0.85f * i, time * 0.07f, time * 0.04f);
-        glowSphere(glow(cp), m, b.a, 1.0f * B, 1f, 0.95f, 0.9f, 0.9f * i);
-        glowSphere(glow(cp), m, b.a, 3.0f * B, 1f, 0.15f, 0.05f, 0.25f * i);
+        // Accelerator rings racing down the beam.
+        float spacing = 6f;
+        float offset = (time * 5f) % spacing;
+        for (float d = offset; d < b.length; d += spacing) {
+            Vector3f c = new Vector3f(b.dir).mul(d).add(b.a);
+            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, c, b.dir, 2.6f * B, 4.4f * B, 1f, 0.5f, 0.4f, 0.65f * i, time * 0.03f + d * 0.01f);
+        }
 
-        // Impact: fireball and ground shockwaves.
-        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.b, 3.5f * B, 1f, 0.55f, 0.45f, 0.9f * i, time * 0.06f, -time * 0.05f);
-        glowSphere(glow(cp), m, b.b, 2.2f * B, 1f, 0.95f, 0.9f, 0.95f * i);
-        glowSphere(glow(cp), m, b.b, 6.0f * B, 1f, 0.2f, 0.06f, 0.3f * i);
-        glowSphere(glow(cp), m, b.b, 11f * B, 1f, 0.06f, 0.02f, 0.10f * i);
-        ringTex = tex(cp, BeamRenderLayers.TEX_SHOCKWAVE);
+        // Muzzle: fireball plus shock collars blasting off the end of the barrel.
+        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.a, 2.8f * B, 1f, 0.6f, 0.5f, 0.9f * i, time * 0.07f, time * 0.04f);
+        glowSphere(glow(cp), m, b.a, 1.8f * B, 1f, 0.97f, 0.92f, 0.95f * i);
+        glowSphere(glow(cp), m, b.a, 5.5f * B, 1f, 0.15f, 0.05f, 0.25f * i);
+        for (int k = 0; k < 3; k++) {
+            float q = p * 3.2f - k * 0.18f;
+            if (q <= 0f || q >= 1f) continue;
+            float rr = 2f + q * 26f;
+            Vector3f c = new Vector3f(b.dir).mul(q * 6f).add(b.a);
+            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, c, b.dir, rr, rr + 2.5f + q * 4f, 1f, 0.6f, 0.5f, 0.9f * (1f - q), time * 0.02f);
+        }
+
+        // Impact: fireball, expanding blast dome and rolling ground shockwaves.
+        texSphere(tex(cp, BeamRenderLayers.TEX_PLASMA), m, b.b, 6.5f * B * throb, 1f, 0.55f, 0.45f, 0.95f * i, time * 0.06f, -time * 0.05f);
+        glowSphere(glow(cp), m, b.b, 4.2f * B, 1f, 0.97f, 0.92f, 0.95f * i);
+        glowSphere(glow(cp), m, b.b, 11f * B, 1f, 0.2f, 0.06f, 0.3f * i);
+        glowSphere(glow(cp), m, b.b, 20f * B, 1f, 0.06f, 0.02f, 0.10f * i);
+        float dome = Math.min(1f, p * 2.2f);
+        texSphere(tex(cp, BeamRenderLayers.TEX_HALO), m, b.b, 4f + dome * 22f, 1f, 0.35f, 0.25f, 0.55f * (1f - dome), time * 0.03f, time * 0.02f);
         Vector3f ground = new Vector3f(b.b).add(0, -0.4f, 0);
         Vector3f up = new Vector3f(0, 1, 0);
-        float w1 = 3f + p * 48f;
-        texRing(ringTex, m, ground, up, w1, w1 + 5f, 1f, 0.55f, 0.45f, 0.9f * (1f - p), time * 0.01f);
-        if (p > 0.15f) {
-            float q = (p - 0.15f) / 0.85f;
-            float w2 = 2f + q * 30f;
-            texRing(ringTex, m, ground.add(0, 0.2f, 0), up, w2, w2 + 3f, 1f, 0.35f, 0.3f, 0.7f * (1f - q), -time * 0.01f);
+        float w1 = 4f + p * 90f;
+        texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, ground, up, w1, w1 + 8f, 1f, 0.55f, 0.45f, 0.95f * (1f - p), time * 0.01f);
+        if (p > 0.1f) {
+            float q = (p - 0.1f) / 0.9f;
+            float w2 = 3f + q * 60f;
+            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, new Vector3f(ground).add(0, 0.2f, 0), up, w2, w2 + 5f, 1f, 0.4f, 0.3f, 0.8f * (1f - q), -time * 0.01f);
+        }
+        if (p > 0.25f) {
+            float q = (p - 0.25f) / 0.75f;
+            float w3 = 2f + q * 36f;
+            texRing(tex(cp, BeamRenderLayers.TEX_SHOCKWAVE), m, new Vector3f(ground).add(0, 0.4f, 0), up, w3, w3 + 3f, 1f, 0.6f, 0.45f, 0.7f * (1f - q), time * 0.015f);
         }
     }
 

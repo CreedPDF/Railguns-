@@ -30,12 +30,14 @@ public final class RailgunConfig {
     /** Must match animation.railgun.deploy / pack (12.0 s). */
     public static final int TRANSFORM_TICKS = 240;
     public static final int PACK_TICKS = 240;
-    /** Tick of the transformation at which the ground clamps slam down (5.55 s). */
-    public static final int CLAMP_SLAM_TICK = 111;
+    /** Tick of the transformation at which the ground clamps slam down (6.5 s). */
+    public static final int CLAMP_SLAM_TICK = 130;
     /** Tick of the transformation at which the rail starts lowering from vertical. */
-    public static final int RAIL_LOWER_TICK = 160;
+    public static final int RAIL_LOWER_TICK = 176;
+    /** How long the rail takes to swing between vertical and level (eased), in ticks. */
+    public static final int RAIL_MOVE_TICKS = 26;
     /** Tick of the pack-up at which the rail starts rising to vertical (barrel already telescoped in). */
-    public static final int PACK_RAIL_RAISE_TICK = 40;
+    public static final int PACK_RAIL_RAISE_TICK = 38;
     /** How long a "confirm retract" prompt on the panel stays armed. */
     public static final int CONFIRM_TICKS = 80;
     /** Launch back to orbit: acceleration, top speed, and how high before it is removed. */
@@ -45,20 +47,24 @@ public final class RailgunConfig {
     /** Max distance from the player to the control panel to use it. */
     public static final double PANEL_REACH = 7.0;
     public static final int CHARGE_TICKS = 120;
-    public static final int FIRE_TICKS = 44;
+    public static final int FIRE_TICKS = 70;
     public static final int COOLDOWN_TICKS = 100;
 
     // ---- Weapon --------------------------------------------------------------------------
     public static final double MAX_FIRE_RANGE = 512.0;
-    public static final float IMPACT_EXPLOSION_POWER = 10.0f;
-    public static final float SECONDARY_EXPLOSION_POWER = 6.0f;
+    public static final float IMPACT_EXPLOSION_POWER = 16.0f;
+    public static final float SECONDARY_EXPLOSION_POWER = 9.0f;
     /** Number of secondary explosions punched downward from the impact point. */
-    public static final int PENETRATION_STEPS = 4;
+    public static final int PENETRATION_STEPS = 7;
     public static final double PENETRATION_STEP_DEPTH = 4.0;
     /** If false, explosions damage entities but never break blocks. */
     public static final boolean BREAK_BLOCKS = true;
-    public static final float BEAM_DAMAGE = 60.0f;
-    public static final double BEAM_HIT_RADIUS = 3.5;
+    public static final float BEAM_DAMAGE = 120.0f;
+    public static final double BEAM_HIT_RADIUS = 6.0;
+    /** Ring of blasts around the impact a moment after the strike (count, radius, power). */
+    public static final int RING_BLASTS = 8;
+    public static final double RING_BLAST_RADIUS = 9.0;
+    public static final float RING_BLAST_POWER = 7.0f;
 
     // ---- Interaction ---------------------------------------------------------------------
     public static final double MAX_INTERACT_DISTANCE = 24.0;

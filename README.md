@@ -23,12 +23,13 @@ layers, so it works alongside Sodium.
    re-enters in a plasma sheath and lands with its rail pointing straight up, retracted.
 3. Walk up to the pod and right-click the **tablet mounted in its hatch**: the camera flies up to
    it and its screen becomes the UI. Press **DEPLOY RAILGUN**. The tablet slides into the core and
-   the pod unfolds over 12 seconds: locking bolts pop, the four armour quarters unlatch and glide
-   out along the diagonals to become corner bulwarks, deck plates slide out from under the pod,
-   the stairs extend one step at a time, the ground clamps slide out, wind up and **slam** down,
-   the turret rises out of the core, the radar mast and antenna telescope up, the rail lowers,
-   the barrel telescopes out segment by segment and the coil rings light up in sequence. Nothing
-   comes out of the ground: every part was stowed inside the pod.
+   the pod unfolds over 12 seconds, one clearly eased phase at a time: locking bolts pop in
+   sequence, the four armour quarters unlatch and glide out along the diagonals on telescoping
+   hydraulic struts (which keep them tied to the core as corner bulwarks), deck plates slide out
+   from under the pod, the ground clamps slide out, wind up and **slam** down, the turret rises out
+   of the core, the radar mast and antenna telescope up, the rail swings level, the barrel
+   telescopes out segment by segment and the coil rings snap on. Every part was stowed inside the
+   pod; the front stays open so the tablet is reachable from the ground.
 4. Raise the tablet again for *Fire Control*: type X/Y/Z or **PAINT** the block you were aiming
    at, **SET**, then **FIRE** (from any distance; deployed railguns keep their chunk loaded). The
    tablet lowers so you can watch. No beam is visible until the shot.
@@ -39,7 +40,7 @@ layers, so it works alongside Sodium.
 
 The deployed emplacement has real collision: when it finishes deploying it fills its footprint
 with invisible collider blocks following a heightfield exported from the Blender model
-(`orbital_railgun_collision.json`), so you can climb the stairs and stand on each tier. They are
+(`orbital_railgun_collision.json`), so you can climb onto the decks and walk around the emplacement. They are
 removed when it packs up.
 
 One railgun per player. Creative players can sneak-punch a railgun to remove it instantly.
@@ -57,18 +58,18 @@ Locally: `./gradlew build` (jar in `build/libs/`), `./gradlew runClient`.
 ## Asset pipeline
 | Tool | Produces |
 |---|---|
-| `tools/blender/build_models.py` | The railgun (~350 cubes: an octagonal drop pod whose armour quarters, decks, stairs, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
+| `tools/blender/build_models.py` | The railgun (~380 cubes: an octagonal drop pod whose armour quarters, telescoping struts, decks, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
-| `tools/sfx/build_sounds.py` | 18 sounds synthesized from oscillators, filtered noise, FM and convolution reverb, encoded to Ogg Vorbis. |
+| `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |
 
 Model contracts the Java code relies on:
 - Bone **`turret`** yaws; bone **`barrel`** (pivot 118 px = `PIVOT_Y` 7.375 blocks) pitches and
   points toward −Z, muzzle 316 px = `BARREL_LENGTH` 19.75 blocks from the pivot.
 - The rest pose is the deployed emplacement; the pod is a pose where everything is stowed:
-  `shell_*` quarters (with `clamp_*`, `bolt_*`, `beacon_*`), `deck_*`, `step_1..3`, `turret`
+  `shell_*` quarters (with `clamp_*`, `bolt_*`, `beacon_*`), `strut_*_1..3`, `deck_n/e/w`, `turret`
   (`hull`, `radar` → `dish`, `antenna`), `barrel` (`vents`, `coils_a`, `seg1` → `coils_b`,
   `seg2` → `coils_c`) and `pod_panel` (the tablet in the core's hatch).
-- Animations: `pod`, `panel_open` (1.5 s), `deploy` (12 s), `pack` (12 s, deploy reversed), `idle`, `charge`, `fire`.
+- Animations: `pod`, `panel_open` (1.5 s), `deploy` (12 s), `pack` (12 s, deploy reversed with mirrored easings), `idle`, `charge`, `fire`. Keyframes carry GeckoLib easings (`easeInOutCubic`, `easeOutBack`, `easeInQuart` for the clamp slam...).
 - Boxes only, optionally rotated about Y or Z around their own pivot (octagonal hull, barrel and diagonal bulwarks).
 - The glowmask must have lit pixels (GeckoLib crashes on an empty glow layer); CI enforces it.
 

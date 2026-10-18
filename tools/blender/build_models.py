@@ -413,8 +413,9 @@ def build_railgun():
         clamp_*   diagonal ground clamps stowed inside each quarter
         bolt_*    locking bolts on the quarter seams
         beacon_*  rotating warning beacons on top
-      deck_n/e/s/w  walkway plates that slide out from under the pod
-        step_1..3   stairs nested in the +Z deck plate, extending one by one
+      strut_*_1..3  telescoping hydraulic arms + floor conduits tying each bulwark to the core
+      deck_n/e/w  walkway plates that slide out from under the pod (the +Z side stays open
+                  so the tablet is reachable from the ground)
       turret      yaw; hull rises out of the pod
         radar     telescoping mast with a spinning dish; antenna
       barrel      pitch; three telescoping octagonal segments (barrel > seg1 > seg2) with coil
@@ -439,11 +440,10 @@ def build_railgun():
         bone(f"clamp_{n}", f"shell_{n}", [D[0] + sx * 26, 4, D[2] + sz * 26])
         bone(f"bolt_{n}", f"shell_{n}", [D[0], 60, D[2]])
         bone(f"beacon_{n}", f"shell_{n}", [D[0] + sx * 22, SHELL_TOP + 2, D[2] + sz * 22])
-    for d in ("n", "e", "s", "w"):
+        for k in (1, 2, 3):
+            bone(f"strut_{n}_{k}", "core", [0, 0, 0])
+    for d in ("n", "e", "w"):
         bone(f"deck_{d}", "root", [0, 0, 0])
-    bone("step_1", "deck_s", [0, 0, 84])
-    bone("step_2", "deck_s", [0, 0, 84])
-    bone("step_3", "deck_s", [0, 0, 84])
     bone("turret", "root", [0, TURRET_Y, 0])
     bone("hull", "turret", [0, TURRET_Y, 0])
     bone("radar", "hull", [15, 107, 16])
@@ -566,16 +566,36 @@ def build_railgun():
             else:
                 oo, ss = [-(z0 + d), y0, x0], [d, h, w]
             box(db, kind, oo, ss, name=f"deck{rot}")
-    deck("deck_s", "s")
     deck("deck_n", "n")
     deck("deck_e", "e")
     deck("deck_w", "w")
-    for i, h in enumerate((15, 10, 5)):
-        st = B[f"step_{i + 1}"]
-        z = 84 + i * 7
-        box(st, "steel", [-18, 0, z], [36, h, 7])
-        box(st, "hazard", [-18, h, z + 5.5], [36, 0.4, 1.5])
-        box(st, "dark", [-19, 0, z + 1], [1, h - 1, 5], mirror=("x",))
+
+    # ---- Telescoping struts: core <-> bulwark (hydraulic arm up top, cable conduit on the floor)
+    # Radii are measured along the diagonal from the core axis. Deployed, the arm spans the core's
+    # diagonal face (r 32) to the bulwark's inner wall (r ~117); stowed, every stage slides back
+    # inside the core (r <= 31), so nothing pokes out of the pod.
+    for q in quads:
+        sx, sz = q
+        n = qname[q]
+        o = (0, 0)
+        s1, s2, s3 = B[f"strut_{n}_1"], B[f"strut_{n}_2"], B[f"strut_{n}_3"]
+        # stage 1: armoured housing
+        diag_box(s1, "dark", sx, sz, o, 30, 60, 12, 54, 66)
+        diag_box(s1, "glow", sx, sz, o, 33, 55, 12.4, 59.4, 60.6)
+        diag_box(s1, "steel", sx, sz, o, 56, 60, 13, 53.5, 66.5)
+        diag_box(s1, "dark", sx, sz, o, 30, 60, 8, 0, 5)                    # floor conduit
+        diag_box(s1, "glow", sx, sz, o, 32, 58, 2, 5, 5.4)
+        # stage 2: piston
+        diag_box(s2, "steel", sx, sz, o, 57, 89, 9, 55.5, 64.5)
+        diag_box(s2, "dark", sx, sz, o, 85, 89, 10, 55, 65)
+        diag_box(s2, "amber", sx, sz, o, 86, 88, 2, 65, 65.4)
+        diag_box(s2, "steel", sx, sz, o, 57, 89, 6, 0, 4)
+        diag_box(s2, "hazard", sx, sz, o, 59, 87, 6.4, 3, 3.6)
+        # stage 3: polished rod + mounting plate on the bulwark
+        diag_box(s3, "paint", sx, sz, o, 86, 118, 6, 57, 63)
+        diag_box(s3, "dark", sx, sz, o, 112, 118, 14, 51, 69)
+        diag_box(s3, "glow", sx, sz, o, 111.6, 112, 10, 56, 64)
+        diag_box(s3, "steel", sx, sz, o, 86, 116, 4, 0, 3)
 
     # ---- Turret ------------------------------------------------------------------------------------
     H = B["hull"]
@@ -1160,7 +1180,7 @@ def export_item_model(boxes, tex, path, texture_id):
 # Collision heightfield (consumed by the mod to place invisible collider blocks)
 # =============================================================================================
 
-COLLISION_BONES = {"core", "deck_n", "deck_e", "deck_s", "deck_w", "step_1", "step_2", "step_3",
+COLLISION_BONES = {"core", "deck_n", "deck_e", "deck_w",
                    "shell_pp", "shell_pn", "shell_np", "shell_nn"}
 TURRET_COLLISION_RADIUS = 28.0   # px, the turret hull footprint (it rotates, so a disc)
 TURRET_COLLISION_TOP = 107.0     # px, hull roof
@@ -1224,16 +1244,36 @@ def export_collision(boxes, path):
 # =============================================================================================
 
 QUADS = {"pp": (1, 1), "pn": (1, -1), "np": (-1, 1), "nn": (-1, -1)}
-DECKS = {"deck_s": (0, 1), "deck_n": (0, -1), "deck_e": (1, 0), "deck_w": (-1, 0)}
+DECKS = {"deck_n": (0, -1), "deck_e": (1, 0), "deck_w": (-1, 0)}
 ONE = [1, 1, 1]
 ZERO = [0, 0, 0]
 DEPLOY_LEN = 12.0
 PANEL_IN = [0, 0, -4.2]          # tablet slid into the core
+STRUT_SHIFT = {1: 29.0, 2: 58.0, 3: BULWARK_D * math.sqrt(2)}   # px along the diagonal
+
+# GeckoLib easings (the easing on a keyframe shapes the segment that ENDS at that keyframe).
+IO, OUT, IN, BACK, SLAM, SINE = ("easeInOutCubic", "easeOutCubic", "easeInCubic", "easeOutBack",
+                                 "easeInQuart", "easeInOutSine")
+
+
+def kv(k):
+    """Keyframe value: either [x, y, z] or ([x, y, z], easing)."""
+    return k[0] if isinstance(k, tuple) else k
+
+
+def ke(k):
+    return k[1] if isinstance(k, tuple) else None
 
 
 def _q_in(q, f=1.0):
     sx, sz = QUADS[q]
     return [-sx * BULWARK_D * f, 0, -sz * BULWARK_D * f]
+
+
+def _strut_in(q, k, f=1.0):
+    sx, sz = QUADS[q]
+    d = STRUT_SHIFT[k] / math.sqrt(2) * f
+    return [-sx * d, 0, -sz * d]
 
 
 def _deck_in(d, f=1.0):
@@ -1252,14 +1292,13 @@ def _pod_pose():
     t = {}
     for q in QUADS:
         t[f"shell_{q}"] = {"position": {0.0: _q_in(q)}}
+        for k in (1, 2, 3):
+            t[f"strut_{q}_{k}"] = {"position": {0.0: _strut_in(q, k)}}
         t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q)}}
         t[f"bolt_{q}"] = {"position": {0.0: ZERO}}
         t[f"beacon_{q}"] = {"rotation": {0.0: ZERO}}
     for d in DECKS:
         t[d] = {"position": {0.0: _deck_in(d)}}
-    t["step_1"] = {"position": {0.0: [0, 0, -7]}}
-    t["step_2"] = {"position": {0.0: [0, 0, -14]}}
-    t["step_3"] = {"position": {0.0: [0, 0, -21]}}
     t["turret"] = {"position": {0.0: [0, POD_TURRET_DROP, 0]}}
     t["radar"] = {"scale": {0.0: [1, 0.08, 1]}}
     t["antenna"] = {"scale": {0.0: [1, 0.08, 1]}}
@@ -1273,70 +1312,111 @@ def _pod_pose():
     return t
 
 
+# Deployment timeline (seconds). RailgunConfig mirrors the ticks marked *.
+T_BOLTS = 0.3            # locking bolts pop one after another
+T_UNLATCH = 1.8          # shell quarters crack open
+T_GLIDE = (2.3, 3.8)     # quarters + struts glide out
+T_DECKS = 3.9            # deck plates, staggered 0.25 s, 0.7 s each
+T_CLAMP_OUT = (5.0, 5.9)
+T_SLAM = 6.5             # * CLAMP_SLAM_TICK = 130
+T_TURRET = (6.8, 8.3)
+T_RADAR = 8.3
+T_RAIL = 8.8             # * RAIL_LOWER_TICK = 176, lowers over 26 ticks (eased, procedural)
+T_SEG = (10.2, 10.7)
+T_COILS = 11.2
+T_PANEL = 11.55
+
+
 def _deploy():
     """
-    12 s, synced to RailgunConfig (TRANSFORM_TICKS 240, CLAMP_SLAM_TICK 111, RAIL_LOWER_TICK 160)
-    and to railgun_transform.ogg:
-      0.0-1.0   locking bolts pop, beacons start spinning
-      1.0-1.5   shell quarters unlatch (crack open 15 %)
-      1.5-3.4   quarters glide out diagonally to become corner bulwarks
-      2.0-3.8   deck plates slide out from under the pod, staggered
-      3.8-4.9   stairs extend one step at a time
-      3.4-5.75  clamps slide out raised, wind up, SLAM at 5.55 s, settle
-      5.6-7.6   turret rises out of the pod
-      7.0-8.4   radar mast and antenna telescope up; dish starts turning
-      8.0-9.6   (procedural) rail lowers from vertical
-      9.6-11.0  barrel telescopes: segment 1, then segment 2
-      11.0-11.8 coil rings light up in sequence; cooling fins rise
-      11.4-12.0 control tablet slides back out of the core
+    12 s, one phase at a time with eased motion and small mechanical details in between:
+      0.3-1.75  locking bolts pop out in sequence, then retract; beacons spin throughout
+      1.8-2.1   the four armour quarters unlatch (crack open)
+      2.3-3.8   quarters glide out along the diagonals; the telescoping struts extend with them
+      3.9-5.1   deck plates slide out from under the pod, one after another
+      5.0-6.5   ground clamps slide out raised, wind up and SLAM into the ground at 6.5 s
+      6.8-8.3   turret rises out of the core
+      8.3-9.0   radar mast and antenna telescope up, the dish starts turning
+      8.8-10.1  (procedural) the rail lowers from vertical
+      10.2-11.25 barrel telescopes: segment 1, then segment 2
+      11.2-11.85 coil rings snap on in sequence, cooling fins rise
+      11.55-12  the tablet slides back out of the core
     """
     t = {}
+    g0, g1 = T_GLIDE
     for i, q in enumerate(QUADS):
         sx, sz = QUADS[q]
-        t[f"bolt_{q}"] = {"position": {0.0: ZERO, 0.2 + 0.1 * i: ZERO, 0.6 + 0.1 * i: [sx * 3, 4, 0],
-                                       1.0: [sx * 3, 4, 0], 1.3: ZERO}}
+        b0 = T_BOLTS + 0.15 * i
+        t[f"bolt_{q}"] = {"position": {0.0: ZERO, b0: ZERO, b0 + 0.25: ([sx * 3, 4, 0], BACK),
+                                       1.5: [sx * 3, 4, 0], 1.75: (ZERO, IN)}}
         t[f"beacon_{q}"] = {"rotation": {0.0: ZERO, 12.0: [0, 360 * 9, 0]}}
-        t[f"shell_{q}"] = {"position": {0.0: _q_in(q), 1.0: _q_in(q), 1.5: _q_in(q, 0.85),
-                                        3.2: [sx * 1.5, 0, sz * 1.5], 3.4: ZERO}}
-        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q), 3.4: _clamp_in(q), 4.8: [0, 10, 0],
-                                        5.35: [0, 13, 0], 5.55: [0, -1.5, 0], 5.75: ZERO}}
-    for i, d in enumerate(("deck_s", "deck_e", "deck_n", "deck_w")):
-        t0 = 2.0 + 0.2 * i
-        t[d] = {"position": {0.0: _deck_in(d), t0: _deck_in(d), t0 + 1.2: [v * -0.03 for v in _deck_in(d)],
-                             t0 + 1.4: ZERO}}
-    for i in range(3):
-        t0 = 3.8 + i * 0.35
-        t[f"step_{i + 1}"] = {"position": {0.0: [0, 0, -7 * (i + 1)], t0: [0, 0, -7 * (i + 1)], t0 + 0.4: ZERO}}
-    t["turret"] = {"position": {0.0: [0, POD_TURRET_DROP, 0], 5.6: [0, POD_TURRET_DROP, 0],
-                                7.4: [0, 2, 0], 7.6: ZERO}}
-    t["radar"] = {"scale": {0.0: [1, 0.08, 1], 7.0: [1, 0.08, 1], 7.8: [1, 1.05, 1], 8.0: ONE}}
-    t["antenna"] = {"scale": {0.0: [1, 0.08, 1], 7.4: [1, 0.08, 1], 8.2: [1, 1.05, 1], 8.4: ONE}}
-    t["dish"] = {"rotation": {0.0: ZERO, 8.0: ZERO, 12.0: [0, 360, 0]}}
-    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN], 9.6: [0, 0, SEG1_IN], 10.3: [0, 0, -1.5], 10.4: ZERO}}
-    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN], 10.2: [0, 0, SEG2_IN], 10.9: [0, 0, -1.5], 11.0: ZERO}}
+        t[f"shell_{q}"] = {"position": {0.0: _q_in(q), T_UNLATCH: _q_in(q), T_UNLATCH + 0.3: (_q_in(q, 0.88), OUT),
+                                        g0: _q_in(q, 0.88), g1: (ZERO, IO)}}
+        for k in (1, 2, 3):
+            t[f"strut_{q}_{k}"] = {"position": {0.0: _strut_in(q, k), T_UNLATCH: _strut_in(q, k),
+                                                T_UNLATCH + 0.3: (_strut_in(q, k, 0.88), OUT),
+                                                g0: _strut_in(q, k, 0.88), g1: (ZERO, IO)}}
+        c0, c1 = T_CLAMP_OUT
+        t[f"clamp_{q}"] = {"position": {0.0: _clamp_in(q), c0: _clamp_in(q), c1: ([0, 10, 0], IO),
+                                        T_SLAM - 0.4: [0, 10, 0], T_SLAM - 0.15: ([0, 13, 0], OUT),
+                                        T_SLAM: (ZERO, SLAM)}}
+    for i, d in enumerate(("deck_e", "deck_n", "deck_w")):
+        d0 = T_DECKS + 0.25 * i
+        t[d] = {"position": {0.0: _deck_in(d), d0: _deck_in(d), d0 + 0.7: (ZERO, IO)}}
+    u0, u1 = T_TURRET
+    t["turret"] = {"position": {0.0: [0, POD_TURRET_DROP, 0], u0: [0, POD_TURRET_DROP, 0], u1: (ZERO, IO)}}
+    t["radar"] = {"scale": {0.0: [1, 0.08, 1], T_RADAR: [1, 0.08, 1], T_RADAR + 0.5: (ONE, BACK)}}
+    t["antenna"] = {"scale": {0.0: [1, 0.08, 1], T_RADAR + 0.2: [1, 0.08, 1], T_RADAR + 0.7: (ONE, BACK)}}
+    t["dish"] = {"rotation": {0.0: ZERO, T_RADAR + 0.5: ZERO, 12.0: ([0, 360, 0], "easeInSine")}}
+    s0, s1 = T_SEG
+    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN], s0: [0, 0, SEG1_IN], s0 + 0.55: (ZERO, OUT)}}
+    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN], s1: [0, 0, SEG2_IN], s1 + 0.55: (ZERO, OUT)}}
     for i, c in enumerate(("coils_a", "coils_b", "coils_c")):
-        t0 = 11.0 + 0.2 * i
-        t[c] = {"scale": {0.0: [0.8, 0.8, 1], t0: [0.8, 0.8, 1], t0 + 0.15: [1.18, 1.18, 1], t0 + 0.35: ONE}}
-    t["vents"] = {"position": {0.0: [0, -4, 0], 11.5: [0, -4, 0], 11.8: [0, 1, 0], 12.0: ZERO}}
-    t["pod_panel"] = {"position": {0.0: PANEL_IN, 11.4: PANEL_IN, 11.9: [0, 0, 0.5], 12.0: ZERO}}
+        k0 = T_COILS + 0.12 * i
+        t[c] = {"scale": {0.0: [0.8, 0.8, 1], k0: [0.8, 0.8, 1], k0 + 0.3: (ONE, BACK)}}
+    t["vents"] = {"position": {0.0: [0, -4, 0], 11.5: [0, -4, 0], 11.85: (ZERO, BACK)}}
+    t["pod_panel"] = {"position": {0.0: PANEL_IN, T_PANEL: PANEL_IN, 12.0: (ZERO, BACK)}}
     return t
 
 
+_MIRROR = {"easeIn": "easeOut", "easeOut": "easeIn"}
+
+
+def _mirror_easing(e):
+    if e is None:
+        return None
+    for a, b in _MIRROR.items():
+        if e.startswith(a) and not e.startswith("easeInOut"):
+            return b + e[len(a):]
+    return e
+
+
 def reverse_tracks(tracks, length):
-    return {bone: {ch: {round(length - t, 4): v for t, v in keys.items()} for ch, keys in chans.items()}
-            for bone, chans in tracks.items()}
+    """Plays a track backwards. A segment's easing lives on its END key, so when the segment is
+    reversed the easing moves to the other key and in/out swap (easeOutBack -> easeInBack)."""
+    out = {}
+    for bone, chans in tracks.items():
+        out[bone] = {}
+        for ch, keys in chans.items():
+            times = sorted(keys)
+            new = {}
+            for i, t in enumerate(times):
+                nxt = keys[times[i + 1]] if i + 1 < len(times) else None
+                e = _mirror_easing(ke(nxt)) if nxt is not None else None
+                v = kv(keys[t])
+                new[round(length - t, 4)] = (v, e) if e else v
+            out[bone][ch] = dict(sorted(new.items()))
+    return out
 
 
 DEPLOY = _deploy()
 # Pack-up: the deployment in reverse; the tablet slides in first and back out at the very end.
 PACK = reverse_tracks(DEPLOY, DEPLOY_LEN)
-PACK["pod_panel"] = {"position": {0.0: ZERO, 0.6: PANEL_IN, 11.4: PANEL_IN, 11.9: [0, 0, 0.5], 12.0: ZERO}}
-PACK["beacon_pp"] = PACK["beacon_pn"] = PACK["beacon_np"] = PACK["beacon_nn"] = {"rotation": {0.0: ZERO, 12.0: [0, 360 * 9, 0]}}
-PACK["dish"] = {"rotation": {0.0: ZERO, 4.0: [0, 360, 0], 12.0: [0, 360, 0]}}
+PACK["pod_panel"] = {"position": {0.0: ZERO, 0.5: (PANEL_IN, IO), 11.55: PANEL_IN, 12.0: (ZERO, BACK)}}
 
 POD_POSE = _pod_pose()
 PANEL_OPEN_ANIM = dict(POD_POSE)
-PANEL_OPEN_ANIM["pod_panel"] = {"position": {0.0: ZERO, 0.35: [0, 0, 0.8], 1.5: PANEL_IN}}
+PANEL_OPEN_ANIM["pod_panel"] = {"position": {0.0: ZERO, 0.3: ([0, 0, 0.8], OUT), 1.2: (PANEL_IN, IO)}}
 PANEL_OPEN_ANIM.update({f"beacon_{q}": {"rotation": {0.0: ZERO, 1.5: [0, 540, 0]}} for q in QUADS})
 
 
@@ -1353,15 +1433,15 @@ def full_tracks(tracks, length):
             k = dict(keys)
             times = sorted(k)
             if times[0] > 0:
-                k[0.0] = k[times[0]]
+                k[0.0] = kv(k[times[0]])
             if times[-1] < length:
-                k[length] = k[times[-1]]
+                k[length] = kv(k[times[-1]])
             out[bone][ch] = dict(sorted(k.items()))
     return out
 
 
 _RAW_ANIMATIONS = {
-    # name: (length_s, loop, {bone: {"scale"/"position"/"rotation": {time_s: [x,y,z]}}})
+    # name: (length_s, loop, {bone: {"scale"/"position"/"rotation": {time_s: [x,y,z] | ([x,y,z], easing)}}})
     # Turret yaw and barrel pitch are procedural (RailgunModel). Rotation keys are only used
     # for spinning parts (beacons, radar dish), where the sign convention does not matter.
     "animation.railgun.pod": (1.0, True, POD_POSE),
@@ -1369,28 +1449,28 @@ _RAW_ANIMATIONS = {
     "animation.railgun.deploy": (DEPLOY_LEN, "hold_on_last_frame", DEPLOY),
     "animation.railgun.pack": (DEPLOY_LEN, "hold_on_last_frame", PACK),
     "animation.railgun.idle": (4.0, True, {
-        "coils_a": {"scale": {0.0: ONE, 2.0: [1.025, 1.025, 1], 4.0: ONE}},
-        "coils_b": {"scale": {0.0: [1.02, 1.02, 1], 2.0: ONE, 4.0: [1.02, 1.02, 1]}},
+        "coils_a": {"scale": {0.0: ONE, 2.0: ([1.025, 1.025, 1], SINE), 4.0: (ONE, SINE)}},
+        "coils_b": {"scale": {0.0: [1.02, 1.02, 1], 2.0: (ONE, SINE), 4.0: ([1.02, 1.02, 1], SINE)}},
         "dish": {"rotation": {0.0: ZERO, 4.0: [0, 360, 0]}},
-        "vents": {"position": {0.0: ZERO, 2.0: [0, 0.4, 0], 4.0: ZERO}},
+        "vents": {"position": {0.0: ZERO, 2.0: ([0, 0.4, 0], SINE), 4.0: (ZERO, SINE)}},
     }),
     "animation.railgun.charge": (0.5, True, {
-        "coils_a": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.14, 1.14, 1], 0.5: [1.04, 1.04, 1]}},
-        "coils_b": {"scale": {0.0: [1.14, 1.14, 1], 0.25: [1.04, 1.04, 1], 0.5: [1.14, 1.14, 1]}},
-        "coils_c": {"scale": {0.0: [1.04, 1.04, 1], 0.25: [1.14, 1.14, 1], 0.5: [1.04, 1.04, 1]}},
-        "vents": {"position": {0.0: [0, 2.5, 0], 0.25: [0, 3.2, 0], 0.5: [0, 2.5, 0]}},
+        "coils_a": {"scale": {0.0: [1.04, 1.04, 1], 0.25: ([1.14, 1.14, 1], SINE), 0.5: ([1.04, 1.04, 1], SINE)}},
+        "coils_b": {"scale": {0.0: [1.14, 1.14, 1], 0.25: ([1.04, 1.04, 1], SINE), 0.5: ([1.14, 1.14, 1], SINE)}},
+        "coils_c": {"scale": {0.0: [1.04, 1.04, 1], 0.25: ([1.14, 1.14, 1], SINE), 0.5: ([1.04, 1.04, 1], SINE)}},
+        "vents": {"position": {0.0: [0, 2.5, 0], 0.25: ([0, 3.2, 0], SINE), 0.5: ([0, 2.5, 0], SINE)}},
         "dish": {"rotation": {0.0: ZERO, 0.5: [0, 180, 0]}},
         "turret": {"position": {0.0: ZERO, 0.125: [0, -0.35, 0], 0.25: ZERO, 0.375: [0, -0.2, 0], 0.5: ZERO}},
     }),
-    "animation.railgun.fire": (1.8, False, {
-        "seg1": {"position": {0.0: ZERO, 0.05: [0, 0, 10], 0.5: [0, 0, 6], 1.2: ZERO}},
-        "seg2": {"position": {0.0: ZERO, 0.05: [0, 0, 8], 0.6: [0, 0, 4], 1.4: ZERO}},
-        "barrel": {"position": {0.0: ZERO, 0.05: [0, 0, 6], 0.9: ZERO}},
-        "turret": {"position": {0.0: ZERO, 0.05: [0, -3, 0], 0.3: [0, 0.5, 0], 0.6: ZERO}},
-        "vents": {"position": {0.0: [0, 3, 0], 0.08: [0, 6, 0], 1.3: [0, 6, 0], 1.8: ZERO}},
-        "coils_a": {"scale": {0.0: [1.35, 1.35, 1], 0.4: [1.1, 1.1, 1], 1.8: ONE}},
-        "coils_b": {"scale": {0.0: [1.35, 1.35, 1], 0.5: [1.1, 1.1, 1], 1.8: ONE}},
-        "coils_c": {"scale": {0.0: [1.35, 1.35, 1], 0.6: [1.1, 1.1, 1], 1.8: ONE}},
+    "animation.railgun.fire": (2.0, False, {
+        "seg1": {"position": {0.0: ZERO, 0.05: ([0, 0, 14], "easeOutExpo"), 0.5: ([0, 0, 9], OUT), 1.4: (ZERO, IO)}},
+        "seg2": {"position": {0.0: ZERO, 0.05: ([0, 0, 12], "easeOutExpo"), 0.6: ([0, 0, 6], OUT), 1.6: (ZERO, IO)}},
+        "barrel": {"position": {0.0: ZERO, 0.05: ([0, 0, 9], "easeOutExpo"), 1.1: (ZERO, IO)}},
+        "turret": {"position": {0.0: ZERO, 0.05: ([0, -4, 0], "easeOutExpo"), 0.35: ([0, 0.6, 0], OUT), 0.7: (ZERO, IO)}},
+        "vents": {"position": {0.0: [0, 3, 0], 0.08: ([0, 7, 0], OUT), 1.4: [0, 7, 0], 2.0: (ZERO, IO)}},
+        "coils_a": {"scale": {0.0: [1.4, 1.4, 1], 0.4: ([1.12, 1.12, 1], OUT), 2.0: (ONE, IO)}},
+        "coils_b": {"scale": {0.0: [1.4, 1.4, 1], 0.5: ([1.12, 1.12, 1], OUT), 2.0: (ONE, IO)}},
+        "coils_c": {"scale": {0.0: [1.4, 1.4, 1], 0.6: ([1.12, 1.12, 1], OUT), 2.0: (ONE, IO)}},
     }),
 }
 
@@ -1421,7 +1501,8 @@ def author_animations(bones):
             empty.animation_data.action = action
             rest = Vector(empty["rest_location"])
             for channel, keys in channels.items():
-                for t, val in keys.items():
+                for t, key in keys.items():
+                    val = kv(key)
                     frame = t * FPS
                     if channel == "position":
                         empty.location = rest + mc_to_b(val)
@@ -1452,6 +1533,8 @@ def export_animations(bones, path):
                 curves = {fc.array_index: fc for fc in action.fcurves if fc.data_path == data_path}
                 if not curves:
                     continue
+                table = _tracks.get(bone_name, {}).get(channel, {})
+                easings = {round(t, 3): ke(k) for t, k in table.items() if ke(k)}
                 frames = sorted({kp.co.x for fc in curves.values() for kp in fc.keyframe_points})
                 default = {"location": rest, "rotation_euler": Vector((0, 0, 0)), "scale": Vector((1, 1, 1))}[data_path]
                 keys = {}
@@ -1464,7 +1547,10 @@ def export_animations(bones, path):
                         val = [math.degrees(b[0]), math.degrees(b[2]), -math.degrees(b[1])]
                     else:
                         val = [b[0], b[2], b[1]]
-                    keys[f"{frame / FPS:.3f}".rstrip("0").rstrip(".") or "0"] = [round(c, 4) + 0.0 for c in val]
+                    vec = [round(c, 4) + 0.0 for c in val]
+                    easing = easings.get(round(frame / FPS, 3))
+                    keys[f"{frame / FPS:.3f}".rstrip("0").rstrip(".") or "0"] = (
+                        {"vector": vec, "easing": easing} if easing else vec)
                 channels[channel] = keys
             if channels:
                 anim_bones[bone_name] = channels
@@ -1615,9 +1701,9 @@ def main():
         rail_up(True)
         render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -10.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)
         render(os.path.join(out, "railgun_pod_panel.png"), cam, target, (0.8, -4.9, 3.3), (0.0, -2.0, 3.0), 900, lens=35)
-        for t_s in (2.2, 4.4, 6.6, 8.8):
+        for t_s in (2.0, 3.0, 5.0, 6.4, 7.6, 9.5):
             pose(rg_bones, "animation.railgun.deploy", t_s)
-            rail_up(t_s < 9.0)
+            rail_up(t_s < T_RAIL)
             render(os.path.join(out, f"railgun_deploy_{t_s:04.1f}s.png"), cam, target, (15.0, -16.0, 9.0), (0.0, 0.0, 3.5), 800, lens=30)
         reset_pose(rg_bones)
         rail_up(False)

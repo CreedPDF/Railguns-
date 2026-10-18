@@ -80,7 +80,7 @@
     "sounds": [
       {
         "name": "orbital_railgun:railgun_fire",
-        "attenuation_distance": 256
+        "attenuation_distance": 320
       }
     ]
   },
@@ -89,7 +89,7 @@
     "sounds": [
       {
         "name": "orbital_railgun:railgun_impact",
-        "attenuation_distance": 256
+        "attenuation_distance": 320
       }
     ]
   },

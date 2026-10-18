@@ -82,8 +82,8 @@ public final class RailgunModClient implements ClientModInitializer {
                 case FIRING -> {
                     double toImpact = Math.sqrt(client.player.getBlockPos().getSquaredDistance(railgun.getTarget()));
                     float near = (float) Math.max(0.0, 1.0 - Math.min(dist, toImpact) / 120.0);
-                    RailgunHud.triggerFireFlash(near);
-                    RailgunHud.shake(0.4f + 1.4f * near);
+                    RailgunHud.triggerFireFlash(Math.min(1f, 0.35f + near));
+                    RailgunHud.shake(0.9f + 2.2f * near);
                 }
                 default -> { }
             }
