@@ -14,4 +14,23 @@ public abstract class GameRendererMixin {
     private void orbitalRailgun$farBeam(CallbackInfoReturnable<Float> cir) {
         if (RemoteBeams.active()) cir.setReturnValue(Math.max(cir.getReturnValueF(), 4096f));
     }
+
+    @Inject(method = "getFov", at = @At("RETURN"), cancellable = true, require = 0)
+    private void orbitalRailgun$cinematicFov(net.minecraft.client.render.Camera camera, float tickDelta, boolean changingFov,
+                                             CallbackInfoReturnable<Double> cir) {
+        if (com.creedpdf.orbitalrailgun.client.orbital.CinematicCamera.active()) {
+            cir.setReturnValue((double) com.creedpdf.orbitalrailgun.client.orbital.CinematicCamera.fov());
+        }
+    }
+
+    @Inject(method = "bobView", at = @At("HEAD"), cancellable = true, require = 0)
+    private void orbitalRailgun$noBob(net.minecraft.client.util.math.MatrixStack matrices, float tickDelta,
+                                      org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        if (com.creedpdf.orbitalrailgun.client.orbital.CinematicCamera.active()) ci.cancel();
+    }
+
+    @Inject(method = "getFarPlaneDistance", at = @At("RETURN"), cancellable = true, require = 0)
+    private void orbitalRailgun$farCinematic(CallbackInfoReturnable<Float> cir) {
+        if (com.creedpdf.orbitalrailgun.client.orbital.CinematicCamera.active()) cir.setReturnValue(Math.max(cir.getReturnValueF(), 2048f));
+    }
 }
