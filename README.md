@@ -80,6 +80,11 @@ soft top light, crisp bevels, thin panel grooves, decals and glowing light strip
 around every face, and is sampled with linear filtering (`railgun.png.mcmeta`), so it reads as
 smooth surfaces rather than pixel art.
 
+## Clamp rockets
+Once deployed, each of the four ground clamps needs solid blocks to bite into. Any clamp left
+hanging over air (a cliff edge, a pit, a bridge) lights its vectoring rockets instead: a plume
+under the foot plus short gimballed side bursts that keep the emplacement centred and steady.
+
 ## Landing rules
 Before a pod is released, an orbital site survey checks the landing zone (a disc of 8 blocks,
 12 high). Ordinary blocks are fine: the pod smashes through trees and roofs and clears a flat

@@ -61,6 +61,7 @@
   "message.orbital_railgun.denied.clear": "Zone clear",
   "subtitles.orbital_railgun.ui.loadout_select": "Ui Loadout Select",
   "subtitles.orbital_railgun.ui.loadout_order": "Ui Loadout Order",
+  "subtitles.orbital_railgun.railgun.clamp_thruster": "Clamp Rockets Firing",
   "subtitles.orbital_railgun.drone.descent": "Attachment Descends",
   "subtitles.orbital_railgun.drone.retro": "Attachment Thrusters",
   "subtitles.orbital_railgun.drone.dock": "Attachment Docks",

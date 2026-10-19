@@ -431,6 +431,15 @@
       }
     ]
   },
+  "railgun.clamp_thruster": {
+    "subtitle": "subtitles.orbital_railgun.railgun.clamp_thruster",
+    "sounds": [
+      {
+        "name": "orbital_railgun:railgun_clamp_thruster",
+        "attenuation_distance": 48
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

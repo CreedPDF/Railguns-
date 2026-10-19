@@ -90,6 +90,10 @@ public class RailgunEntity extends Entity implements GeoEntity {
     private static final TrackedData<Integer> LOADOUT =
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
+    /** Bit per clamp (pp, pn, np, nn) with no block to grip: its vectoring rockets hold the emplacement. */
+    private static final TrackedData<Integer> CLAMP_FREE =
+            DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.INTEGER);
+
     /** Pod-form hitbox: the armoured pillar (shell apothem 34 px) with the rail pointing up. */
     private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(4.4f, 10.75f);
 
@@ -132,6 +136,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         this.dataTracker.startTracking(HAS_TARGET, false);
         this.dataTracker.startTracking(OWNER, Optional.empty());
         this.dataTracker.startTracking(LOADOUT, 0);
+        this.dataTracker.startTracking(CLAMP_FREE, 0);
     }
 
     // =========================================================================================
@@ -151,6 +156,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
 
         if (getWorld().isClient) {
             clientTick(state, t);
+            clampParticles(getWorld(), this.random);
             return;
         }
 
@@ -171,6 +177,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
 
         ServerWorld sw = (ServerWorld) getWorld();
+        clampTick(sw, state, t);
         if (state.isOperational()) LoadoutEffects.deployedTick(this, sw, this.age);
         if (afterburnTicks > 0) LoadoutEffects.afterburnTick(this, sw, afterburnPos, afterburnTicks--);
     }
@@ -289,6 +296,72 @@ public class RailgunEntity extends Entity implements GeoEntity {
         if (t >= RailgunConfig.TRANSFORM_TICKS) {
             RailgunCollision.place(world, getBlockPos());
             setState(PartDrop.armingTicks(getLoadout()) > 0 ? RailgunState.ARMING : RailgunState.IDLE);
+        }
+    }
+
+    // ---- clamp vectoring rockets ----------------------------------------------------------------
+
+    private static final double[][] CLAMP_FEET = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    public int getClampFreeMask() { return dataTracker.get(CLAMP_FREE); }
+
+    private boolean clampsDown(RailgunState state, int t) {
+        return state.isOperational() || state == RailgunState.ARMING
+                || (state == RailgunState.TRANSFORMING && t >= RailgunConfig.CLAMP_SLAM_TICK)
+                || (state == RailgunState.PACKING && t < RailgunConfig.PACK_TICKS - RailgunConfig.CLAMP_SLAM_TICK);
+    }
+
+    /** Clamp feet need solid blocks to bite into; any foot over air lights its rockets instead. */
+    private void clampTick(ServerWorld world, RailgunState state, int t) {
+        if (!clampsDown(state, t)) {
+            if (dataTracker.get(CLAMP_FREE) != 0) dataTracker.set(CLAMP_FREE, 0);
+            return;
+        }
+        if (this.age % 10 == 0 || t == RailgunConfig.CLAMP_SLAM_TICK) {
+            int mask = 0;
+            for (int i = 0; i < 4; i++) {
+                BlockPos foot = BlockPos.ofFloored(getX() + CLAMP_FEET[i][0] * 6.3, getY() - 0.2, getZ() + CLAMP_FEET[i][1] * 6.3);
+                boolean grip = false;
+                for (int dy = 0; dy <= 2 && !grip; dy++) {
+                    BlockPos p = foot.down(dy);
+                    grip = !world.getBlockState(p).getCollisionShape(world, p).isEmpty()
+                            && !world.getBlockState(p).isOf(RailgunMod.RAILGUN_COLLIDER);
+                }
+                if (!grip) mask |= 1 << i;
+            }
+            if (mask != dataTracker.get(CLAMP_FREE)) {
+                if (mask != 0) world.playSound(null, getX(), getY() + 1, getZ(), ModSounds.CLAMP_THRUSTER, SoundCategory.BLOCKS, 4f, 0.9f);
+                dataTracker.set(CLAMP_FREE, mask);
+            }
+        }
+        int mask = dataTracker.get(CLAMP_FREE);
+        if (mask != 0 && this.age % 36 == 0) {
+            world.playSound(null, getX(), getY() + 1, getZ(), ModSounds.CLAMP_THRUSTER, SoundCategory.BLOCKS, 3.2f, 0.95f + 0.1f * random.nextFloat());
+        }
+    }
+
+    /** Client: rocket plumes under every unsupported clamp, with gimballed vectoring jets. */
+    private void clampParticles(World world, Random rand) {
+        int mask = dataTracker.get(CLAMP_FREE);
+        if (mask == 0) return;
+        for (int i = 0; i < 4; i++) {
+            if ((mask & (1 << i)) == 0) continue;
+            double fx = getX() + CLAMP_FEET[i][0] * 6.3, fz = getZ() + CLAMP_FEET[i][1] * 6.3, fy = getY() - 0.1;
+            for (int k = 0; k < 3; k++) {
+                world.addParticle(ModParticles.THRUSTER_FLAME, fx + (rand.nextDouble() - 0.5) * 0.5, fy, fz + (rand.nextDouble() - 0.5) * 0.5,
+                        (rand.nextDouble() - 0.5) * 0.06, -0.55 - rand.nextDouble() * 0.3, (rand.nextDouble() - 0.5) * 0.06);
+            }
+            world.addParticle(ModParticles.DRONE_JET, fx, fy - 0.3, fz, 0, -0.9, 0);
+            // vectoring: short side bursts that keep the emplacement centred
+            double phase = (this.age + i * 7) % 24;
+            if (phase < 4) {
+                double sx = Math.sin((this.age + i * 13) * 0.37), sz = Math.cos((this.age + i * 11) * 0.29);
+                world.addParticle(ModParticles.DRONE_JET, fx, fy + 0.6, fz, sx * 0.55, -0.05, sz * 0.55);
+                world.addParticle(ModParticles.DOCK_SPARK, fx, fy + 0.6, fz, sx * 0.2, 0.05, sz * 0.2);
+            }
+            if (this.age % 3 == 0) {
+                world.addParticle(ModParticles.PLASMA_SMOKE, fx + (rand.nextDouble() - 0.5) * 2, fy - 1.5, fz + (rand.nextDouble() - 0.5) * 2, 0, -0.05, 0);
+            }
         }
     }
 

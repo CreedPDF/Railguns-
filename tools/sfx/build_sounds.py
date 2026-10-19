@@ -786,6 +786,21 @@ def drone_ascend():
     return room(mband_sat(x, (2.2, 1.6, 1.3)), 1.8, 0.3)
 
 
+def railgun_clamp_thruster():
+    """Clamp vectoring rockets: a gritty roaring burn with gimbal flutter and short side bursts."""
+    d = 2.2
+    t = t_axis(d)
+    shape = np.clip(t / 0.08, 0, 1) * np.clip((d - t) / 0.25, 0, 1)
+    roar = filt(brown(d), "lowpass", 700) * 0.9 + filt(white(d), "bandpass", [600, 4500]) * 0.45
+    roar = roar * (0.8 + 0.2 * np.sin(2 * np.pi * 13 * t))
+    x = canvas(d)
+    place(x, mband_sat(roar * shape, (2.0, 1.5, 1.2)), 0.0)
+    for k in range(4):
+        b = filt(white(0.12), "bandpass", [1500, 7000]) * env(0.12, 0.004, 0.03, 0.5, 0.05) * 0.4
+        place(x, b, 0.3 + 0.45 * k)
+    return room(x, 0.9, 0.2)
+
+
 def railgun_attach():
     """An attachment materializing onto the railgun: hard-light shimmer, then a mechanical lock."""
     d = 1.6
@@ -1151,6 +1166,7 @@ LOADOUT_SOUNDS = {
     "module_coolant": module_coolant,
     "module_overclock": module_overclock,
     "module_targeting": module_targeting,
+    "railgun_clamp_thruster": railgun_clamp_thruster,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
