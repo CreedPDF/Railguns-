@@ -101,8 +101,16 @@ public class TabletScreen extends Screen {
         buildButtons();
     }
 
+    /** Tablet switched to calling down ARES-0 (the planet killer) instead of ARES-9. */
+    private static boolean ares0Page;
+
     private void buildButtons() {
         buttons.clear();
+        buttons.add(new Btn(196, 3, 56, 12, ares0Page ? "< ARES-9" : "ARES-0 >", 0xFF7088FF, () -> true, () -> {
+            ares0Page = !ares0Page;
+            buildButtons();
+            if (aimed != null) ClientPackets.requestSurvey(aimed);
+        }, false, null));
         // Orbital drop page
         buttons.add(new Btn(214, 150, 178, 52, "CALL DOWN", RED, () -> page() == Page.DROP && aimed != null
                 && !TabletStatus.latest.pending && !onCooldown() && surveyOk(), this::callDown, true, Page.DROP));
@@ -124,7 +132,7 @@ public class TabletScreen extends Screen {
     private enum Page { DROP, FIRE }
 
     private Page page() {
-        return TabletStatus.latest.found ? Page.FIRE : Page.DROP;
+        return ares0Page || !TabletStatus.latest.found ? Page.DROP : Page.FIRE;
     }
 
     @Nullable
@@ -152,7 +160,7 @@ public class TabletScreen extends Screen {
 
     private void callDown() {
         if (aimed == null) return;
-        ClientPackets.sendDeployRequest(aimed);
+        ClientPackets.sendDeployRequest(aimed, ares0Page ? 1 : 0);
         beginClose();
     }
 
@@ -244,7 +252,7 @@ public class TabletScreen extends Screen {
         if (!uiLive() || button != 0) return true;
         float cx = (float) ((mouseX - ox) / s), cy = (float) ((mouseY - oy) / s);
         for (Btn b : buttons) {
-            if (b.page == page() && b.hit(cx, cy)) {
+            if ((b.page == null || b.page == page()) && b.hit(cx, cy)) {
                 if (b.enabled.getAsBoolean()) {
                     play(ModSounds.UI_CLICK, 1f);
                     b.action.run();
@@ -337,7 +345,7 @@ public class TabletScreen extends Screen {
         drawHeader(ctx, time);
         if (page() == Page.DROP) drawDropPage(ctx, time);
         else drawFirePage(ctx, time);
-        for (Btn b : buttons) if (b.page == page()) b.render(ctx, mx, my, time);
+        for (Btn b : buttons) if (b.page == null || b.page == page()) b.render(ctx, mx, my, time);
         UiKit.scanlines(ctx, 0, 0, CW, CH, time);
         UiKit.brackets(ctx, 1, 1, CW - 2, CH - 2, 12, CYAN);
 
@@ -371,7 +379,7 @@ public class TabletScreen extends Screen {
 
     private void drawDropPage(DrawContext ctx, float time) {
         UiKit.chamfer(ctx, 6, 24, 196, 182, 10, UiKit.PANEL, UiKit.CYAN_DIM);
-        title(ctx, "ORBITAL DROP", 12, 30);
+        title(ctx, ares0Page ? "ORBITAL DROP // ARES-0" : "ORBITAL DROP", 12, 30);
         // Targeting reticle with orbital track
         int cx = 104, cy = 118;
         int r = 52 + (int) (2 * MathHelper.sin(time * 0.2f));
@@ -421,7 +429,7 @@ public class TabletScreen extends Screen {
             line(ctx, "Aim at open ground, then", x, 46, MUTED);
             line(ctx, "raise the tablet again.", x, 58, MUTED);
         }
-        line(ctx, "PAYLOAD  ARES-9 RAILGUN POD", x, 130, MUTED);
+        line(ctx, ares0Page ? "PAYLOAD  ARES-0 PLANET KILLER" : "PAYLOAD  ARES-9 RAILGUN POD", x, 130, ares0Page ? 0xFF9FB0FF : MUTED);
         if (st.pending) line(ctx, "DROP INBOUND", x, 138 + 4, AMBER);
         else if (onCooldown()) line(ctx, "UPLINK RECHARGING", x, 142, AMBER);
     }

@@ -133,10 +133,10 @@ public class Ares0Entity extends Entity implements GeoEntity {
         return getLerpedPos(pt).add(0, PITCH_Y, 0);
     }
 
-    /** Barrel direction: yaw 0 = north (-Z), pitch up positive. */
+    /** Barrel direction (same convention as ARES-9: yaw 0 = +Z, pitch up positive). */
     public Vec3d getBarrelDir(float pt) {
         double yaw = Math.toRadians(getAimYaw(pt)), pitch = Math.toRadians(getAimPitch(pt));
-        return new Vec3d(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+        return new Vec3d(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
     }
 
     public Vec3d getMuzzlePos(float pt) {
@@ -204,7 +204,7 @@ public class Ares0Entity extends Entity implements GeoEntity {
             case LEAVING -> targetPitch = 90f;
             default -> {
                 if (dir != null) {
-                    targetYaw = (float) Math.toDegrees(Math.atan2(-dir.x, -dir.z));
+                    targetYaw = (float) Math.toDegrees(Math.atan2(dir.x, dir.z));
                     targetPitch = (float) Math.toDegrees(Math.asin(MathHelper.clamp(dir.y, -1, 1)));
                     targetPitch = MathHelper.clamp(targetPitch, 8f, 90f);
                 } else {

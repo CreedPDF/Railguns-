@@ -93,7 +93,7 @@ public final class SpaceServer {
                 }
             } else if (p.getCommandTags().contains(ZERO_G)) {
                 p.setNoGravity(false);
-                p.removeCommandTag(ZERO_G);
+                p.removeScoreboardTag(ZERO_G);
             }
             // floating in space / riding the jetpack is not "flying" for the anti-cheat
             if (space || EvaSuit.jetpack(p)) p.networkHandler.floatingTicks = 0;
