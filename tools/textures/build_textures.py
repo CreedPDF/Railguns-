@@ -783,6 +783,7 @@ def particles():
 
     loadout_particles()
     option_particles()
+    scan_textures()
 
     for name, tex in PARTICLES.items():
         p = A / f"particles/{name}.json"
@@ -986,6 +987,76 @@ def panel_display():
     d.rectangle([sx0 - 3, sy0 - 3, sx1 + 2, sy1 + 2], outline=(51, 224, 255, 255), width=2)
     img.save(A / "textures/gui/panel_display.png")
 
+
+
+# =============================================================================================
+# Scan array: holographic wave, ore markers, target brackets, motes
+# =============================================================================================
+
+
+def scan_textures():
+    E = A / "textures/effect"
+    # wall: bright leading edge low on the band, fading upward, with fine scanlines and a hex mesh
+    W, H = 128, 64
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    v = yy / (H - 1)                       # 0 top .. 1 bottom
+    edge = np.exp(-((v - 0.72) / 0.05) ** 2)
+    body = np.clip((v - 0.15) / 0.6, 0, 1) ** 2 * 0.45
+    lines = ((yy % 4) < 1) * 0.25
+    hexm = (np.abs(np.sin(xx / W * np.pi * 16) * np.sin(yy / H * np.pi * 8)) > 0.92) * 0.35 * (v > 0.2)
+    a = np.clip(edge + body + lines * body * 2 + hexm * body * 2, 0, 1)
+    save_rgba(np.dstack([np.full_like(a, 255), np.full_like(a, 255), np.full_like(a, 255), a * 255]), E / "scan_wall.png")
+    # ground ring: hard outer rim, soft inner trail
+    W, H = 64, 32
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    v = yy / (H - 1)                       # 0 inner .. 1 outer
+    a = np.clip(np.exp(-((v - 0.88) / 0.06) ** 2) + v ** 3 * 0.45 + ((xx % 8) < 1) * 0.15 * v, 0, 1)
+    save_rgba(np.dstack([np.full_like(a, 255), np.full_like(a, 255), np.full_like(a, 255), a * 255]), E / "scan_ring.png")
+
+    # marker: diamond outline, crosshair ticks and a hot core (white, tinted per ore in game)
+    def marker(d, S):
+        c = S / 2
+        r = S * 0.36
+        pts = [(c, c - r), (c + r, c), (c, c + r), (c - r, c)]
+        d.polygon(pts, outline=(255, 255, 255, 255), width=max(2, S // 24))
+        r2 = S * 0.16
+        d.polygon([(c, c - r2), (c + r2, c), (c, c + r2), (c - r2, c)], fill=(255, 255, 255, 230))
+        t = S * 0.06
+        for k in range(4):
+            a_ = k * math.pi / 2
+            x0, y0 = c + math.cos(a_) * r * 1.15, c + math.sin(a_) * r * 1.15
+            x1, y1 = c + math.cos(a_) * r * 1.4, c + math.sin(a_) * r * 1.4
+            d.line([(x0, y0), (x1, y1)], fill=(255, 255, 255, 200), width=max(1, int(t)))
+    m = _aa(marker, 64)
+    save_rgba(_over(m, glow_frame(64, 0.1, 0.35, (255, 255, 255))), E / "scan_marker.png")
+
+    # bracket: four corner brackets
+    def bracket(d, S):
+        L, w, o = S * 0.22, max(2, S // 22), S * 0.08
+        col = (255, 255, 255, 255)
+        for sx in (0, 1):
+            for sy in (0, 1):
+                x = o if sx == 0 else S - o
+                y = o if sy == 0 else S - o
+                dx = L if sx == 0 else -L
+                dy = L if sy == 0 else -L
+                d.line([(x, y), (x + dx, y)], fill=col, width=w)
+                d.line([(x, y), (x, y + dy)], fill=col, width=w)
+        c = S / 2
+        d.line([(c - S * 0.04, c), (c + S * 0.04, c)], fill=(255, 255, 255, 160), width=max(1, w // 2))
+    save_rgba(_aa(bracket, 64), E / "scan_bracket.png")
+
+    # particles
+    particle("scan_mote", [glow_frame(16, 0.14 - i * 0.02, 0.4, (90, 235, 255)) for i in range(4)])
+    frames = []
+    for i in range(4):
+        r, th = radial(64)
+        ring = np.exp(-((r - (0.25 + 0.2 * i)) / 0.05) ** 2)
+        core = np.exp(-(r / (0.12 - 0.02 * i)) ** 2)
+        rays = np.abs(np.cos(th * 3 + i * 0.3)) ** 40 * np.clip(1 - r, 0, 1)
+        a = np.clip(ring * (1 - i / 4) + core + rays * 0.6, 0, 1)
+        frames.append(np.dstack([150 + 105 * a, 230 + 25 * a, np.full_like(a, 255), a * 255]))
+    particle("scan_flare", frames)
 
 def main():
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)

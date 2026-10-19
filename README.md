@@ -80,6 +80,15 @@ soft top light, crisp bevels, thin panel grooves, decals and glowing light strip
 around every face, and is sampled with linear filtering (`railgun.png.mcmeta`), so it reads as
 smooth surfaces rather than pixel art.
 
+## Scan mode
+Press **SCAN** on the tablet while the railgun is idle. A sensor mast telescopes up out of the
+pod on the turret's flank and its head spins up, then fires a holographic pulse: a glowing wall
+races out across the terrain (48 block radius). Every ore it passes lights up as a colour-coded
+marker you can see through rock (diamond cyan, emerald green, gold yellow, ancient debris
+bronze, redstone red, lapis blue, iron, copper, coal, quartz), rare finds ping as they appear,
+and hostile mobs within 64 blocks get red target brackets. Markers hold for about 20 seconds.
+The array recharges for 20 seconds between scans.
+
 ## Clamp rockets
 Once deployed, each of the four ground clamps needs solid blocks to bite into. Any clamp left
 hanging over air (a cliff edge, a pit, a bridge) lights its vectoring rockets instead: a plume

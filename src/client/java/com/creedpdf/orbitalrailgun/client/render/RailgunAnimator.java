@@ -66,7 +66,7 @@ public final class RailgunAnimator {
             case PANEL_OPEN -> { name = "animation.railgun.panel_open"; time = t; }
             case TRANSFORMING -> { name = "animation.railgun.deploy"; time = t; }
             case PACKING -> { name = "animation.railgun.pack"; time = t; }
-            case IDLE, COOLDOWN, ARMING -> { name = "animation.railgun.idle"; time = age; }
+            case IDLE, COOLDOWN, ARMING, SCANNING -> { name = "animation.railgun.idle"; time = age; }
             case CHARGING -> { name = "animation.railgun.charge"; time = age; }
             case FIRING -> {
                 Anim fire = anims.get("animation.railgun.fire");
@@ -81,6 +81,7 @@ public final class RailgunAnimator {
         else time = Math.min(time, anim.length);
 
         applyLoadout(e, processor, partialTick);
+        applyScanner(e, processor, partialTick);
 
         for (String boneName : animatedBones) {
             CoreGeoBone bone = processor.getBone(boneName);
@@ -109,6 +110,38 @@ public final class RailgunAnimator {
         }
     }
 
+    // ---- Scan array ------------------------------------------------------------------------
+
+    /** Mast telescopes out of its pod, the sensor head spins up; stowed (hidden) otherwise. */
+    private static void applyScanner(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float pt) {
+        CoreGeoBone mast = processor.getBone("scan_mast");
+        CoreGeoBone head = processor.getBone("scan_head");
+        if (mast == null) return;
+        float up = 0f, t = e.getStateTicks() + pt;
+        if (e.getState() == RailgunState.SCANNING) {
+            float out = smooth(t / 14f);
+            float in = t > RailgunEntity.SCAN_TICKS - 12 ? smooth((RailgunEntity.SCAN_TICKS - t) / 12f) : 1f;
+            up = out * in;
+        }
+        boolean on = up > 0.02f;
+        mast.setHidden(!on);
+        mast.setChildrenHidden(!on);
+        mast.setScaleY(Math.max(0.02f, up));
+        if (head != null) {
+            float spin = t * 0.18f + Math.max(0f, t - 12f) * 0.35f * smooth((t - 12f) / 18f);
+            head.setRotY(spin);
+            float pulse = t > RailgunEntity.SCAN_PULSE_TICK && t < RailgunEntity.SCAN_PULSE_TICK + 6
+                    ? 1f + 0.25f * (float) Math.sin(Math.PI * (t - RailgunEntity.SCAN_PULSE_TICK) / 6f) : 1f;
+            head.setScaleX(pulse);
+            head.setScaleZ(pulse);
+        }
+    }
+
+    private static float smooth(float f) {
+        f = Math.max(0f, Math.min(1f, f));
+        return f * f * (3f - 2f * f);
+    }
+
     // ---- Loadout attachments ---------------------------------------------------------------
 
     /**
@@ -123,7 +156,7 @@ public final class RailgunAnimator {
         Map<String, PartDrop.Pose> poses = new HashMap<>();
         for (PartDrop.Entry en : PartDrop.schedule(l)) {
             PartDrop.Pose pose = switch (state) {
-                case IDLE, CHARGING, FIRING, COOLDOWN -> PartDrop.Pose.DOCKED;
+                case IDLE, CHARGING, FIRING, COOLDOWN, SCANNING -> PartDrop.Pose.DOCKED;
                 case ARMING -> PartDrop.arrive(en, t - en.start());
                 case PACKING -> PartDrop.depart(en, t - PartDrop.departStart(en));
                 default -> PartDrop.Pose.HIDDEN;

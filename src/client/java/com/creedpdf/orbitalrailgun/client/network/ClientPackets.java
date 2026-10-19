@@ -35,10 +35,31 @@ public final class ClientPackets {
                 if (client.world != null) com.creedpdf.orbitalrailgun.client.render.RemoteBeams.add(client.world, id, muzzle, target, loadout);
             });
         });
+        ClientPlayNetworking.registerGlobalReceiver(ModPackets.SCAN_RESULT, (client, handler, buf, sender) -> {
+            net.minecraft.util.math.Vec3d head = new net.minecraft.util.math.Vec3d(buf.readDouble(), buf.readDouble(), buf.readDouble());
+            double groundY = buf.readDouble();
+            int n = buf.readVarInt();
+            long[] pos = new long[n];
+            byte[] kind = new byte[n];
+            for (int i = 0; i < n; i++) {
+                pos[i] = buf.readLong();
+                kind[i] = buf.readByte();
+            }
+            int m = buf.readVarInt();
+            int[] mobs = new int[m];
+            for (int i = 0; i < m; i++) mobs[i] = buf.readVarInt();
+            client.execute(() -> {
+                if (client.world != null) com.creedpdf.orbitalrailgun.client.render.ScanFx.add(client.world, head, groundY, pos, kind, mobs);
+            });
+        });
         ClientPlayNetworking.registerGlobalReceiver(ModPackets.TABLET_INFO, (client, handler, buf, sender) -> {
             TabletStatus status = TabletStatus.read(buf);
             client.execute(() -> TabletStatus.latest = status);
         });
+    }
+
+    public static void sendScan() {
+        ClientPlayNetworking.send(ModPackets.TABLET_SCAN, PacketByteBufs.create());
     }
 
     public static void sendDeployRequest(BlockPos target) {

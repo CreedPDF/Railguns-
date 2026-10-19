@@ -786,6 +786,45 @@ def drone_ascend():
     return room(mband_sat(x, (2.2, 1.6, 1.3)), 1.8, 0.3)
 
 
+def scan_charge():
+    """Scan array spinning up: a rising sonar sweep, a hum climbing in pitch, glassy shimmer."""
+    d = 1.7
+    x = canvas(d)
+    t = t_axis(1.5)
+    hum = unison(glide(140, 520, 1.5, 0.8), 1.5, 5, 0.008, "saw")
+    hum = sweep(hum, "lowpass", 600, 4200) * env(1.5, 0.3, 0.1, 0.9, 0.15) * 0.35
+    place(x, hum, 0.0)
+    shimmer = sum(osc(glide(f, f * 2.0, 1.5, 0.7), 1.5) for f in (1760, 2217, 2637)) / 3
+    place(x, shimmer * (0.3 + 0.7 * (t / 1.5)) * env(1.5, 0.4, 0.1, 0.9, 0.1) * 0.12, 0.0)
+    for i in range(6):
+        place(x, osc(900 + 220 * i, 0.05, "sine") * env(0.05, 0.002, 0.01, 0.7, 0.03) * 0.15, 0.1 + 0.22 * i)
+    place(x, servo(0.6, 180, 420, 12, 0.4), 0.0)
+    return room(x, 1.2, 0.3)
+
+
+def scan_pulse():
+    """The pulse: deep sonar ping with a sub thump, a bright transient and a long glassy tail."""
+    d = 3.6
+    x = canvas(d)
+    place(x, kick(90, 38, 1.2, 0.4, 0.5) * 0.9, 0.0)
+    ping = fm(1046.5, 2.0, 1.2, 3.2) * decay(3.2, 0.9) * 0.55
+    place(x, ping, 0.0)
+    place(x, fm(523.25, 3.0, 0.6, 3.0) * decay(3.0, 1.2) * 0.35, 0.02)
+    tail = sweep(white(3.0), "bandpass", 6000, 900) * decay(3.0, 0.8) * 0.18
+    place(x, tail, 0.03)
+    place(x, metal(1800, 0.6, 0.3, 1.5) * 0.15, 0.0)
+    return room(x, 2.4, 0.45)
+
+
+def scan_ping():
+    """A contact: crisp two-tone blip."""
+    d = 0.5
+    x = canvas(d)
+    place(x, fm(2093, 2.0, 0.8, 0.25) * env(0.25, 0.002, 0.03, 0.4, 0.18) * 0.5, 0.0)
+    place(x, osc(3136, 0.12, "sine") * env(0.12, 0.002, 0.02, 0.5, 0.08) * 0.3, 0.07)
+    return room(x, 0.6, 0.25)
+
+
 def railgun_clamp_thruster():
     """Clamp vectoring rockets: a gritty roaring burn with gimbal flutter and short side bursts."""
     d = 2.2
@@ -1167,6 +1206,9 @@ LOADOUT_SOUNDS = {
     "module_overclock": module_overclock,
     "module_targeting": module_targeting,
     "railgun_clamp_thruster": railgun_clamp_thruster,
+    "scan_charge": scan_charge,
+    "scan_pulse": scan_pulse,
+    "scan_ping": scan_ping,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1180,7 +1222,7 @@ LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_th
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "drone_", "railgun_", "muzzle_", "module_"):
+    for pre in ("ui_", "drone_", "scan_", "railgun_", "muzzle_", "module_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1238,7 +1280,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "module_seismic", "module_thruster")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "scan_pulse", "module_seismic", "module_thruster")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 

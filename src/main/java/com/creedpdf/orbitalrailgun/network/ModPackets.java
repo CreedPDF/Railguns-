@@ -61,6 +61,8 @@ public final class ModPackets {
     public static final Identifier SURVEY = RailgunMod.id("survey");
     public static final Identifier SURVEY_RESULT = RailgunMod.id("survey_result");
     public static final Identifier BEAM_SHOT = RailgunMod.id("beam_shot");
+    public static final Identifier TABLET_SCAN = RailgunMod.id("tablet_scan");
+    public static final Identifier SCAN_RESULT = RailgunMod.id("scan_result");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -113,6 +115,14 @@ public final class ModPackets {
                 ServerPlayNetworking.send(player, SURVEY_RESULT, out);
             });
         });
+        ServerPlayNetworking.registerGlobalReceiver(TABLET_SCAN, (server, player, handler, buf, sender) ->
+                server.execute(() -> {
+                    RailgunEntity railgun = owned(player);
+                    if (railgun == null) { deny(player, "no_railgun"); return; }
+                    if (!railgun.tryStartScan()) deny(player, railgun.getState() == RailgunState.IDLE ? "scan_cooldown"
+                            : railgun.getState().isOperational() ? "busy" : "not_deployed");
+                    sendTabletInfo(player);
+                }));
         ServerPlayNetworking.registerGlobalReceiver(TABLET_ABORT, (server, player, handler, buf, sender) ->
                 server.execute(() -> {
                     RailgunEntity railgun = owned(player);
@@ -190,6 +200,29 @@ public final class ModPackets {
             buf.writeBlockPos(target);
             buf.writeVarInt(loadout);
             ServerPlayNetworking.send(player, BEAM_SHOT, buf);
+        }
+    }
+
+    /** Scan pulse: ores (packed pos + kind) and tagged hostiles, to everyone near the emplacement. */
+    public static void broadcastScan(ServerWorld world, RailgunEntity railgun, Vec3d head, java.util.List<long[]> ores, int[] mobs) {
+        for (ServerPlayerEntity p : world.getPlayers()) {
+            if (p.squaredDistanceTo(railgun) > 192 * 192) continue;
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeDouble(head.x);
+            buf.writeDouble(head.y);
+            buf.writeDouble(head.z);
+            buf.writeDouble(railgun.getY());
+            buf.writeVarInt(ores.size());
+            for (long[] e : ores) {
+                buf.writeLong(e[0]);
+                buf.writeByte((int) e[1]);
+            }
+            buf.writeVarInt(mobs.length);
+            for (int id : mobs) buf.writeVarInt(id);
+            ServerPlayNetworking.send(p, SCAN_RESULT, buf);
+            if (p.getUuid().equals(railgun.getOwnerUuid())) {
+                p.sendMessage(Text.translatable("message.orbital_railgun.scan.result", ores.size(), mobs.length).formatted(Formatting.AQUA), true);
+            }
         }
     }
 

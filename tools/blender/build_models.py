@@ -659,6 +659,32 @@ def build_railgun():
     octagon_z("bore", s2, "glow", 0, Y, -316.6, -316, 22)
     octagon_z("coil_c0", B["coils_c"], "glow", 0, Y, -261.5, -258.5, 36)
 
+    # ---- Scan array: a side pod on the turret; mast telescopes up, sensor head spins ----------
+    bone("scan_pod", "hull", [-34, 92, -20])
+    bone("scan_mast", "scan_pod", [-34, 100, -20])
+    bone("scan_head", "scan_mast", [-34, 150, -20])
+    sp, sm, sh = B["scan_pod"], B["scan_mast"], B["scan_head"]
+    box(sp, "dark", [-38, 84, -26], [8, 16, 12])
+    box(sp, "steel", [-38.4, 90, -26.4], [8.8, 2, 12.8])
+    box(sp, "steel", [-30, 88, -22], [11, 8, 4])
+    box(sp, "cyan", [-38.6, 94, -22], [0.4, 3, 4])
+    box(sp, "white", [-38.4, 84, -26.4], [8.8, 3, 0.4])
+    octagon("scan_hatch", sp, "steel", 100, 7, 1.2, center_xz=(-34, -20))
+    octagon("scan_mast", sm, "steel", 100, 4, 46, center_xz=(-34, -20))
+    for yy in (112, 126, 140):
+        octagon(f"scan_collar{yy}", sm, "cyan", yy, 5.2, 1, center_xz=(-34, -20))
+    octagon("scan_hub", sh, "dark", 146, 9, 10, center_xz=(-34, -20))
+    octagon("scan_disk", sh, "white", 150, 22, 1.5, center_xz=(-34, -20))
+    octagon("scan_core", sh, "violet", 151.5, 14, 0.8, center_xz=(-34, -20))
+    ring_y(sh, "cyan", -34, -20, 151.6, 152.6, 10.6, 1.2)
+    box(sh, "white", [-35, 147, -33], [2, 6, 26])
+    box(sh, "white", [-47, 147, -21], [26, 6, 2])
+    box(sh, "cyan", [-35.2, 149, -33.4], [2.4, 2, 0.4])
+    box(sh, "cyan", [-35.2, 149, -7.0], [2.4, 2, 0.4])
+    box(sh, "cyan", [-47.4, 149, -21.2], [0.4, 2, 2.4])
+    box(sh, "cyan", [-21.0, 149, -21.2], [0.4, 2, 2.4])
+    octagon("scan_lens", sh, "cyan", 156, 5, 2, center_xz=(-34, -20))
+
     # ---- Loadout attachments (bones "opt_<id>"; the mod shows only the installed ones) ---------
     build_options(bone, B)
     add_docking_arms(bone, B)
@@ -2100,6 +2126,8 @@ def main():
             bn = o.name[len("bake_"):]
             if bn.startswith("opt_"):
                 o.hide_render = bn not in sample
+            if bn in ("scan_mast", "scan_head"):
+                o.hide_render = True
         barrel = rg_bones["barrel"]
 
         def rail_up(up):
@@ -2110,6 +2138,10 @@ def main():
         render(os.path.join(out, "railgun_deployed.png"), cam, target, (21.0, -20.0, 10.0), (0.0, -4.0, 4.5), 1100, lens=30)
         render(os.path.join(assets, "icon.png"), cam, target, (23.0, -21.0, 13.0), (0.0, -4.0, 5.0), 128, samples=32, lens=30)
         render(os.path.join(out, "railgun_front.png"), cam, target, (5.0, -16.0, 5.0), (0.0, 0.0, 3.5), 1100, lens=32)
+        scan_objs = [o for o in rg_bake if o.name[len("bake_"):] in ("scan_mast", "scan_head")]
+        set_visible(scan_objs, True)
+        render(os.path.join(out, "railgun_scan.png"), cam, target, (-9.5, -9.0, 10.0), (-2.1, 1.0, 7.6), 1000, lens=35)
+        set_visible(scan_objs, False)
         pose(rg_bones, "animation.railgun.pod", 0.0)
         rail_up(True)
         render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -10.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)

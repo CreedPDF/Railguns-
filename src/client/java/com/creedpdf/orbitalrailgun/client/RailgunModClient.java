@@ -33,6 +33,7 @@ public final class RailgunModClient implements ClientModInitializer {
         RailgunParticles.register();
         ClientPackets.registerReceivers();
         com.creedpdf.orbitalrailgun.client.render.RemoteBeams.register();
+        com.creedpdf.orbitalrailgun.client.render.ScanFx.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);

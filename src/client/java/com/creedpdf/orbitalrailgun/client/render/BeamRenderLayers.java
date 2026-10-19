@@ -88,6 +88,27 @@ public final class BeamRenderLayers extends RenderLayer {
                         .build(false)));
     }
 
+    private static final Map<Identifier, RenderLayer> XRAY = new HashMap<>();
+
+    /** Like {@link #textured} but drawn on top of everything (scan markers seen through terrain). */
+    public static RenderLayer xray(Identifier texture) {
+        return XRAY.computeIfAbsent(texture, tex -> RenderLayer.of(
+                "orbital_railgun_xray_" + tex.getPath(),
+                VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
+                VertexFormat.DrawMode.QUADS,
+                1 << 16,
+                false,
+                true,
+                RenderLayer.MultiPhaseParameters.builder()
+                        .program(BEACON_BEAM_PROGRAM)
+                        .texture(new RenderPhase.Texture(tex, true, false))
+                        .transparency(LIGHTNING_TRANSPARENCY)
+                        .writeMaskState(COLOR_MASK)
+                        .depthTest(ALWAYS_DEPTH_TEST)
+                        .cull(DISABLE_CULLING)
+                        .build(false)));
+    }
+
     private BeamRenderLayers(String name, VertexFormat format, VertexFormat.DrawMode mode, int bufferSize,
                              boolean crumbling, boolean translucent, Runnable setup, Runnable clear) {
         super(name, format, mode, bufferSize, crumbling, translucent, setup, clear);

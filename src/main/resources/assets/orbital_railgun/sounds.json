@@ -440,6 +440,33 @@
       }
     ]
   },
+  "scan.charge": {
+    "subtitle": "subtitles.orbital_railgun.scan.charge",
+    "sounds": [
+      {
+        "name": "orbital_railgun:scan_charge",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "scan.pulse": {
+    "subtitle": "subtitles.orbital_railgun.scan.pulse",
+    "sounds": [
+      {
+        "name": "orbital_railgun:scan_pulse",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "scan.ping": {
+    "subtitle": "subtitles.orbital_railgun.scan.ping",
+    "sounds": [
+      {
+        "name": "orbital_railgun:scan_ping",
+        "attenuation_distance": 48
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

@@ -55,6 +55,9 @@ public final class RailgunParticles {
     static final Style DRONE_JET = new Style(5, 9, 0.35f, 0.7f, 1.6f, 0f, 0.9f, false, true, true, false, 1f, 0f, 0.1f);
     static final Style DOCK_SPARK = new Style(8, 16, 0.12f, 0.25f, 0.5f, 0.5f, 0.95f, true, true, true, true, 1f, 0.7f, 0f);
 
+    static final Style SCAN_MOTE = new Style(10, 18, 0.12f, 0.24f, 0.6f, 0f, 0.96f, false, true, true, true, 1f, 0.2f, 0.1f);
+    static final Style SCAN_FLARE = new Style(8, 10, 5f, 6f, 2.4f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+
     public static void register() {
         var reg = ParticleFactoryRegistry.getInstance();
         reg.register(ModParticles.PLASMA_SPARK, sprites -> factory(sprites, PLASMA_SPARK));
@@ -97,6 +100,8 @@ public final class RailgunParticles {
         reg.register(ModParticles.DRONE_TRAIL, sprites -> factory(sprites, DRONE_TRAIL));
         reg.register(ModParticles.DRONE_JET, sprites -> factory(sprites, DRONE_JET));
         reg.register(ModParticles.DOCK_SPARK, sprites -> factory(sprites, DOCK_SPARK));
+        reg.register(ModParticles.SCAN_MOTE, sprites -> factory(sprites, SCAN_MOTE));
+        reg.register(ModParticles.SCAN_FLARE, sprites -> factory(sprites, SCAN_FLARE));
     }
 
     private static ParticleFactory<DefaultParticleType> factory(

@@ -41,6 +41,9 @@ public final class ModSounds {
     public static final SoundEvent DRONE_ASCEND = register("drone.ascend");
     public static final SoundEvent RAILGUN_ATTACH = register("railgun.attach");
     public static final SoundEvent CLAMP_THRUSTER = register("railgun.clamp_thruster");
+    public static final SoundEvent SCAN_CHARGE = register("scan.charge");
+    public static final SoundEvent SCAN_PULSE = register("scan.pulse");
+    public static final SoundEvent SCAN_PING = register("scan.ping");
 
     private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);
     private static final java.util.Map<Loadout.Option, SoundEvent> IMPACT = new java.util.EnumMap<>(Loadout.Option.class);

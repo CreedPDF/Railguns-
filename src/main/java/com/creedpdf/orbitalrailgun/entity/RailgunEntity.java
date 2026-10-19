@@ -174,6 +174,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             case PACKING -> tickPacking(t);
             case LAUNCHING -> tickLaunching(t);
             case ARMING -> tickArming(t);
+            case SCANNING -> tickScanning(t);
         }
 
         ServerWorld sw = (ServerWorld) getWorld();
@@ -299,6 +300,105 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
+    // ---- scan array ---------------------------------------------------------------------------------
+
+    public static final int SCAN_TICKS = 80, SCAN_PULSE_TICK = 30, SCAN_COOLDOWN = 400;
+    public static final double SCAN_RADIUS = 48.0, SCAN_MOB_RADIUS = 64.0;
+    private int scanReadyAge;
+
+    /** Tablet SCAN: raise the scan array and send a pulse across the terrain. */
+    public boolean tryStartScan() {
+        if (getState() != RailgunState.IDLE || this.age < scanReadyAge) return false;
+        setState(RailgunState.SCANNING);
+        return true;
+    }
+
+    public boolean scanReady() {
+        return this.age >= scanReadyAge;
+    }
+
+    /** World position of the spinning sensor head (model px (-34, 150, -20), turns with the turret). */
+    public Vec3d getScanHeadPos(float tickDelta) {
+        double x = -34 / 16.0, y = 150 / 16.0, z = 20 / 16.0;
+        double yaw = getAimYawRad(tickDelta);
+        double c = Math.cos(yaw), sn = Math.sin(yaw);
+        return getLerpedPos(tickDelta).add(x * c + z * sn, y, -x * sn + z * c);
+    }
+
+    private void tickScanning(int t) {
+        ServerWorld world = (ServerWorld) getWorld();
+        Vec3d head = getScanHeadPos(1f);
+        if (t == 0) world.playSound(null, head.x, head.y, head.z, ModSounds.SCAN_CHARGE, SoundCategory.BLOCKS, 3f, 1f);
+        if (t == SCAN_PULSE_TICK) {
+            world.playSound(null, head.x, head.y, head.z, ModSounds.SCAN_PULSE, SoundCategory.BLOCKS, 8f, 1f);
+            com.creedpdf.orbitalrailgun.network.ModPackets.broadcastScan(world, this, head, scanTerrain(world), scanHostiles(world));
+        }
+        if (t >= SCAN_TICKS) {
+            scanReadyAge = this.age + SCAN_COOLDOWN;
+            setState(RailgunState.IDLE);
+        }
+    }
+
+    /** Ore kinds sent to clients (colour per kind). */
+    public static int oreKind(String path) {
+        if (path.equals("ancient_debris")) return 9;
+        if (!path.endsWith("_ore")) return -1;
+        if (path.contains("coal")) return 0;
+        if (path.contains("iron")) return 1;
+        if (path.contains("copper")) return 2;
+        if (path.contains("gold")) return 3;
+        if (path.contains("redstone")) return 4;
+        if (path.contains("lapis")) return 5;
+        if (path.contains("diamond")) return 6;
+        if (path.contains("emerald")) return 7;
+        if (path.contains("quartz")) return 8;
+        return 10;
+    }
+
+    /** Every ore within the scan sphere: rare ones always, the rest nearest-first, capped. */
+    private List<long[]> scanTerrain(ServerWorld world) {
+        BlockPos c = getBlockPos();
+        int r = (int) SCAN_RADIUS;
+        double r2 = SCAN_RADIUS * SCAN_RADIUS;
+        List<long[]> rare = new java.util.ArrayList<>(), common = new java.util.ArrayList<>();
+        BlockPos.Mutable p = new BlockPos.Mutable();
+        int y0 = Math.max(world.getBottomY(), c.getY() - r), y1 = Math.min(world.getTopY() - 1, c.getY() + r);
+        java.util.Map<net.minecraft.block.Block, Integer> kinds = new java.util.HashMap<>();
+        for (int x = -r; x <= r; x++) {
+            for (int z = -r; z <= r; z++) {
+                if (x * x + z * z > r2) continue;
+                if (!world.isChunkLoaded((c.getX() + x) >> 4, (c.getZ() + z) >> 4)) continue;
+                for (int y = y0; y <= y1; y++) {
+                    int dy = y - c.getY();
+                    double d2 = x * x + z * z + dy * dy;
+                    if (d2 > r2) continue;
+                    p.set(c.getX() + x, y, c.getZ() + z);
+                    BlockState st = world.getBlockState(p);
+                    if (st.isAir()) continue;
+                    int kind = kinds.computeIfAbsent(st.getBlock(),
+                            b -> oreKind(net.minecraft.registry.Registries.BLOCK.getId(b).getPath()));
+                    if (kind < 0) continue;
+                    long[] e = {p.asLong(), kind, (long) d2};
+                    if (kind == 3 || kind == 6 || kind == 7 || kind == 9) rare.add(e);
+                    else common.add(e);
+                }
+            }
+        }
+        common.sort(java.util.Comparator.comparingLong(e -> e[2]));
+        List<long[]> out = new java.util.ArrayList<>(rare.subList(0, Math.min(rare.size(), 300)));
+        for (long[] e : common) {
+            if (out.size() >= 700) break;
+            out.add(e);
+        }
+        return out;
+    }
+
+    private int[] scanHostiles(ServerWorld world) {
+        return world.getEntitiesByClass(LivingEntity.class, getBoundingBox().expand(SCAN_MOB_RADIUS),
+                        e -> e.isAlive() && e instanceof net.minecraft.entity.mob.Monster).stream()
+                .limit(96).mapToInt(Entity::getId).toArray();
+    }
+
     // ---- clamp vectoring rockets ----------------------------------------------------------------
 
     private static final double[][] CLAMP_FEET = {{1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
@@ -306,7 +406,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
     public int getClampFreeMask() { return dataTracker.get(CLAMP_FREE); }
 
     private boolean clampsDown(RailgunState state, int t) {
-        return state.isOperational() || state == RailgunState.ARMING
+        return state.isOperational() || state == RailgunState.ARMING || state == RailgunState.SCANNING
                 || (state == RailgunState.TRANSFORMING && t >= RailgunConfig.CLAMP_SLAM_TICK)
                 || (state == RailgunState.PACKING && t < RailgunConfig.PACK_TICKS - RailgunConfig.CLAMP_SLAM_TICK);
     }
@@ -737,6 +837,23 @@ public class RailgunEntity extends Entity implements GeoEntity {
                     Vec3d p = getPanelPos();
                     world.addParticle(ModParticles.ENERGY_MOTE, p.x + (rand.nextDouble() - 0.5), p.y + 0.6,
                             p.z + 0.2, 0, 0.02, 0);
+                }
+            }
+            case SCANNING -> {
+                Vec3d head = getScanHeadPos(1f);
+                if (t < SCAN_PULSE_TICK) {
+                    for (int i = 0; i < 3; i++) {
+                        double a = rand.nextDouble() * Math.PI * 2, rr = 1.2 + rand.nextDouble() * 1.4;
+                        Vec3d p = head.add(Math.cos(a) * rr, (rand.nextDouble() - 0.4) * 1.2, Math.sin(a) * rr);
+                        Vec3d v = head.subtract(p).multiply(0.12);
+                        world.addParticle(ModParticles.SCAN_MOTE, p.x, p.y, p.z, v.x, v.y, v.z);
+                    }
+                } else if (t == SCAN_PULSE_TICK) {
+                    world.addParticle(ModParticles.SCAN_FLARE, head.x, head.y, head.z, 0, 0, 0);
+                    for (int i = 0; i < 40; i++) {
+                        double a = i / 40.0 * Math.PI * 2;
+                        world.addParticle(ModParticles.SCAN_MOTE, head.x, head.y, head.z, Math.cos(a) * 0.5, 0.02, Math.sin(a) * 0.5);
+                    }
                 }
             }
             case ARMING, PACKING -> {

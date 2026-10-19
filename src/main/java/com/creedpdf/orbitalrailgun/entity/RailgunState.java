@@ -26,7 +26,9 @@ public enum RailgunState {
     POD_READY,
     LAUNCHING,
     /** After deploying: attachment parts drop from orbital storage, vector in and dock. */
-    ARMING;
+    ARMING,
+    /** Scan array up: a holographic pulse maps ores and hostiles around the emplacement. */
+    SCANNING;
 
     private static final RailgunState[] VALUES = values();
 
