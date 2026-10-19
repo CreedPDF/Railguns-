@@ -726,9 +726,9 @@ def add_docking_arms(bone, B):
                 p[o1] = c[o1] + s1 * (hi[o1] - lo[o1]) * 0.32
                 p[o2] = c[o2] + s2 * (hi[o2] - lo[o2]) * 0.32
                 strut_o, strut_s = [0, 0, 0], [0, 0, 0]
-                for i, (lo_i, sz) in ((o1, (p[o1] - 0.8, 1.6)), (o2, (p[o2] - 0.8, 1.6)),
+                for i, (o_i, s_i) in ((o1, (p[o1] - 0.8, 1.6)), (o2, (p[o2] - 0.8, 1.6)),
                                       (k, (face if dirk > 0 else face - L, L))):
-                    strut_o[i], strut_s[i] = sz
+                    strut_o[i], strut_s[i] = o_i, s_i
                 box(Ab, "steel", strut_o, strut_s, name="arm")
                 claw_o, claw_s = list(strut_o), list(strut_s)
                 claw_o[o1] -= 0.7; claw_s[o1] += 1.4
