@@ -852,6 +852,48 @@ def rift_close():
     return room(mband_sat(x, (2.8, 1.9, 1.35)), 3.4, 0.5)
 
 
+def rift_enter():
+    """Crossing over: a rushing whoosh pulled through a narrowing tunnel, a deep bloom and a glassy sigh."""
+    d = 5.5
+    x = canvas(d)
+    t = t_axis(1.6)
+    rush = sweep(white(1.6), "bandpass", 300, 7000) * (t / 1.6) ** 2 * 0.8
+    place(x, rush, 0.0)
+    place(x, unison(glide(60, 240, 1.6, 1.6), 1.6, 6, 0.015, "saw") * (t / 1.6) ** 2 * 0.25, 0.0)
+    place(x, kick(70, 22, 3.0, 1.2, 0.4) * 1.1, 1.6)
+    bloom = sum(unison(f, 3.8, 4, 0.004, "tri") for f in (130.8, 196.0, 261.6, 392.0, 523.3)) / 5
+    place(x, filt(bloom, "lowpass", 2400) * env(3.8, 0.05, 0.6, 0.6, 2.4) * 0.5, 1.6)
+    sigh = sum(osc(glide(f, f * 0.94, 3.6), 3.6) for f in (1046.5, 1568.0, 2093.0)) / 3
+    place(x, sigh * decay(3.6, 1.2) * 0.12, 1.65)
+    return room(mband_sat(x, (2.0, 1.4, 1.2)), 3.6, 0.5)
+
+
+def rift_ambient():
+    """Inside the other dimension: a vast slow drone, far-off cosmic choir and soft drifting dust."""
+    d = 12.0
+    t = t_axis(d)
+    drone = (osc(41.2, d) * 0.3 + osc(61.7, d, "tri") * 0.1 + osc(82.4, d) * 0.08) * (0.8 + 0.2 * np.sin(2 * np.pi * t / d))
+    choir = sum(unison(f, d, 3, 0.003, "tri") * (0.5 + 0.5 * np.sin(2 * np.pi * (k + 1) / d * t + k)) ** 2
+                for k, f in enumerate((329.6, 392.0, 493.9, 587.3)))
+    choir = filt(choir, "lowpass", 1600) * 0.05
+    air = filt(white(d), "bandpass", [120, 900]) * (0.5 + 0.5 * np.sin(2 * np.pi * 2 / d * t) ** 2) * 0.22
+    glitter = crackle(d, 6, 0.004, 5000) * 0.12
+    return make_loop(room(drone + choir + air + glitter, 3.0, 0.4), 1.0)
+
+
+def rift_lift():
+    """The beam takes hold: a rising hum, a pull of wind and a bright shimmer."""
+    d = 2.8
+    x = canvas(d)
+    t = t_axis(2.4)
+    hum = unison(glide(110, 330, 2.4, 0.8), 2.4, 5, 0.01, "saw")
+    place(x, sweep(hum, "lowpass", 400, 3600) * env(2.4, 0.2, 0.2, 0.8, 0.8) * 0.4, 0.0)
+    place(x, sweep(white(2.4), "bandpass", 400, 4000) * env(2.4, 0.4, 0.2, 0.7, 0.9) * 0.35, 0.0)
+    sh = sum(osc(glide(f, f * 1.5, 2.4, 0.7), 2.4) for f in (1318.5, 1760.0, 2217.5)) / 3
+    place(x, sh * (t / 2.4) * env(2.4, 0.5, 0.2, 0.8, 0.8) * 0.12, 0.0)
+    return room(x, 2.0, 0.4)
+
+
 def scan_charge():
     """Scan array spinning up: a rising sonar sweep, a hum climbing in pitch, glassy shimmer."""
     d = 1.7
@@ -1280,6 +1322,9 @@ LOADOUT_SOUNDS = {
     "rift_loop": rift_loop,
     "rift_zap": rift_zap,
     "rift_close": rift_close,
+    "rift_enter": rift_enter,
+    "rift_ambient": rift_ambient,
+    "rift_lift": rift_lift,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1325,7 +1370,7 @@ SOUNDS = {
     "ui_tablet_close": ui_tablet_close,
 }
 SOUNDS.update(LOADOUT_SOUNDS)
-LOOPS = {"railgun_charge_loop", "railgun_reentry", "rift_loop"}
+LOOPS = {"railgun_charge_loop", "railgun_reentry", "rift_loop", "rift_ambient"}
 
 # sound event id -> (file, extra properties)
 EVENTS = {

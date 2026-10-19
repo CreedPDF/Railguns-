@@ -1,0 +1,13 @@
+{
+  "type": "orbital_railgun:rift",
+  "generator": {
+    "type": "minecraft:flat",
+    "settings": {
+      "biome": "orbital_railgun:rift_void",
+      "layers": [],
+      "lakes": false,
+      "features": false,
+      "structure_overrides": []
+    }
+  }
+}

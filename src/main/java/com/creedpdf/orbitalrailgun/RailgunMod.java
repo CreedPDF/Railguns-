@@ -96,6 +96,10 @@ public final class RailgunMod implements ModInitializer {
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> DeploymentScheduler.clear());
 
+        ServerTickEvents.END_WORLD_TICK.register(com.creedpdf.orbitalrailgun.rift.RiftDimension::tick);
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                com.creedpdf.orbitalrailgun.rift.RiftDimension.forget(handler.player));
+
         LOGGER.info("Orbital Railgun online. Uplink established.");
     }
 

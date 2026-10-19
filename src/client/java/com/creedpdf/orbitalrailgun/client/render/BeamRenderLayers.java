@@ -88,6 +88,46 @@ public final class BeamRenderLayers extends RenderLayer {
                         .build(false)));
     }
 
+    private static final Map<Identifier, RenderLayer> SOLID = new HashMap<>();
+
+    /** Opaque, unlit, depth-writing textured layer (rift walls, planets, skybox): colour = vertex colour x texture. */
+    public static RenderLayer solid(Identifier texture) {
+        return SOLID.computeIfAbsent(texture, tex -> RenderLayer.of(
+                "orbital_railgun_solid_" + tex.getPath(),
+                VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
+                VertexFormat.DrawMode.QUADS,
+                1 << 18,
+                false,
+                false,
+                RenderLayer.MultiPhaseParameters.builder()
+                        .program(BEACON_BEAM_PROGRAM)
+                        .texture(new RenderPhase.Texture(tex, true, false))
+                        .transparency(NO_TRANSPARENCY)
+                        .writeMaskState(ALL_MASK)
+                        .cull(DISABLE_CULLING)
+                        .build(false)));
+    }
+
+    private static final Map<Identifier, RenderLayer> TRANSLUCENT = new HashMap<>();
+
+    /** Alpha-blended, depth-tested, no depth write (planetary rings with real gaps). */
+    public static RenderLayer translucent(Identifier texture) {
+        return TRANSLUCENT.computeIfAbsent(texture, tex -> RenderLayer.of(
+                "orbital_railgun_translucent_" + tex.getPath(),
+                VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
+                VertexFormat.DrawMode.QUADS,
+                1 << 18,
+                false,
+                true,
+                RenderLayer.MultiPhaseParameters.builder()
+                        .program(BEACON_BEAM_PROGRAM)
+                        .texture(new RenderPhase.Texture(tex, true, false))
+                        .transparency(TRANSLUCENT_TRANSPARENCY)
+                        .writeMaskState(COLOR_MASK)
+                        .cull(DISABLE_CULLING)
+                        .build(false)));
+    }
+
     private static final Map<Identifier, RenderLayer> XRAY = new HashMap<>();
 
     /** Like {@link #textured} but drawn on top of everything (scan markers seen through terrain). */

@@ -512,6 +512,33 @@
       }
     ]
   },
+  "rift.enter": {
+    "subtitle": "subtitles.orbital_railgun.rift.enter",
+    "sounds": [
+      {
+        "name": "orbital_railgun:rift_enter",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "rift.ambient": {
+    "subtitle": "subtitles.orbital_railgun.rift.ambient",
+    "sounds": [
+      {
+        "name": "orbital_railgun:rift_ambient",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "rift.lift": {
+    "subtitle": "subtitles.orbital_railgun.rift.lift",
+    "sounds": [
+      {
+        "name": "orbital_railgun:rift_lift",
+        "attenuation_distance": 160
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

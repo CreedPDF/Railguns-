@@ -1120,6 +1120,264 @@ def _equirect_planet(W, H, fn):
     return fn(lat, lon, yy, xx)
 
 
+
+# ---------------------------------------------------------------------------------------------
+# v3.5: volumetric rift walls, the dimension sky and realistic planets
+# ---------------------------------------------------------------------------------------------
+
+
+def _ramp3(v, stops):
+    v = np.clip(v, 0, 1)
+    pos = [p for p, _ in stops]
+    cols = np.array([c for _, c in stops], dtype=float)
+    return np.stack([np.interp(v, pos, cols[:, ch]) for ch in range(3)], -1)
+
+
+def _fbm(H, W, cells, seed, octaves=6):
+    return _soft_noise(H, W, cells, seed, octaves)
+
+
+def _warped(H, W, cells, seed, strength, octaves=6):
+    """Domain-warped fractal noise (tileable): gives swirls, flow and believable coastlines."""
+    base = _fbm(H, W, cells, seed, octaves)
+    dy = _fbm(H, W, max(2, cells // 2), seed + 1, 4) - 0.5
+    dx = _fbm(H, W, max(2, cells // 2), seed + 2, 4) - 0.5
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    sy = np.floor(yy + dy * strength * H).astype(np.int64) % H
+    sx = np.floor(xx + dx * strength * W).astype(np.int64) % W
+    return base[sy, sx]
+
+
+def _stars(img, n, seed, sphere=False, bright=1.0):
+    """Paint stars (with tiny bloom) onto an HxWx3 float image."""
+    H, W = img.shape[:2]
+    r = np.random.default_rng(seed)
+    pil = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB")
+    layer = Image.new("RGB", (W, H), (0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    for k in range(n):
+        if sphere:
+            y = (0.5 - np.arcsin(r.uniform(-1, 1)) / np.pi) * H
+        else:
+            y = r.uniform(0, H)
+        x = r.uniform(0, W)
+        m = r.random() ** 9
+        t = r.random()
+        col = (0.75, 0.82, 1.0) if t < 0.55 else (1.0, 0.92, 0.82) if t < 0.85 else (1.0, 0.75, 0.6) if t < 0.93 else (0.85, 0.7, 1.0)
+        v = (0.25 + 0.75 * m) * bright
+        c = tuple(int(255 * min(1, v * ch)) for ch in col)
+        if m > 0.6:
+            rad = 0.5 + 0.9 * m
+            d.ellipse([x - rad, y - rad, x + rad, y + rad], fill=c)
+        else:
+            d.point((x, y), fill=c)
+    st = np.asarray(layer).astype(np.float32)
+    bloom = np.asarray(layer.filter(ImageFilter.GaussianBlur(1.5))).astype(np.float32)
+    return np.maximum(np.asarray(pil).astype(np.float32), 0) + st + bloom * 1.2
+
+
+def rift_wall_texture(E):
+    """The inner wall of the rift's throat: deep, flowing nebula streaming into the other side."""
+    S = 512
+    flow = _warped(S, S, 6, 801, 0.35, 6)
+    streak = _warped(S // 8, S, 4, 811, 0.6, 5)
+    streak = np.asarray(Image.fromarray((streak * 255).astype(np.uint8)).resize((S, S), Image.BICUBIC)).astype(np.float32) / 255
+    veins = np.clip(1 - np.abs(_warped(S, S, 5, 821, 0.5, 5) - 0.5) * 9, 0, 1) ** 2
+    dust = _warped(S, S, 10, 831, 0.25, 4)
+    v = np.clip(flow * 0.6 + streak * 0.55 - 0.25, 0, 1)
+    rgb = _ramp3(v, [(0.0, (6, 3, 16)), (0.25, (30, 10, 70)), (0.45, (95, 28, 160)), (0.62, (190, 70, 210)),
+                   (0.78, (255, 140, 210)), (0.9, (255, 220, 240)), (1.0, (255, 255, 255))])
+    teal = np.clip(dust - 0.55, 0, 1) * 2.2
+    rgb = rgb * (1 - teal[..., None] * 0.6) + teal[..., None] * np.array([40, 190, 230]) * 0.6
+    rgb = rgb + veins[..., None] * np.array([230, 190, 255]) * 0.8
+    dark = np.clip(0.45 - _warped(S, S, 7, 841, 0.4, 5), 0, 1) * 1.8
+    rgb = rgb * (1 - np.clip(dark, 0, 0.85)[..., None])
+    rgb = _stars(rgb, 2600, 851, bright=0.9)
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((S, S), 255.0)]), E / "rift_wall.png")
+
+
+def rift_sky_texture(E):
+    """Equirectangular sky of the dimension: a galactic band, colourful nebulae, a sea of stars."""
+    W, H = 2048, 1024
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    lat = (0.5 - (yy + 0.5) / H) * np.pi
+    lon = (xx + 0.5) / W * 2 * np.pi
+    x, y, z = np.cos(lat) * np.cos(lon), np.sin(lat), np.cos(lat) * np.sin(lon)
+    # tilted galactic plane
+    nrm = np.array([0.35, 0.85, 0.4]); nrm /= np.linalg.norm(nrm)
+    band_d = x * nrm[0] + y * nrm[1] + z * nrm[2]
+    n1 = _warped(H, W, 8, 901, 0.25, 7)
+    n2 = _warped(H, W, 5, 911, 0.35, 6)
+    n3 = _warped(H, W, 12, 921, 0.2, 5)
+    band = np.exp(-(band_d / 0.36) ** 2)
+    core = np.exp(-(band_d / 0.08) ** 2)
+    neb = np.clip(n1 * 1.4 - 0.4, 0, 1) * (0.5 + 1.2 * band)
+    rgb = np.dstack([np.full((H, W), 3.0), np.full((H, W), 2.0), np.full((H, W), 9.0)])
+    rgb = rgb + neb[..., None] * np.array([150, 45, 210])
+    rgb = rgb + (np.clip(n2 - 0.55, 0, 1) * 2.4)[..., None] * np.array([30, 120, 200])
+    rgb = rgb + (np.clip(n3 - 0.62, 0, 1) * 2.6 * band)[..., None] * np.array([240, 130, 90])
+    rgb = rgb + (core * np.clip(n1 + 0.2, 0, 1))[..., None] * np.array([210, 180, 255]) * 0.8
+    lanes = np.clip(1 - np.abs(_warped(H, W, 9, 931, 0.3, 5) - 0.5) * 7, 0, 1) * band
+    rgb = rgb * (1 - 0.75 * lanes[..., None])
+    rgb = _stars(rgb, 22000, 941, sphere=True, bright=0.85)
+    # a denser star field inside the galactic band
+    r = np.random.default_rng(951)
+    pil = Image.fromarray(np.clip(rgb, 0, 255).astype(np.uint8), "RGB")
+    d = ImageDraw.Draw(pil)
+    for k in range(30000):
+        py, px = r.integers(0, H), r.integers(0, W)
+        if r.random() < band[py, px] * 0.9:
+            g = int(120 + 135 * r.random() ** 3)
+            d.point((int(px), int(py)), fill=(g, g, min(255, g + 25)))
+    rgb = np.asarray(pil).astype(np.float32)
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "rift_sky.png")
+
+
+def _craters(lat, lon, n, seed, rmin, rmax):
+    """Height field of impact craters, placed on the sphere (no pole stretching)."""
+    r = np.random.default_rng(seed)
+    x, y, z = np.cos(lat) * np.cos(lon), np.sin(lat), np.cos(lat) * np.sin(lon)
+    h = np.zeros_like(lat)
+    for k in range(n):
+        cl, co = np.arcsin(r.uniform(-1, 1)), r.uniform(0, 2 * np.pi)
+        cx, cy, cz = np.cos(cl) * np.cos(co), np.sin(cl), np.cos(cl) * np.sin(co)
+        rad = rmin + (rmax - rmin) * r.random() ** 3
+        dd = np.arccos(np.clip(x * cx + y * cy + z * cz, -1, 1)) / rad
+        bowl = np.where(dd < 1, -(1 - dd ** 2) * 0.8, 0)
+        rim = np.exp(-((dd - 1.0) / 0.12) ** 2) * 0.45
+        ejecta = np.where(dd > 1, np.exp(-(dd - 1) * 2.5) * 0.08, 0)
+        h += (bowl + rim + ejecta) * (0.5 + 0.5 * rad / rmax)
+    return h
+
+
+def _relief(h, strength=2.5):
+    """Fake sunlit relief from a height map (light from the upper left), for depth in the albedo."""
+    gy, gx = np.gradient(h)
+    return np.clip(1 + (-gx - gy) * strength * h.shape[1] / 512, 0.55, 1.45)
+
+
+def planet_textures(E):
+    W, H = 512, 256
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    lat = (0.5 - (yy + 0.5) / H) * np.pi
+    lon = (xx + 0.5) / W * 2 * np.pi
+    alat = np.abs(lat)
+
+    def blur(a, s):
+        im = Image.fromarray((np.clip(a, 0, 1) * 255).astype(np.uint8), "L").filter(ImageFilter.GaussianBlur(s))
+        return np.asarray(im).astype(np.float32) / 255
+
+    # --- ocean world (earth-like)
+    cont = _warped(H, W, 5, 1001, 0.22, 7) * 0.8 + _fbm(H, W, 18, 1002, 4) * 0.2
+    h = cont - np.percentile(cont, 64)
+    land = h > 0
+    detail = _fbm(H, W, 24, 1003, 5)
+    moist = _warped(H, W, 7, 1005, 0.2, 5)
+    deep = np.array([8, 28, 70]); shallow = np.array([25, 95, 145])
+    sea = deep + (shallow - deep) * np.clip(1 + h * 9, 0, 1)[..., None]
+    green = np.array([45, 85, 35]) * (0.8 + 0.4 * detail[..., None])
+    dry = np.array([150, 125, 80]) * (0.8 + 0.4 * detail[..., None])
+    tundra = np.array([120, 115, 100])
+    climate = np.clip((np.abs(alat - 0.45) * 3 - moist + 0.25), 0, 1)
+    ground = green * (1 - climate[..., None]) + dry * climate[..., None]
+    ground = ground * (1 - np.clip((alat - 0.95) * 3, 0, 1)[..., None]) + tundra * np.clip((alat - 0.95) * 3, 0, 1)[..., None]
+    mount = np.clip((h - 0.12) * 6, 0, 1) * detail
+    ground = ground * (1 - mount[..., None] * 0.5) + np.array([110, 100, 95]) * mount[..., None] * 0.5
+    ground = ground * _relief(np.where(land, h, 0) + detail * 0.03, 3.0)[..., None]
+    rgb = np.where(land[..., None], ground, sea)
+    ice = np.clip((alat - 1.26 + (detail - 0.5) * 0.2) * 10, 0, 1)
+    rgb = rgb * (1 - ice[..., None]) + np.array([235, 240, 250]) * ice[..., None]
+    clouds = _warped(H, W, 9, 1007, 0.45, 6)
+    swirl = _warped(H, W, 16, 1009, 0.6, 4)
+    ca = np.clip((clouds * 0.7 + swirl * 0.4 - 0.62) * 3.2, 0, 1)
+    rgb = rgb * (1 - ca[..., None] * 0.92) + 248 * ca[..., None] * 0.92
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_ocean.png")
+
+    # --- gas giant: turbulent bands, a great storm
+    turb = _warped(H, W, 10, 1101, 0.08, 6) - 0.5
+    shear = _fbm(H, W, 3, 1103, 4) - 0.5
+    phase = lat * 9 + turb * 1.6 + np.sin(lon * 2 + lat * 5) * 0.08 + shear * 0.6
+    b = 0.5 + 0.5 * np.sin(phase * 2.2) * 0.6 + 0.5 * np.sin(phase * 5.3 + 1.3) * 0.25
+    rgb = _ramp3(np.clip(b, 0, 1), [(0.0, (110, 70, 45)), (0.3, (175, 120, 75)), (0.5, (220, 185, 140)),
+                                  (0.7, (240, 225, 200)), (1.0, (200, 150, 105))])
+    fine = _warped(H, W, 32, 1105, 0.05, 4)
+    rgb = rgb * (0.88 + 0.24 * fine[..., None])
+    dl, dlo = (lat + 0.38) / 0.1, np.angle(np.exp(1j * (lon - 2.0))) / 0.28
+    rr = np.sqrt(dl ** 2 + dlo ** 2)
+    spin_ang = np.arctan2(dl, dlo) + rr * 2.2
+    storm = np.clip(1 - rr, 0, 1)
+    st_col = np.array([195, 95, 60]) * (0.8 + 0.3 * np.sin(spin_ang * 3)[..., None])
+    rgb = rgb * (1 - storm[..., None] ** 0.6 * 0.85) + st_col * storm[..., None] ** 0.6 * 0.85
+    polar = np.clip((alat - 1.15) * 2.5, 0, 1)
+    rgb = rgb * (1 - polar[..., None] * 0.45) + np.array([80, 90, 120]) * polar[..., None] * 0.45
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_gas.png")
+
+    # --- lava world: black basalt crust split by glowing rivers of magma
+    crust = _warped(H, W, 8, 1201, 0.3, 6)
+    ridge = np.clip(1 - np.abs(_warped(H, W, 6, 1203, 0.35, 6) - 0.5) * 10, 0, 1) ** 1.6
+    ridge = np.maximum(ridge, 0.7 * np.clip(1 - np.abs(_warped(H, W, 14, 1204, 0.3, 5) - 0.5) * 16, 0, 1) ** 2)
+    seas = np.clip((_warped(H, W, 4, 1205, 0.3, 5) - 0.66) * 6, 0, 1)
+    heat = np.clip(ridge + seas, 0, 1)
+    base = np.array([28, 22, 22]) * (0.6 + 0.8 * crust[..., None]) * _relief(crust, 2.0)[..., None]
+    hot = _ramp3(heat, [(0.0, (0, 0, 0)), (0.3, (120, 20, 5)), (0.6, (230, 80, 10)), (0.85, (255, 170, 40)), (1.0, (255, 240, 170))])
+    glow = blur(heat, 3) * 0.6
+    rgb = base * (1 - heat[..., None]) + hot + np.dstack([glow * 180, glow * 50, glow * 10])
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_lava.png")
+
+    # --- ice moon: bright plains, long reddish fracture lines
+    plains = _warped(H, W, 7, 1301, 0.2, 6)
+    lines = np.zeros((H, W), np.float32)
+    for k in range(5):
+        f = _warped(H, W, 3 + k, 1311 + k, 0.5, 4)
+        lines += np.clip(1 - np.abs(f - 0.5) * 40, 0, 1)
+    lines = np.clip(lines, 0, 1)
+    cr = _craters(lat, lon, 25, 1321, 0.02, 0.12)
+    rgb = _ramp3(plains, [(0.0, (150, 175, 195)), (0.5, (205, 222, 235)), (1.0, (245, 250, 255))])
+    rgb = rgb * _relief(cr * 0.3 + plains * 0.05, 2.0)[..., None]
+    rgb = rgb * (1 - lines[..., None] * 0.45) + np.array([165, 105, 80]) * lines[..., None] * 0.45
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_ice.png")
+
+    # --- desert (mars-like): rust plains, dark basalt, canyons, craters, small polar cap
+    dune = _warped(H, W, 6, 1401, 0.25, 7)
+    darkp = np.clip((_warped(H, W, 4, 1403, 0.3, 5) - 0.55) * 3, 0, 1)
+    canyon = np.clip(1 - np.abs(_warped(H, W, 3, 1405, 0.4, 5) - 0.5) * 30, 0, 1) * (alat < 0.6)
+    cr = _craters(lat, lon, 60, 1407, 0.015, 0.14)
+    hgt = dune * 0.2 + cr * 0.35 - canyon * 0.4
+    rgb = _ramp3(dune, [(0.0, (120, 50, 25)), (0.5, (185, 95, 50)), (1.0, (225, 150, 95))])
+    rgb = rgb * (1 - darkp[..., None] * 0.5) + np.array([70, 45, 35]) * darkp[..., None] * 0.5
+    rgb = rgb * _relief(hgt, 3.5)[..., None]
+    cap = np.clip((alat - 1.32 + (dune - 0.5) * 0.15) * 12, 0, 1)
+    rgb = rgb * (1 - cap[..., None]) + np.array([240, 235, 230]) * cap[..., None]
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_desert.png")
+
+    # --- rocky moon
+    cr = _craters(lat, lon, 160, 1501, 0.01, 0.22)
+    mare = np.clip((_warped(H, W, 4, 1503, 0.3, 5) - 0.58) * 4, 0, 1)
+    tone = _fbm(H, W, 20, 1505, 5)
+    rgb = np.array([160, 155, 150]) * (0.75 + 0.35 * tone[..., None])
+    rgb = rgb * (1 - mare[..., None] * 0.45)
+    rgb = rgb * _relief(cr + tone * 0.05, 3.5)[..., None]
+    save_rgba(np.dstack([np.clip(rgb, 0, 255), np.full((H, W), 255.0)]), E / "planet_rock.png")
+
+    # --- planetary rings: U around (tiles), V from inner edge to outer edge, real gaps
+    RW, RH = 64, 512
+    v = np.linspace(0, 1, RH)
+    r = np.random.default_rng(1601)
+    dens = np.zeros(RH)
+    for k in range(70):
+        c, w, a = r.random(), 0.002 + 0.03 * r.random() ** 2, r.random()
+        dens += a * np.exp(-((v - c) / w) ** 2)
+    dens = np.clip(dens / dens.max() * 1.4, 0, 1)
+    dens *= np.clip(v * 12, 0, 1) * np.clip((1 - v) * 10, 0, 1)
+    gap = np.exp(-((v - 0.62) / 0.02) ** 2) + 0.7 * np.exp(-((v - 0.3) / 0.008) ** 2)
+    dens *= np.clip(1 - gap, 0, 1)
+    col = np.stack([200 + 40 * v, 175 + 35 * v, 150 + 30 * v], -1) * (0.75 + 0.25 * dens[:, None])
+    grain = _fbm(RH, RW, 8, 1603, 3).T if False else _fbm(RH, RW, 8, 1603, 3)
+    rgba = np.dstack([np.repeat(col[:, None, 0], RW, 1), np.repeat(col[:, None, 1], RW, 1), np.repeat(col[:, None, 2], RW, 1),
+                      np.repeat(dens[:, None], RW, 1) * (0.85 + 0.15 * grain) * 235])
+    save_rgba(rgba, E / "planet_rings.png")
+
+
 def rift_textures():
     E = A / "textures/effect"
     rs = np.random.default_rng(23)
@@ -1149,60 +1407,9 @@ def rift_textures():
     arr = np.clip(arr + bloom * 0.7, 0, 255)
     save_rgba(np.dstack([arr, np.full((S, S), 255.0)]), E / "rift_space.png")
 
-    # nebula for the ring mapping (U around, V radial): soft clouds that fade at the rim
-    W, H = 256, 64
-    n = periodic_noise(H, W, 3, 10, 4)
-    v = np.linspace(0, 1, H)[:, None]
-    a = np.clip((n - 0.35) * 1.8, 0, 1) * np.clip(1 - v ** 2, 0, 1)
-    save_rgba(np.dstack([180 + 75 * a, 120 + 60 * a, np.full_like(a, 255), a * 200]), E / "rift_nebula.png")
-
-    # orbit line: a thin soft line across V
-    W, H = 32, 32
-    v = np.linspace(0, 1, H)[:, None] * np.ones((1, W))
-    a = np.exp(-((v - 0.5) / 0.16) ** 2)
-    save_rgba(np.dstack([np.full_like(a, 255), np.full_like(a, 255), np.full_like(a, 255), a * 255]), E / "orbit_ring.png")
-
-    # planets (equirect 128x64)
-    def rock(lat, lon, yy, xx):
-        nz = _soft_noise(64, 128, 6, 47, 4)
-        cr = _soft_noise(64, 128, 14, 53, 2)
-        v = 0.55 + 0.35 * nz - np.clip(cr - 0.7, 0, 1) * 1.5
-        return np.dstack([150 * v + 30, 135 * v + 25, 120 * v + 20])
-
-    def ocean(lat, lon, yy, xx):
-        nz = _soft_noise(64, 128, 6, 31, 4)
-        land = nz > 0.52
-        rgb = np.where(land[..., None], np.dstack([60 + 80 * nz, 120 + 60 * nz, 50 + 30 * nz]), np.dstack([20 + 0 * nz, 60 + 30 * nz, 150 + 60 * nz]))
-        cap = np.abs(lat) > 1.2
-        rgb[cap] = [235, 240, 250]
-        cl = _soft_noise(64, 128, 8, 37, 3) > 0.62
-        rgb[cl] = rgb[cl] * 0.3 + 230 * 0.7
-        return rgb
-
-    def desert(lat, lon, yy, xx):
-        nz = _soft_noise(64, 128, 5, 43, 4)
-        return np.dstack([200 * (0.6 + 0.4 * nz) + 30, 120 * (0.6 + 0.4 * nz) + 20, 70 * (0.6 + 0.4 * nz)])
-
-    def gas(lat, lon, yy, xx):
-        nz = periodic_noise(64, 128, 2, 16, 3)
-        bands = 0.5 + 0.5 * np.sin(lat * 14 + nz * 3)
-        rgb = np.dstack([180 + 60 * bands, 140 + 50 * bands, 100 + 40 * bands])
-        spot = np.exp(-(((lat + 0.35) / 0.12) ** 2 + ((lon - 2.0) / 0.3) ** 2))
-        rgb = rgb * (1 - spot[..., None] * 0.5) + spot[..., None] * np.array([200, 90, 60]) * 0.5
-        return rgb
-
-    def ice(lat, lon, yy, xx):
-        nz = _soft_noise(64, 128, 5, 59, 3)
-        return np.dstack([170 + 70 * nz, 210 + 40 * nz, 235 + 20 * nz])
-
-    def lava(lat, lon, yy, xx):
-        nz = _soft_noise(64, 128, 6, 41, 4)
-        cracks = np.clip(1 - np.abs(nz - 0.5) * 12, 0, 1)
-        return np.dstack([40 + 215 * cracks, 25 + 120 * cracks, 25 + 20 * cracks])
-
-    for name, fn in (("rock", rock), ("ocean", ocean), ("desert", desert), ("gas", gas), ("ice", ice), ("lava", lava)):
-        rgb = np.clip(_equirect_planet(128, 64, fn), 0, 255)
-        save_rgba(np.dstack([rgb, np.full(rgb.shape[:2], 255.0)]), E / f"planet_{name}.png")
+    rift_wall_texture(E)
+    rift_sky_texture(E)
+    planet_textures(E)
 
     # particles
     particle("rift_spark", [glow_frame(16, 0.14 - i * 0.02, 0.4, (190, 120, 255), rays=4, ray_len=0.9, rot=i * 0.4) for i in range(4)])

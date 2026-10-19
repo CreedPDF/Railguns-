@@ -49,6 +49,9 @@ public final class ModSounds {
     public static final SoundEvent RIFT_LOOP = register("rift.loop");
     public static final SoundEvent RIFT_ZAP = register("rift.zap");
     public static final SoundEvent RIFT_CLOSE = register("rift.close");
+    public static final SoundEvent RIFT_ENTER = register("rift.enter");
+    public static final SoundEvent RIFT_AMBIENT = register("rift.ambient");
+    public static final SoundEvent RIFT_LIFT = register("rift.lift");
 
     private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);
     private static final java.util.Map<Loadout.Option, SoundEvent> IMPACT = new java.util.EnumMap<>(Loadout.Option.class);

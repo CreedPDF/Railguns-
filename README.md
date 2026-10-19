@@ -82,13 +82,24 @@ smooth surfaces rather than pixel art.
 
 ## Rift
 Press **RIFT** on the tablet while the railgun is idle. A crown of six emitter petals and a
-spinning halo blooms open around the muzzle, the rail swings straight up, and a violet beam
-punches fifty blocks into the sky and tears it open. Behind the lumpy, crackling violet rim is
-deep space: a starfield with nebulae, a burning sun and six planets turning on glowing orbit
-lines (one ringed). For about 18 seconds the rift is a void vortex: hostile mobs within 32
-blocks are lifted off the ground, spun up the funnel and swallowed, rift lightning crawls
-along the rim and lashes the ground, and stardust rains from the edge. Then it collapses and
-slams shut with a thunderclap and a shockwave rolling across the sky. One rift per minute.
+spinning halo blooms open around the muzzle, the rail swings straight up, and a thick violet
+beam punches **120 blocks** into the sky and rips it open. The rift is a real 3D opening: a
+jagged, shredded rim of violet light with lightning crawling over it and energy tendrils from
+the beam clawing it wider, and behind it a volumetric throat that twists up some 80 blocks into
+another dimension, walled with streaming nebula and lit by a blazing star at its far end. Lit,
+fully 3D planets hang inside it (a ringed gas giant, an ocean world with its moon, a lava world).
+No orbit lines, no holograms.
+
+The rift stays open for about a minute. Hostile mobs within 34 blocks are lifted, spun up and
+swallowed, and rift lightning lashes the ground.
+
+**It's enterable.** Stand in the beam at the railgun and the beam lifts you up into the rift
+(sneak to resist). You come out in **the Rift**, a dimension of deep space: a nebula sky, a
+star and huge planets overhead, drifting asteroids of blackstone, amethyst and crying obsidian,
+low gravity. You arrive on an asteroid island with a return pad. Stand on the pad's column of
+light for two seconds to go back to where you came from (falling into the void also sends you
+home). When the rift collapses, it slams shut with a thunderclap and a shockwave across the sky.
+One rift per minute.
 
 ## Scan mode
 Press **SCAN** on the tablet while the railgun is idle. A sensor mast telescopes up out of the

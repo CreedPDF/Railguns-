@@ -304,9 +304,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
     // ---- Rift ---------------------------------------------------------------------------------------
 
     /** Timeline (ticks): crown unfolds + rail swings up, beam, tear, open (vortex), collapse, snap, fold. */
-    public static final int RIFT_FIRE = 44, RIFT_OPEN = 54, RIFT_OPENED = 92, RIFT_COLLAPSE = 452, RIFT_SNAP = 492, RIFT_TICKS = 560;
+    public static final int RIFT_FIRE = 44, RIFT_OPEN = 60, RIFT_OPENED = 130, RIFT_COLLAPSE = 1250, RIFT_SNAP = 1300, RIFT_TICKS = 1370;
     public static final int RIFT_COOLDOWN = 1200;
-    public static final double RIFT_HEIGHT = 50.0, RIFT_RADIUS = 16.0, VORTEX_RADIUS = 32.0;
+    public static final double RIFT_HEIGHT = 120.0, RIFT_RADIUS = 22.0, VORTEX_RADIUS = 34.0, LIFT_RADIUS = 5.5;
     private int riftReadyAge;
     private int riftSwallowed;
 
@@ -362,6 +362,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
         if (t >= RIFT_OPENED && t < RIFT_COLLAPSE) {
             vortex(world, rift, t);
+            liftPlayers(world, rift, t);
             if (t % 40 == 7) groundStrike(world, rift);
         }
         if (t == RIFT_COLLAPSE) world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_CHARGE, SoundCategory.BLOCKS, 20f, 0.55f);
@@ -384,6 +385,34 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
+    /**
+     * The beam is a way up: players standing in its column (at the emplacement) are carried up
+     * the beam and through the rift into the dimension beyond. Sneaking resists the lift.
+     */
+    private void liftPlayers(ServerWorld world, Vec3d rift, int t) {
+        Box col = new Box(getX() - LIFT_RADIUS, getY() - 2, getZ() - LIFT_RADIUS, getX() + LIFT_RADIUS, rift.y + 6, getZ() + LIFT_RADIUS);
+        for (net.minecraft.server.network.ServerPlayerEntity p : world.getEntitiesByClass(net.minecraft.server.network.ServerPlayerEntity.class, col,
+                x -> x.isAlive() && !x.isSpectator())) {
+            double dx = getX() - p.getX(), dz = getZ() - p.getZ();
+            if (dx * dx + dz * dz > LIFT_RADIUS * LIFT_RADIUS) continue;
+            if (p.getY() >= rift.y - 3) {
+                com.creedpdf.orbitalrailgun.rift.RiftDimension.enter(p);
+                continue;
+            }
+            if (p.isSneaking() && p.getY() < getY() + 12) continue;
+            double rise = Math.min(1.4, 0.35 + (p.getY() - getY()) * 0.012);
+            p.setVelocity(dx * 0.05, rise, dz * 0.05);
+            p.velocityModified = true;
+            p.fallDistance = 0;
+            p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(p));
+            if (t % 20 == 0) {
+                world.playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.RIFT_LIFT, SoundCategory.PLAYERS, 1.5f, 1f);
+                p.sendMessage(Text.translatable("message.orbital_railgun.rift.lifting").formatted(Formatting.LIGHT_PURPLE), true);
+            }
+            if (t % 2 == 0) RailgunFx.burst(world, ModParticles.RIFT_WISP, p.getPos(), 3, 0.5, 0.5, 0.05);
+        }
+    }
+
     /** Hostiles within the vortex are lifted, spun up toward the rift and swallowed by it. */
     private void vortex(ServerWorld world, Vec3d rift, int t) {
         Box area = new Box(getX() - VORTEX_RADIUS, getY() - 12, getZ() - VORTEX_RADIUS,
@@ -395,7 +424,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             double h = Math.sqrt(dx * dx + dz * dz);
             if (h > VORTEX_RADIUS) continue;
             double dy = rift.y - p.y;
-            if (dy < 2.5 && h < RIFT_RADIUS * 0.8) {
+            if (dy < 3.5 && h < RIFT_RADIUS * 0.8) {
                 // swallowed
                 RailgunFx.burst(world, ModParticles.RIFT_FLASH, p, 1, 0, 0, 0);
                 RailgunFx.burst(world, ModParticles.RIFT_SPARK, p, 40, 0.6, 0.6, 0.6);
