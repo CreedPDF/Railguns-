@@ -53,4 +53,29 @@ public final class RailgunFx {
             world.spawnParticles(player, particle, true, pos.x, pos.y, pos.z, 0, velocity.x, velocity.y, velocity.z, 1.0);
         }
     }
+
+    /** Vaporises every breakable block within {@code radius} of the segment a..b (no drops). */
+    public static void carveLine(ServerWorld world, Vec3d a, Vec3d b, double radius) {
+        Vec3d ab = b.subtract(a);
+        double len = ab.length();
+        if (len < 1e-4) return;
+        Vec3d dir = ab.multiply(1.0 / len);
+        net.minecraft.util.math.BlockPos min = net.minecraft.util.math.BlockPos.ofFloored(Math.min(a.x, b.x) - radius, Math.min(a.y, b.y) - radius, Math.min(a.z, b.z) - radius);
+        net.minecraft.util.math.BlockPos max = net.minecraft.util.math.BlockPos.ofFloored(Math.max(a.x, b.x) + radius, Math.max(a.y, b.y) + radius, Math.max(a.z, b.z) + radius);
+        int bottom = world.getBottomY();
+        double r2 = radius * radius;
+        int budget = 80000;
+        for (net.minecraft.util.math.BlockPos pos : net.minecraft.util.math.BlockPos.iterate(min, max)) {
+            if (pos.getY() < bottom || pos.getY() >= world.getTopY()) continue;
+            Vec3d c = Vec3d.ofCenter(pos);
+            double along = net.minecraft.util.math.MathHelper.clamp(c.subtract(a).dotProduct(dir), 0, len);
+            if (c.squaredDistanceTo(a.add(dir.multiply(along))) > r2) continue;
+            net.minecraft.block.BlockState state = world.getBlockState(pos);
+            if (state.isAir()) continue;
+            if (state.getHardness(world, pos) < 0) continue;
+            world.setBlockState(pos, net.minecraft.block.Blocks.AIR.getDefaultState(),
+                    net.minecraft.block.Block.NOTIFY_LISTENERS | net.minecraft.block.Block.SKIP_DROPS);
+            if (--budget <= 0) return;
+        }
+    }
 }

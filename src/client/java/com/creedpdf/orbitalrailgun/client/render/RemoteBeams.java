@@ -29,7 +29,9 @@ import java.util.Set;
 public final class RemoteBeams {
     private RemoteBeams() {}
 
-    private record Shot(int entityId, Vec3d muzzle, BlockPos target, int loadout, long start) {}
+    private record Shot(int entityId, Vec3d muzzle, BlockPos target, int loadout, long start, int travel) {}
+
+    private static int orbitalIds = -1000;
 
     private static final List<Shot> SHOTS = new ArrayList<>();
     private static final VertexConsumerProvider.Immediate BUFFER = VertexConsumerProvider.immediate(new BufferBuilder(1 << 21));
@@ -46,7 +48,12 @@ public final class RemoteBeams {
 
     public static void add(ClientWorld world, int entityId, Vec3d muzzle, BlockPos target, int loadout) {
         SHOTS.removeIf(s -> s.entityId == entityId);
-        SHOTS.add(new Shot(entityId, muzzle, target, loadout, world.getTime()));
+        SHOTS.add(new Shot(entityId, muzzle, target, loadout, world.getTime(), 0));
+    }
+
+    /** An orbital strike: the head travels down from orbit for {@code travel} ticks, then it burns. */
+    public static void addOrbital(ClientWorld world, Vec3d muzzle, BlockPos target, int loadout, int travel) {
+        SHOTS.add(new Shot(orbitalIds--, muzzle, target, loadout, world.getTime(), travel));
     }
 
     private static void render(WorldRenderContext ctx) {
@@ -68,9 +75,20 @@ public final class RemoteBeams {
             drawn.add(rg.getId());
             any |= draw(world, matrices, cam, rg.getMuzzlePos(td), rg.getTarget(), rg.getLoadout(), rg.getStateTicks() + td, time);
         }
-        SHOTS.removeIf(s -> now < s.start || now - s.start > RailgunConfig.FIRE_TICKS + 2);
+        SHOTS.removeIf(s -> now < s.start || now - s.start > RailgunConfig.FIRE_TICKS + s.travel + 2);
         for (Shot s : SHOTS) {
             if (drawn.contains(s.entityId)) continue;
+            if (s.travel > 0) {
+                any = true;
+                Vec3d surface = Vec3d.ofCenter(s.target).add(0, 0.5, 0);
+                matrices.push();
+                matrices.translate(s.muzzle.x - cam.x, s.muzzle.y - cam.y, s.muzzle.z - cam.z);
+                BeamRenderer.renderOrbitalShot(BUFFER, matrices, world, s.muzzle, s.muzzle, surface, s.target, Loadout.of(s.loadout),
+                        now - s.start + td, s.travel, time,
+                        com.creedpdf.orbitalrailgun.orbital.OrbitalConfig.BORE_DEPTH, com.creedpdf.orbitalrailgun.orbital.OrbitalConfig.BORE_SPEED, 1.7f);
+                matrices.pop();
+                continue;
+            }
             any |= draw(world, matrices, cam, s.muzzle, s.target, Loadout.of(s.loadout), now - s.start + td, time);
         }
         active = any;

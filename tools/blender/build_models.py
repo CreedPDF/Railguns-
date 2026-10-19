@@ -125,6 +125,8 @@ PALETTE = {
     "chrome": ("#5a6068", "#a8b0ba", "#e8edf2"),
     "brass": ("#4a3008", "#a8781c", "#e0b85a"),
     "white": ("#8a929c", "#d8dee6", "#f6f8fa"),
+    # orbital platform
+    "solar": ("#060c1a", "#12224a", "#2a4280"),
 }
 KINDS = list(PALETTE)
 GLOW_KINDS = {"glow", "amber", "screen", "cyan", "violet", "lime", "orange"}
@@ -1031,14 +1033,18 @@ def extract_boxes(bones, offset=Vector((0, 0, 0))):
     """
     bpy.context.view_layer.update()
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    bone_names = set(bones)
+    # Blender object names can carry ".001" suffixes when several models share bone names, so
+    # bones are matched by identity and boxes keyed by the model's own bone names.
+    key_of = {e.name: k for k, e in bones.items()}
     boxes = []
     for obj in bpy.context.scene.objects:
-        if not obj.get("export") or obj.parent is None or obj.parent.name not in bone_names:
+        if not obj.get("export") or obj.parent is None or obj.parent.name not in key_of \
+                or bones[key_of[obj.parent.name]] is not obj.parent:
             continue
+        bone_key = key_of[obj.parent.name]
         if obj.get("rot_axis") is not None:
             x, y, z, sx, sy, sz = list(obj["cube_mc"])
-            boxes.append({"bone": obj.parent.name, "kind": obj["kind"],
+            boxes.append({"bone": bone_key, "kind": obj["kind"],
                           "min": [x, y, z], "max": [x + sx, y + sy, z + sz],
                           "rot_axis": obj["rot_axis"], "rot_angle": float(obj["rot_angle"]),
                           "rot_pivot": list(obj["rot_pivot"])})
@@ -1064,15 +1070,15 @@ def extract_boxes(bones, offset=Vector((0, 0, 0))):
             islands.setdefault(find(i), []).append(i)
 
         for verts in islands.values():
-            pts = [b_to_mc(world[i]) for i in verts]
+            pts = [[round(c, 3) for c in b_to_mc(world[i])] for i in verts]
             lo = [min(p[k] for p in pts) for k in range(3)]
             hi = [max(p[k] for p in pts) for k in range(3)]
-            corners = {(round(p[0], 2), round(p[1], 2), round(p[2], 2)) for p in pts}
+            corners = {(p[0], p[1], p[2]) for p in pts}
             ok = len(verts) == 8 and all(
                 all(c[k] in (lo[k], hi[k]) for k in range(3)) for c in corners)
             if not ok:
                 raise RuntimeError(f"{obj.name}: island is not an axis-aligned box ({len(verts)} verts)")
-            boxes.append({"bone": obj.parent.name, "kind": obj["kind"], "min": lo, "max": hi})
+            boxes.append({"bone": bone_key, "kind": obj["kind"], "min": lo, "max": hi})
         ev.to_mesh_clear()
     return boxes
 
@@ -1280,7 +1286,7 @@ def paint_screen(R, w, h, seed=0):
 CLEAN = {
     "paint": "#d9dde2", "steel": "#4b525b", "hull": "#2f353d", "dark": "#17191d", "vent": "#101215",
     "glass": "#0f1b27", "concrete": "#9a9ea3", "chrome": "#b8c1cb", "brass": "#b28b3e", "white": "#eef1f4",
-    "hazard": "#e8a317",
+    "hazard": "#e8a317", "solar": "#13254d",
     "glow": "#ff3a24", "amber": "#ffad2a", "cyan": "#35dcff", "violet": "#b46cff", "lime": "#b4ff4a", "orange": "#ff7a1c",
 }
 def _smoothstep(e0, e1, x):
@@ -1321,6 +1327,18 @@ def paint_faces(td, boxes, seed=7, tpp=1):
                 continue
 
             col = np.broadcast_to(base, (h, w, 3)).astype(np.float32).copy()
+            if kind == "solar":
+                # photovoltaic cells: deep blue with a fine silver cell grid and a soft sheen
+                cell = 5.0 * tpp
+                gx = ((xx + u) % cell) < max(1.0, tpp * 0.5)
+                gy = ((yy + v) % cell) < max(1.0, tpp * 0.5)
+                sheen = 0.9 + 0.25 * np.exp(-(((xx + yy) / max(w + h, 1) - 0.35) / 0.2) ** 2)
+                col *= sheen[..., None]
+                col[gx | gy] = _hex01("#5d6f8f")
+                bus = ((yy + v) % (cell * 6)) < max(1.0, tpp * 0.6)
+                col[bus] = _hex01("#9aa8bd")
+                R[:] = np.clip(col, 0, 1)
+                continue
             if kind == "hazard":
                 period = 6.0 * tpp
                 ph = ((xx + yy + u + v) % period) / period
@@ -1475,10 +1493,11 @@ def save_png(image, path):
 
 def export_geo(bones, boxes, tex, path, identifier="geometry.railgun", bounds=(44, 14, 6)):
     out_bones = []
+    key_of = {e.name: k for k, e in bones.items()}
     for name, empty in bones.items():
         entry = {"name": name, "pivot": list(empty["pivot_mc"])}
         if empty.parent:
-            entry["parent"] = empty.parent.name
+            entry["parent"] = key_of.get(empty.parent.name, empty.parent.name)
         cubes = []
         for b in boxes:
             if b["bone"] != name:
@@ -1864,9 +1883,9 @@ def reset_pose(bones):
         e.scale = (1, 1, 1)
 
 
-def author_animations(bones):
+def author_animations(bones, anims=None):
     """Keyframes every animation as Actions named '<animation>|<bone>' (linear interpolation)."""
-    for anim, (_length, _loop, tracks) in ANIMATIONS.items():
+    for anim, (_length, _loop, tracks) in (anims or ANIMATIONS).items():
         for bone_name, channels in tracks.items():
             empty = bones[bone_name]
             reset_pose(bones)
@@ -1893,10 +1912,10 @@ def author_animations(bones):
     reset_pose(bones)
 
 
-def export_animations(bones, path):
+def export_animations(bones, path, anims=None):
     """Reads the Actions back (not the Python table) so edits made in Blender are exported."""
     out = {}
-    for anim, (length, loop, _tracks) in ANIMATIONS.items():
+    for anim, (length, loop, _tracks) in (anims or ANIMATIONS).items():
         anim_bones = {}
         for bone_name, empty in bones.items():
             action = bpy.data.actions.get(f"{anim}|{bone_name}")
@@ -1946,6 +1965,591 @@ def pose(bones, anim, time_s):
             empty.animation_data_create()
             empty.animation_data.action = action
     bpy.context.scene.frame_set(int(round(time_s * FPS)))
+
+
+# =============================================================================================
+# ARES-9 orbital configuration (rendered in the orbital uplink, never placed in the world)
+# =============================================================================================
+#
+# A space-frame weapons platform, nothing like the ground emplacement: an engine module and a
+# reactor drum carry an open twin-rail magnetic accelerator, four truss booms with hardpoint
+# nodes, roll-out solar arrays, heat radiators, an Earth-facing comms dish and RCS quads.
+# Attachments mount on the same coordinates as on the ground railgun (rail, breech, drum, boom
+# nodes), so every loadout part docks here too.
+
+O_WING_Y = 84.0
+O_PANEL_X0 = 50.0          # inner edge of the first solar panel
+O_PANEL_W = 62.0           # panel pitch along X
+O_PANELS = 4
+O_NODE_R = 76.0
+O_FOOT_R = 88.0
+O_REMAP = {f"shell_{q}": f"node_{q}" for q in ("pp", "pn", "np", "nn")}
+O_REMAP.update({f"clamp_{q}": f"foot_{q}" for q in ("pp", "pn", "np", "nn")})
+
+
+def build_orbital(offset):
+    bones = {}
+
+    def bone(name, parent, pivot):
+        parent = O_REMAP.get(parent, parent)
+        p = bones.get(parent)
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None,
+                                offset=offset if p is None else Vector((0, 0, 0)))
+
+    Y = BARREL_Y
+    bone("root", None, [0, 0, 0])
+    bone("core", "root", [0, 0, 0])
+    bone("hull", "core", [0, TURRET_Y, 0])
+    bone("barrel", "hull", [0, Y, 0])
+    bone("coils_a", "barrel", [0, Y, -60])
+    bone("seg1", "barrel", [0, Y, 0])
+    bone("coils_b", "seg1", [0, Y, -170])
+    bone("seg2", "seg1", [0, Y, 0])
+    bone("coils_c", "seg2", [0, Y, -260])
+    for q, (sx, sz) in QUADS.items():
+        bone(f"boom_{q}", "core", [sx * 17, 60, sz * 17])
+        bone(f"node_{q}", "core", [sx * O_NODE_R, 96, sz * O_NODE_R])
+        bone(f"foot_{q}", "core", [sx * O_FOOT_R, 0, sz * O_FOOT_R])
+    for s, tag in ((1, "r"), (-1, "l")):
+        bone(f"wing_{tag}", "hull", [s * 30, O_WING_Y, 0])
+        for i in range(O_PANELS):
+            x0 = O_PANEL_X0 + i * O_PANEL_W
+            bone(f"panel_{tag}{i}", f"wing_{tag}", [s * x0, O_WING_Y, 0])
+    bone("radiator", "hull", [0, 110, 56])
+    bone("dish", "core", [0, -6, 66])
+    B = bones
+    core, hull, bar, s1, s2 = B["core"], B["hull"], B["barrel"], B["seg1"], B["seg2"]
+
+    # ---- engine module (y 0..40): drive block, four bells, propellant bands ----
+    octagon("o_eng", core, "hull", 6, 48, 32)
+    octagon("o_eng_band", core, "steel", 36, 52, 4)
+    octagon("o_eng_skirt", core, "dark", 2, 42, 4)
+    for sx, sz in QUADS.values():
+        octagon("o_bell", core, "dark", -10, 11, 12, center_xz=(sx * 11, sz * 11))
+        octagon("o_bell_in", core, "orange", -10.6, 7, 0.6, center_xz=(sx * 11, sz * 11))
+    for k in range(4):
+        a = k * math.pi / 2
+        box(core, "glow", [math.cos(a) * 24.4 - 0.3, 14, math.sin(a) * 24.4 - 0.3], [0.6, 18, 0.6])
+    box(core, "hazard", [-24.2, 30, -10], [0.4, 4, 20], mirror=("x",))
+
+    # ---- reactor drum (y 40..108) ----
+    octagon("o_drum", hull, "paint", 40, 56, 66)
+    octagon("o_drum_b1", hull, "dark", 58, 57, 3)
+    octagon("o_drum_b2", hull, "dark", 88, 57, 3)
+    octagon("o_drum_cap", hull, "steel", 104, 52, 6)
+    for sx in (1, -1):
+        box(hull, "glow", [sx * 28 - (0 if sx > 0 else 0.4), 62, -10], [0.4, 24, 1.2])
+        box(hull, "glow", [sx * 28 - (0 if sx > 0 else 0.4), 62, 8.8], [0.4, 24, 1.2])
+    box(hull, "white", [-12, 64, -28.4], [24, 22, 0.6])
+    box(hull, "cyan", [-9, 82, -28.8], [18, 1, 0.4])
+    box(hull, "screen", [-8, 68, -28.8], [16, 10, 0.4])
+    # RCS quads on the drum: four nozzle blocks per level, nozzles on three faces
+    for lvl in (46, 98):
+        for k in range(4):
+            dx, dz = ((1, 0), (0, 1), (-1, 0), (0, -1))[k]
+            cx, cz = dx * 30, dz * 30
+            box(hull, "steel", [cx - 3, lvl, cz - 3], [6, 6, 6])
+            box(hull, "dark", [cx - 2, lvl + 6, cz - 2], [4, 1, 4])
+            box(hull, "dark", [cx - 2, lvl - 1, cz - 2], [4, 1, 4])
+            if dx:
+                box(hull, "cyan", [cx + dx * 3 - (0.4 if dx > 0 else 0) + (0.4 if dx > 0 else -0.4) * 0, lvl + 2, cz - 1], [0.4, 2, 2])
+            else:
+                box(hull, "cyan", [cx - 1, lvl + 2, cz + dz * 3 - (0.4 if dz > 0 else 0)], [2, 2, 0.4])
+    # rail pylon on the drum roof
+    box(hull, "steel", [-10, 108, -24], [20, 6, 56])
+    box(hull, "dark", [-12, 108, 26], [24, 3, 8])
+
+    # ---- open twin-rail accelerator ----
+    # breech block
+    box(bar, "hull", [-16, Y - 16, 8], [32, 32, 38])
+    box(bar, "dark", [-17, Y - 17, 44], [34, 34, 3])
+    box(bar, "glow", [-6, Y - 6, 47], [12, 12, 0.4])
+    box(bar, "white", [-16.4, Y - 8, 14], [0.4, 16, 26], mirror=("x",))
+    box(bar, "hazard", [-14, Y + 15.8, 30], [28, 0.4, 6])
+    # main section (z -120..8): top + bottom rails, side spars, magnetic channel
+    box(bar, "steel", [-12, Y + 9, -122], [24, 5, 130])
+    box(bar, "steel", [-12, Y - 14, -122], [24, 5, 130])
+    box(bar, "dark", [-15, Y - 9, -122], [3, 18, 130], mirror=("x",))
+    box(bar, "glow", [-2, Y - 2, -120], [4, 4, 128])
+    box(bar, "glow", [-11, Y + 8.6, -118], [22, 0.4, 2], array=(9, [0, 0, 14]))
+    box(bar, "glow", [-11, Y - 9, -118], [22, 0.4, 2], array=(9, [0, 0, 14]))
+    for z in (-30, -70, -110):
+        ring_z(B["coils_a"], "glow", 0, Y, z - 1.5, z + 1.5, 17, 2.4)
+    # seg1 (z -222..-110)
+    box(s1, "steel", [-10, Y + 7, -222], [20, 4, 112])
+    box(s1, "steel", [-10, Y - 11, -222], [20, 4, 112])
+    box(s1, "dark", [-12.5, Y - 7, -222], [2.5, 14, 112], mirror=("x",))
+    box(s1, "glow", [-1.6, Y - 1.6, -220], [3.2, 3.2, 108])
+    for z in (-150, -190):
+        ring_z(B["coils_b"], "glow", 0, Y, z - 1.5, z + 1.5, 14, 2.2)
+    # seg2 (z -306..-212) and the muzzle crown
+    box(s2, "steel", [-8, Y + 5.5, -306], [16, 3.5, 94])
+    box(s2, "steel", [-8, Y - 9, -306], [16, 3.5, 94])
+    box(s2, "dark", [-10, Y - 5.5, -306], [2, 11, 94], mirror=("x",))
+    box(s2, "glow", [-1.2, Y - 1.2, -304], [2.4, 2.4, 92])
+    ring_z(B["coils_c"], "glow", 0, Y, -261.5, -258.5, 12, 2)
+    octagon_z("o_muzzle", s2, "dark", 0, Y, -316, -304, 36)
+    octagon_z("o_muzzle_ring", s2, "steel", 0, Y, -309, -307, 37)
+    octagon_z("o_bore", s2, "glow", 0, Y, -316.6, -316, 20)
+
+    # ---- truss booms and hardpoint nodes ----
+    for q, (sx, sz) in QUADS.items():
+        bm_ = B[f"boom_{q}"]
+        diag_box(bm_, "steel", sx, sz, (0, 0), 24, 104, 5, 96, 101)
+        diag_box(bm_, "dark", sx, sz, (0, 0), 24, 100, 3, 64, 67)
+        diag_box(bm_, "dark", sx, sz, (0, 0), 24, 120, 4, 3, 7)
+        diag_box(bm_, "glow", sx, sz, (0, 0), 30, 98, 0.8, 101, 101.4)
+        k_ = 100 / math.sqrt(2)
+        box(bm_, "dark", [sx * k_ - 1.5, 64, sz * k_ - 1.5], [3, 32, 3])
+        nd = B[f"node_{q}"]
+        cx, cz = sx * O_NODE_R, sz * O_NODE_R
+        octagon(f"o_node_{q}", nd, "hull", 94, 18, 18, center_xz=(cx, cz))
+        octagon(f"o_node_r_{q}", nd, "cyan", 104, 18.6, 1, center_xz=(cx, cz))
+        octagon(f"o_node_c_{q}", nd, "steel", 110, 14, 2, center_xz=(cx, cz))
+        box(nd, "glow", [cx - 0.6, 90, cz - 0.6], [1.2, 4, 1.2])
+        ft = B[f"foot_{q}"]
+        fx, fz = sx * O_FOOT_R, sz * O_FOOT_R
+        octagon(f"o_foot_{q}", ft, "hull", 0, 16, 12, center_xz=(fx, fz))
+        octagon(f"o_foot_r_{q}", ft, "glow", 12, 12, 1, center_xz=(fx, fz))
+        octagon(f"o_foot_n_{q}", ft, "dark", -4, 10, 4, center_xz=(fx, fz))
+
+    # ---- roll-out solar arrays ----
+    for s, tag in ((1, "r"), (-1, "l")):
+        w = B[f"wing_{tag}"]
+        x_lo = 28 if s > 0 else -50
+        box(w, "steel", [x_lo, O_WING_Y - 2, -3], [22, 4, 6])
+        box(w, "dark", [(44 if s > 0 else -50), O_WING_Y - 6, -13], [6, 12, 26])
+        box(w, "cyan", [(47.6 if s > 0 else -50.0), O_WING_Y - 4, -13.4], [2.4, 8, 0.4])
+        for i in range(O_PANELS):
+            pn = B[f"panel_{tag}{i}"]
+            x0 = O_PANEL_X0 + i * O_PANEL_W
+            lo = x0 if s > 0 else -x0 - 60
+            box(pn, "solar", [lo, O_WING_Y - 0.6, -44], [60, 1.2, 88])
+            box(pn, "chrome", [lo, O_WING_Y - 1, -45], [60, 2, 1])
+            box(pn, "chrome", [lo, O_WING_Y - 1, 44], [60, 2, 1])
+            box(pn, "chrome", [lo + (0 if s > 0 else 59), O_WING_Y - 1, -44], [1, 2, 88])
+            box(pn, "steel", [(x0 - 2 if s > 0 else -x0 - 60), O_WING_Y - 2.2, -1.5], [62, 1.6, 3])
+            if i == O_PANELS - 1:
+                tip = x0 + 60 if s > 0 else -x0 - 61
+                box(pn, "cyan" if s > 0 else "glow", [tip, O_WING_Y - 1, -2], [1, 2, 4])
+
+    # ---- heat radiators (behind the breech) ----
+    rd = B["radiator"]
+    for sx in (1, -1):
+        box(rd, "white", [(6 if sx > 0 else -7.5), 112, 56], [1.5, 72, 92])
+        box(rd, "steel", [(5.6 if sx > 0 else -7.8), 116, 56], [2.2, 1, 92], array=(5, [0, 14, 0]))
+        box(rd, "amber", [(7.5 if sx > 0 else -7.9), 112, 147.6], [0.4, 72, 0.4])
+    box(rd, "steel", [-7.5, 108, 56], [15, 4, 92])
+    box(rd, "dark", [-3, 112, 52], [6, 70, 4])
+
+    # ---- Earth-facing comms dish ----
+    dd = B["dish"]
+    box(dd, "steel", [-1.5, -4, 20], [3, 3, 48])
+    octagon("o_dish", dd, "white", -12, 30, 2.5, center_xz=(0, 66))
+    octagon("o_dish_rim", dd, "steel", -12.4, 31, 0.6, center_xz=(0, 66))
+    octagon("o_dish_feed", dd, "dark", -26, 4, 14, center_xz=(0, 66))
+    box(dd, "glow", [-0.6, -27, 65.4], [1.2, 1, 1.2])
+    for sx, sz in QUADS.values():
+        box(dd, "steel", [sx * 8 - 0.5, -24, 66 + sz * 8 - 0.5], [1, 12, 1])
+
+    # ---- attachments: the same option parts, docking onto the orbital hardpoints ----
+    build_options(bone, B)
+    add_docking_arms(bone, B)
+    return bones
+
+
+O_DEPLOY_LEN = 9.0
+
+
+def _o_stowed():
+    t = {}
+    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN]}}
+    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN]}}
+    for q, (sx, sz) in QUADS.items():
+        t[f"boom_{q}"] = {"scale": {0.0: [0.22, 1, 0.22]}}
+        t[f"node_{q}"] = {"position": {0.0: [-sx * 44, -12, -sz * 44]}}
+        t[f"foot_{q}"] = {"position": {0.0: [-sx * 56, 8, -sz * 56]}}
+    for s, tag in ((1, "r"), (-1, "l")):
+        t[f"wing_{tag}"] = {"position": {0.0: [-s * 14, 0, 0]}}
+        for i in range(O_PANELS):
+            x0 = O_PANEL_X0 + i * O_PANEL_W
+            t[f"panel_{tag}{i}"] = {"position": {0.0: [-s * (x0 - 48), 0, 0]}, "scale": {0.0: [0.04, 1, 0.26]}}
+    t["radiator"] = {"scale": {0.0: [1, 0.08, 0.3]}}
+    t["dish"] = {"scale": {0.0: [0.12, 0.12, 0.12]}}
+    for c in ("coils_a", "coils_b", "coils_c"):
+        t[c] = {"scale": {0.0: [0.8, 0.8, 1]}}
+    return t
+
+
+def _o_deploy():
+    st = _o_stowed()
+    t = {}
+    for i, (q, (sx, sz)) in enumerate(QUADS.items()):
+        a = 0.6 + i * 0.12
+        t[f"boom_{q}"] = {"scale": {0.0: kv(st[f"boom_{q}"]["scale"][0.0]), a: [0.22, 1, 0.22], a + 1.5: (ONE, IO)}}
+        t[f"node_{q}"] = {"position": {0.0: st[f"node_{q}"]["position"][0.0], a: st[f"node_{q}"]["position"][0.0],
+                                       a + 1.5: (ZERO, IO)}}
+        b = 1.0 + i * 0.12
+        t[f"foot_{q}"] = {"position": {0.0: st[f"foot_{q}"]["position"][0.0], b: st[f"foot_{q}"]["position"][0.0],
+                                       b + 1.5: (ZERO, IO)}}
+    for s, tag in ((1, "r"), (-1, "l")):
+        t[f"wing_{tag}"] = {"position": {0.0: [-s * 14, 0, 0], 2.0: [-s * 14, 0, 0], 2.8: (ZERO, OUT)}}
+        for i in range(O_PANELS):
+            x0 = O_PANEL_X0 + i * O_PANEL_W
+            a = 2.8 + 0.55 * i
+            p_in = [-s * (x0 - 48), 0, 0]
+            t[f"panel_{tag}{i}"] = {
+                "position": {0.0: p_in, a: p_in, a + 0.5: (ZERO, IO)},
+                "scale": {0.0: [0.04, 1, 0.26], a + 0.35: [0.04, 1, 0.26], a + 0.6: ([0.04, 1, 1], OUT),
+                          a + 1.25: (ONE, IO)},
+            }
+    t["radiator"] = {"scale": {0.0: [1, 0.08, 0.3], 4.8: [1, 0.08, 0.3], 5.3: ([1, 0.08, 1], OUT), 6.1: (ONE, OUT)}}
+    t["dish"] = {"scale": {0.0: [0.12, 0.12, 0.12], 5.2: [0.12, 0.12, 0.12], 6.2: (ONE, BACK)}}
+    t["seg1"] = {"position": {0.0: [0, 0, SEG1_IN], 6.2: [0, 0, SEG1_IN], 7.2: (ZERO, IO)}}
+    t["seg2"] = {"position": {0.0: [0, 0, SEG2_IN], 7.0: [0, 0, SEG2_IN], 7.9: (ZERO, IO)}}
+    for k, c in enumerate(("coils_a", "coils_b", "coils_c")):
+        a = 8.0 + k * 0.15
+        t[c] = {"scale": {0.0: [0.8, 0.8, 1], a: [0.8, 0.8, 1], a + 0.35: ([1.25, 1.25, 1], OUT), a + 0.8: (ONE, IO)}}
+    return t
+
+
+O_DEPLOY = _o_deploy()
+O_STOW = reverse_tracks(O_DEPLOY, O_DEPLOY_LEN)
+
+_RAW_ORBITAL_ANIMATIONS = {
+    "animation.orbital.stowed": (1.0, True, _o_stowed()),
+    "animation.orbital.deploy": (O_DEPLOY_LEN, "hold_on_last_frame", O_DEPLOY),
+    "animation.orbital.stow": (O_DEPLOY_LEN, "hold_on_last_frame", O_STOW),
+    "animation.orbital.idle": (6.0, True, {
+        "dish": {"rotation": {0.0: ZERO, 6.0: [0, 360, 0]}},
+        "coils_a": {"scale": {0.0: ONE, 3.0: ([1.03, 1.03, 1], SINE), 6.0: (ONE, SINE)}},
+        "coils_b": {"scale": {0.0: [1.03, 1.03, 1], 3.0: (ONE, SINE), 6.0: ([1.03, 1.03, 1], SINE)}},
+    }),
+    "animation.orbital.charge": (0.5, True, {
+        "coils_a": {"scale": {0.0: [1.05, 1.05, 1], 0.25: ([1.2, 1.2, 1], SINE), 0.5: ([1.05, 1.05, 1], SINE)}},
+        "coils_b": {"scale": {0.0: [1.2, 1.2, 1], 0.25: ([1.05, 1.05, 1], SINE), 0.5: ([1.2, 1.2, 1], SINE)}},
+        "coils_c": {"scale": {0.0: [1.05, 1.05, 1], 0.25: ([1.2, 1.2, 1], SINE), 0.5: ([1.05, 1.05, 1], SINE)}},
+    }),
+    "animation.orbital.fire": (2.5, False, {
+        "seg1": {"position": {0.0: ZERO, 0.05: ([0, 0, 18], "easeOutExpo"), 0.6: ([0, 0, 10], OUT), 1.8: (ZERO, IO)}},
+        "seg2": {"position": {0.0: ZERO, 0.05: ([0, 0, 15], "easeOutExpo"), 0.7: ([0, 0, 7], OUT), 2.0: (ZERO, IO)}},
+        "barrel": {"position": {0.0: ZERO, 0.05: ([0, 0, 10], "easeOutExpo"), 1.4: (ZERO, IO)}},
+        "coils_a": {"scale": {0.0: [1.5, 1.5, 1], 0.5: ([1.15, 1.15, 1], OUT), 2.5: (ONE, IO)}},
+        "coils_b": {"scale": {0.0: [1.5, 1.5, 1], 0.6: ([1.15, 1.15, 1], OUT), 2.5: (ONE, IO)}},
+        "coils_c": {"scale": {0.0: [1.5, 1.5, 1], 0.7: ([1.15, 1.15, 1], OUT), 2.5: (ONE, IO)}},
+    }),
+}
+ORBITAL_ANIMATIONS = {n: (L, lp, full_tracks(tr, L)) for n, (L, lp, tr) in _RAW_ORBITAL_ANIMATIONS.items()}
+
+
+# =============================================================================================
+# Orbital depot: a drop pod whose hood lifts away to reveal a spinning cabinet holding every
+# attachment on its shelves (scaled-down copies of the real option parts)
+# =============================================================================================
+
+DEPOT_HALF = 24.0
+CAB_HALF = 20.0
+CAB_Y0 = 16.0
+DEPOT_TIERS = (62.0, 40.0, 18.0)      # shelf plate tops, top tier first
+DEPOT_SLOT_U = 9.0                     # lateral slot centre
+DEPOT_SLOT_D = 13.0                    # slot depth centre from the cabinet axis
+DEPOT_HOOD_LIFT = 80.0
+
+
+def depot_slot(i):
+    """(x, y, z) centre of shelf slot i (0..23) in model px; mirrored in OrbitalDepotEntity."""
+    face, rem = divmod(i, 6)
+    tier, col = divmod(rem, 2)
+    u = -DEPOT_SLOT_U if col == 0 else DEPOT_SLOT_U
+    y = DEPOT_TIERS[tier] + 9.0
+    d = DEPOT_SLOT_D
+    return [(u, y, -d), (d, y, u), (-u, y, d), (-d, y, -u)][face]
+
+
+def _scratch_options(offset):
+    """Builds every option part once on a throwaway skeleton (the ground railgun's mount bones)."""
+    bones = {}
+
+    def bone(name, parent, pivot):
+        p = bones.get(parent)
+        if p is None and parent is not None:
+            bones[parent] = make_bone(f"scratch_{parent}", None, [0, 0, 0], None, offset=offset)
+            p = bones[parent]
+            p["pivot_mc"] = [0, 0, 0]
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None,
+                                offset=offset if p is None else Vector((0, 0, 0)))
+
+    build_options(bone, bones)
+    return bones
+
+
+def _transfer_mini(parts, mini, center, scale, slot, offset):
+    """Moves option parts onto a depot shelf: scaled about their centre, placed on the slot."""
+    dg = bpy.context.evaluated_depsgraph_get()
+    created = []
+    for o in parts:
+        ev = o.evaluated_get(dg)
+        me = bpy.data.meshes.new_from_object(ev)
+        Mw = ev.matrix_world.copy()
+        for v in me.vertices:
+            w = Mw @ v.co
+            mc = b_to_mc(w - offset["src"])
+            mc = [(mc[k] - center[k]) * scale + slot[k] for k in range(3)]
+            v.co = mc_to_b(mc) + offset["dst"]
+        n = link(bpy.data.objects.new(f"mini_{o.name}", me))
+        n.parent = mini
+        n.matrix_parent_inverse = mini.matrix_world.inverted()
+        n["kind"] = o["kind"]
+        n["export"] = True
+        if o.get("rot_axis") is not None:
+            x, y, z, sx, sy, sz = list(o["cube_mc"])
+            org = [(c - center[k]) * scale + slot[k] for k, c in enumerate((x, y, z))]
+            n["rot_axis"] = o["rot_axis"]
+            n["rot_angle"] = float(o["rot_angle"])
+            n["rot_pivot"] = [(c - center[k]) * scale + slot[k] for k, c in enumerate(list(o["rot_pivot"]))]
+            n["cube_mc"] = org + [sx * scale, sy * scale, sz * scale]
+        created.append(n)
+    return created
+
+
+def build_depot(offset):
+    bones = {}
+
+    def bone(name, parent, pivot):
+        p = bones.get(parent)
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None,
+                                offset=offset if p is None else Vector((0, 0, 0)))
+
+    H = DEPOT_HALF
+    bone("root", None, [0, 0, 0])
+    bone("base", "root", [0, 0, 0])
+    bone("hood", "base", [0, 14, 0])
+    bone("cabinet", "base", [0, CAB_Y0, 0])
+    for q in QUADS:
+        sx, sz = QUADS[q]
+        bone(f"rail_{q}", "base", [sx * (H - 3), 14, sz * (H - 3)])
+    B = bones
+    base, hood, cab = B["base"], B["hood"], B["cabinet"]
+
+    # ---- base plinth with landing legs, retro nozzles and the front console ----
+    octagon("d_base", base, "hull", 0, 2 * H, 14)
+    octagon("d_base_band", base, "dark", 12, 2 * H + 1, 2)
+    box(base, "hazard", [-H - 0.2, 4, -6], [0.4, 4, 12], mirror=("x",))
+    for sx, sz in QUADS.values():
+        diag_box(base, "steel", sx, sz, (0, 0), 26, 40, 5, 0, 6)
+        diag_box(base, "dark", sx, sz, (0, 0), 38, 44, 9, 0, 2)
+        octagon("d_nozzle", base, "dark", -3, 8, 3, center_xz=(sx * 11, sz * 11))
+        octagon("d_nozzle_g", base, "orange", -3.4, 5, 0.4, center_xz=(sx * 11, sz * 11))
+    # console on the -Z face (world +Z / south): screen, keys, SEND key
+    box(base, "dark", [-12, 2, -H - 1.6], [24, 10, 1.6])
+    box(base, "screen", [-10, 5, -H - 2.0], [13, 6, 0.4])
+    box(base, "cyan", [-10.5, 4.5, -H - 1.9], [14, 0.4, 0.3])
+    box(base, "glow", [5, 5, -H - 2.0], [5, 3, 0.4])
+    box(base, "steel", [5, 9, -H - 2.0], [5, 1.5, 0.4])
+    box(base, "steel", [-10, 3, -H - 2.0], [2, 1, 0.4], array=(5, [3, 0, 0]))
+
+    # ---- guide rails the hood rides up on ----
+    for q, (sx, sz) in QUADS.items():
+        rl = B[f"rail_{q}"]
+        cx, cz = sx * (H - 3), sz * (H - 3)
+        box(rl, "steel", [cx - 1.5, 14, cz - 1.5], [3, DEPOT_HOOD_LIFT + 70, 3])
+        box(rl, "cyan", [cx - 1.7, 30, cz - 1.7], [3.4, 0.6, 3.4], array=(6, [0, 22, 0]))
+
+    # ---- hood: four walls and the cap ----
+    for sx in (1, -1):
+        box(hood, "paint", [(H - 3) if sx > 0 else -H, 14, -H + 3], [3, 72, 2 * H - 6])
+        box(hood, "glow", [(H + 0.0) if sx > 0 else -H - 0.4, 24, -1], [0.4, 52, 2])
+        box(hood, "hazard", [(H) if sx > 0 else -H - 0.4, 78, -12], [0.4, 4, 24])
+    for sz in (1, -1):
+        box(hood, "paint", [-H, 14, (H - 3) if sz > 0 else -H], [2 * H, 72, 3])
+        box(hood, "glow", [-1, 24, (H) if sz > 0 else -H - 0.4], [2, 52, 0.4])
+        box(hood, "white", [-16, 40, (H) if sz > 0 else -H - 0.4], [10, 26, 0.4])
+    octagon("d_cap", hood, "steel", 86, 2 * H, 6)
+    octagon("d_cap2", hood, "dark", 92, 30, 4)
+    octagon("d_cap_l", hood, "glow", 96, 10, 2)
+    for sx, sz in QUADS.values():
+        box(hood, "dark", [sx * 18 - 2, 92, sz * 18 - 2], [4, 3, 4])
+        box(hood, "cyan", [sx * 18 - 1, 95, sz * 18 - 1], [2, 0.4, 2])
+
+    # ---- the cabinet ----
+    C = CAB_HALF
+    box(cab, "dark", [-6, CAB_Y0, -6], [12, 70, 12])
+    for yt in DEPOT_TIERS:
+        box(cab, "steel", [-C, yt - 2, -C], [2 * C, 2, 2 * C])
+        for d in (-C - 0.2, C - 0.2):
+            box(cab, "cyan", [-C + 2, yt - 1.6, d], [2 * C - 4, 0.4, 0.4])
+            box(cab, "cyan", [d, yt - 1.6, -C + 2], [0.4, 0.4, 2 * C - 4])
+    box(cab, "steel", [-C, 84, -C], [2 * C, 2, 2 * C])
+    box(cab, "glow", [-3, 86, -3], [6, 1, 6])
+    for sx, sz in QUADS.values():
+        box(cab, "paint", [sx * (C - 1.5) - 1.5, CAB_Y0, sz * (C - 1.5) - 1.5], [3, 70, 3])
+    for i in range(24):
+        sx_, sy_, sz_ = depot_slot(i)
+        box(cab, "dark", [sx_ - 5, sy_ - 9, sz_ - 4], [10, 0.6, 8])   # pedestal
+    return bones
+
+
+def add_depot_minis(dp_bones, dp_offset):
+    """Copies every attachment (first mount of multi-mount options) onto its depot shelf slot."""
+    scratch_off = Vector((-400, 0, 0))
+    sb = _scratch_options(scratch_off)
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    cab = dp_bones["cabinet"]
+    for i, oid in enumerate(OPTION_IDS):
+        names = OPTION_ICON_BONES.get(oid, [f"opt_{oid}"])
+        parts = [o for o in bpy.context.scene.objects
+                 if o.get("export") and o.parent is not None and any(o.parent is sb[n] for n in names if n in sb)]
+        if not parts:
+            continue
+        pts = []
+        for o in parts:
+            ev = o.evaluated_get(dg)
+            pts += [b_to_mc(ev.matrix_world @ Vector(c) - scratch_off) for c in ev.bound_box]
+        lo = [min(p[k] for p in pts) for k in range(3)]
+        hi = [max(p[k] for p in pts) for k in range(3)]
+        ext = [hi[k] - lo[k] for k in range(3)]
+        scale = min(15.0 / max(ext[0], 0.1), 16.0 / max(ext[1], 0.1), 11.0 / max(ext[2], 0.1))
+        slot = depot_slot(i)
+        center = [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2]
+        seat = [slot[0], slot[1] - 8.4, slot[2]]
+        mini = make_bone(f"mini_{oid}", cab, slot, cab["pivot_mc"])
+        dp_bones[f"mini_{oid}"] = mini
+        _transfer_mini(parts, mini, center, scale, seat, {"src": scratch_off, "dst": dp_offset})
+    # drop the scratch build
+    for o in list(bpy.context.scene.objects):
+        if o.parent is not None and any(o.parent is e for e in sb.values()):
+            bpy.data.objects.remove(o, do_unlink=True)
+    for e in sb.values():
+        bpy.data.objects.remove(e, do_unlink=True)
+
+
+DEPOT_OPEN_LEN = 3.6
+_DEPOT_CLOSED = {
+    "hood": {"position": {0.0: ZERO}},
+    "cabinet": {"position": {0.0: ZERO}, "rotation": {0.0: ZERO}},
+    **{f"rail_{q}": {"scale": {0.0: [1, 0.05, 1]}} for q in QUADS},
+}
+_DEPOT_OPEN = {
+    "hood": {"position": {0.0: ZERO, 0.4: [0, 2, 0], 1.7: ([0, DEPOT_HOOD_LIFT, 0], IO)}},
+    "cabinet": {"position": {0.0: ZERO, 1.5: ZERO, 2.0: ([0, 4, 0], OUT)},
+                "rotation": {0.0: ZERO, 1.8: ZERO, 3.6: ([0, 720, 0], OUT)}},
+    **{f"rail_{q}": {"scale": {0.0: [1, 0.05, 1], 0.4: [1, 0.05, 1], 1.7: (ONE, IO)}} for q in QUADS},
+}
+_RAW_DEPOT_ANIMATIONS = {
+    "animation.depot.closed": (1.0, True, _DEPOT_CLOSED),
+    "animation.depot.open": (DEPOT_OPEN_LEN, "hold_on_last_frame", _DEPOT_OPEN),
+    "animation.depot.close": (DEPOT_OPEN_LEN, "hold_on_last_frame", reverse_tracks(_DEPOT_OPEN, DEPOT_OPEN_LEN)),
+    "animation.depot.idle": (4.0, True, {
+        "hood": {"position": {0.0: [0, DEPOT_HOOD_LIFT, 0], 2.0: ([0, DEPOT_HOOD_LIFT + 1.5, 0], SINE),
+                              4.0: ([0, DEPOT_HOOD_LIFT, 0], SINE)}},
+        "cabinet": {"position": {0.0: [0, 4, 0]}},
+        **{f"rail_{q}": {"scale": {0.0: ONE}} for q in QUADS},
+    }),
+}
+DEPOT_ANIMATIONS = {n: (L, lp, full_tracks(tr, L)) for n, (L, lp, tr) in _RAW_DEPOT_ANIMATIONS.items()}
+
+
+# =============================================================================================
+# Earth (the orbital uplink's planet): a UV sphere with the Earth day / night / cloud maps,
+# rendered in Cycles for the preview and exported as the mesh the mod draws.
+# =============================================================================================
+
+def build_earth(assets, loc):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=160, ring_count=80, radius=6.0, location=loc)
+    earth = bpy.context.active_object
+    earth.name = "earth"
+    bpy.ops.object.shade_smooth()
+    env = os.path.join(assets, "textures/environment")
+
+    def img(name):
+        p = os.path.join(env, name)
+        return bpy.data.images.load(p) if os.path.exists(p) else None
+
+    day, night, clouds = img("earth_day.png"), img("earth_night.png"), img("earth_clouds.png")
+    mat = bpy.data.materials.new("earth")
+    mat.use_nodes = True
+    nt = mat.node_tree
+    bsdf = nt.nodes.get("Principled BSDF")
+    out = nt.nodes.get("Material Output")
+    if day:
+        t = nt.nodes.new("ShaderNodeTexImage")
+        t.image = day
+        nt.links.new(t.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.55
+    if night and "Emission Color" in bsdf.inputs:
+        n = nt.nodes.new("ShaderNodeTexImage")
+        n.image = night
+        nt.links.new(n.outputs["Color"], bsdf.inputs["Emission Color"])
+        bsdf.inputs["Emission Strength"].default_value = 0.6
+    earth.data.materials.append(mat)
+
+    # cloud shell
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=160, ring_count=80, radius=6.06, location=loc)
+    cl = bpy.context.active_object
+    cl.name = "earth_clouds"
+    bpy.ops.object.shade_smooth()
+    if clouds:
+        cm = bpy.data.materials.new("clouds")
+        cm.use_nodes = True
+        cm.blend_method = "BLEND"
+        ct = cm.node_tree
+        cb = ct.nodes.get("Principled BSDF")
+        ti = ct.nodes.new("ShaderNodeTexImage")
+        ti.image = clouds
+        cb.inputs["Base Color"].default_value = (1, 1, 1, 1)
+        ct.links.new(ti.outputs["Alpha"], cb.inputs["Alpha"])
+        cl.data.materials.append(cm)
+
+    # atmosphere glow shell
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=96, ring_count=48, radius=6.25, location=loc)
+    at = bpy.context.active_object
+    at.name = "earth_atmo"
+    bpy.ops.object.shade_smooth()
+    am = bpy.data.materials.new("atmo")
+    am.use_nodes = True
+    am.blend_method = "BLEND"
+    an = am.node_tree
+    an.nodes.remove(an.nodes.get("Principled BSDF"))
+    lw = an.nodes.new("ShaderNodeLayerWeight")
+    lw.inputs["Blend"].default_value = 0.35
+    em = an.nodes.new("ShaderNodeEmission")
+    em.inputs["Color"].default_value = (0.25, 0.55, 1.0, 1)
+    em.inputs["Strength"].default_value = 3.0
+    tr = an.nodes.new("ShaderNodeBsdfTransparent")
+    mix = an.nodes.new("ShaderNodeMixShader")
+    an.links.new(lw.outputs["Facing"], mix.inputs["Fac"])
+    an.links.new(tr.outputs[0], mix.inputs[1])
+    an.links.new(em.outputs[0], mix.inputs[2])
+    an.links.new(mix.outputs[0], an.nodes.get("Material Output").inputs["Surface"])
+    at.data.materials.append(am)
+    return earth, cl, at
+
+
+def export_earth_mesh(earth, path):
+    """Unit-sphere positions + UVs + triangles of the Blender Earth (drawn by the mod)."""
+    me = earth.data
+    me.calc_loop_triangles()
+    uv = me.uv_layers.active.data
+    verts, index = [], {}
+    tris = []
+    for lt in me.loop_triangles:
+        tri = []
+        for li in lt.loops:
+            vi = me.loops[li].vertex_index
+            co = me.vertices[vi].co.normalized()
+            u, v = uv[li].uv
+            key = (vi, round(u, 5), round(v, 5))
+            if key not in index:
+                index[key] = len(verts)
+                # Blender (x, y, z) -> game (x, z, -y); v flipped so row 0 is the top of the image
+                verts.append([round(co.x, 5), round(co.z, 5), round(-co.y, 5), round(u, 5), round(1 - v, 5)])
+            tri.append(index[key])
+        tris.append(tri)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({"vertices": verts, "triangles": tris}, f, separators=(",", ":"))
+    print(f"[earth] mesh: {len(verts)} vertices, {len(tris)} triangles")
 
 
 # =============================================================================================
@@ -2079,9 +2683,46 @@ def main():
                       "orbital_railgun:item/railgun_remote")
     print(f"[remote] {len(rm_boxes)} elements, {rm_tex}px atlas")
 
+    # ---------------- Orbital railgun (space configuration) ----------------
+    o_off = Vector((0, 260, 0))
+    o_bones = build_orbital(o_off)
+    o_boxes = extract_boxes(o_bones, offset=o_off)
+    o_tex = pack_faces(o_boxes, texels_per_px=2, start_size=1024, pad=RG_PAD)
+    o_bake = build_bake_objects(o_boxes, o_bones, o_tex, kinds, offset=o_off)
+    o_atlas, o_glow = bake(o_bake, o_boxes, kinds, o_tex, "orbital", tpp=2, pad=RG_PAD)
+    save_png(o_atlas, os.path.join(assets, "textures/entity/orbital_railgun.png"))
+    save_png(o_glow, os.path.join(assets, "textures/entity/orbital_railgun_glowmask.png"))
+    export_geo(o_bones, o_boxes, o_tex, os.path.join(assets, "geo/orbital_railgun.geo.json"),
+               identifier="geometry.orbital_railgun", bounds=(40, 24, 4))
+    author_animations(o_bones, ORBITAL_ANIMATIONS)
+    export_animations(o_bones, os.path.join(assets, "animations/orbital_railgun.animation.json"), ORBITAL_ANIMATIONS)
+    print(f"[orbital] {len(o_boxes)} cubes, {o_tex}px atlas")
+
+    # ---------------- Orbital depot ----------------
+    d_off = Vector((-140, 0, 0))
+    d_bones = build_depot(d_off)
+    add_depot_minis(d_bones, d_off)
+    d_boxes = extract_boxes(d_bones, offset=d_off)
+    d_tex = pack_faces(d_boxes, texels_per_px=3, start_size=1024, pad=RG_PAD)
+    d_bake = build_bake_objects(d_boxes, d_bones, d_tex, kinds, offset=d_off)
+    d_atlas, d_glow = bake(d_bake, d_boxes, kinds, d_tex, "depot", tpp=3, pad=RG_PAD)
+    save_png(d_atlas, os.path.join(assets, "textures/entity/orbital_depot.png"))
+    save_png(d_glow, os.path.join(assets, "textures/entity/orbital_depot_glowmask.png"))
+    export_geo(d_bones, d_boxes, d_tex, os.path.join(assets, "geo/orbital_depot.geo.json"),
+               identifier="geometry.orbital_depot", bounds=(8, 14, 6))
+    author_animations(d_bones, DEPOT_ANIMATIONS)
+    export_animations(d_bones, os.path.join(assets, "animations/orbital_depot.animation.json"), DEPOT_ANIMATIONS)
+    print(f"[depot] {len(d_boxes)} cubes, {d_tex}px atlas")
+
+    # ---------------- Earth ----------------
+    earth_loc = (0, -900, 0)
+    earth, clouds, atmo = build_earth(assets, earth_loc)
+    export_earth_mesh(earth, os.path.join(assets, "models/environment/earth_mesh.json"))
+
 
     # ---------------- Preview materials + renders ----------------
-    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm")):
+    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm"),
+                                    (o_bake, o_atlas, o_glow, "orb"), (d_bake, d_atlas, d_glow, "dep")):
         mat = preview_material(f"preview_{name}", atlas, glow)
         for o in objs:
             o.data.materials.clear()
@@ -2089,9 +2730,13 @@ def main():
     modelling = [o for o in bpy.context.scene.objects if o.get("export")]
     set_visible(modelling, False)
 
+    space = [earth, clouds, atmo]
     if not args.no_render:
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
+        set_visible(o_bake, False)
+        set_visible(d_bake, False)
+        set_visible(space, False)
         render_option_icons(rg_bake, rg_bones, cam, target, ground, assets)
         # Preview renders show one sample loadout (in game only installed parts are shown).
         sample = ("opt_shroud", "opt_sunburst", "opt_capacitor", "opt_shield__a", "opt_shield__b",
@@ -2136,12 +2781,77 @@ def main():
         ground.location = (120, 0, -0.01)
         render(os.path.join(out, "tablet.png"), cam, target, (120.6, -1.6, 1.4), (120.5, -0.45, 0.5), 700, lens=50)
         set_visible(rm_bake, False)
+
+        # ---- orbital depot: closed, opening, open ----
+        ground.location = (-140, 0, -0.01)
+        set_visible(d_bake, True)
+        for nm, an, t_s in (("depot_closed", "animation.depot.closed", 0.0),
+                            ("depot_opening", "animation.depot.open", 1.2),
+                            ("depot_open", "animation.depot.open", DEPOT_OPEN_LEN)):
+            pose(d_bones, an, t_s)
+            render(os.path.join(out, f"{nm}.png"), cam, target, (-133.0, -9.5, 6.0), (-140.0, 0.0, 3.4), 900, lens=35)
+        pose(d_bones, "animation.depot.open", DEPOT_OPEN_LEN)
+        render(os.path.join(out, "depot_shelves.png"), cam, target, (-137.5, -6.0, 4.6), (-140.0, 0.0, 3.6), 900, lens=45)
+        reset_pose(d_bones)
+        set_visible(d_bake, False)
+
+        # ---- orbital railgun in space over the Earth ----
+        ground.hide_render = True
+        world = bpy.context.scene.world
+        if world is None:
+            world = bpy.data.worlds.new("space")
+            bpy.context.scene.world = world
+        world.use_nodes = True
+        bgn = world.node_tree.nodes.get("Background")
+        old_bg = tuple(bgn.inputs["Color"].default_value)
+        bgn.inputs["Color"].default_value = (0.0, 0.0, 0.002, 1)
+        stars_p = os.path.join(assets, "textures/environment/stars.png")
+        if os.path.exists(stars_p):
+            env = world.node_tree.nodes.new("ShaderNodeTexEnvironment")
+            env.image = bpy.data.images.load(stars_p)
+            world.node_tree.links.new(env.outputs["Color"], bgn.inputs["Color"])
+        set_visible(o_bake, True)
+        for o in o_bake:
+            bn = o.name[len("bake_"):]
+            if bn.startswith("opt_"):
+                o.hide_render = True
+        set_visible(space, True)
+        # planet below the platform (scaled up for the hero shot)
+        big = 160.0 / 6.0
+        for so in space:
+            so.location = (0, 260, -190)
+            so.scale = (big, big, big)
+        pose(o_bones, "animation.orbital.deploy", O_DEPLOY_LEN)
+        render(os.path.join(out, "orbital_deployed.png"), cam, target, (34.0, 236.0, 16.0), (0.0, 254.0, 5.0), 1200, lens=24)
+        pose(o_bones, "animation.orbital.stowed", 0.0)
+        render(os.path.join(out, "orbital_stowed.png"), cam, target, (16.0, 244.0, 9.0), (0.0, 258.0, 5.0), 900, lens=30)
+        for t_s in (2.0, 4.0, 6.5):
+            pose(o_bones, "animation.orbital.deploy", t_s)
+            render(os.path.join(out, f"orbital_deploy_{t_s:03.1f}s.png"), cam, target, (34.0, 236.0, 16.0), (0.0, 254.0, 5.0), 800, lens=24)
+        # with a sample loadout docked
+        pose(o_bones, "animation.orbital.deploy", O_DEPLOY_LEN)
+        sample_o = ("opt_lancer", "opt_cryo", "opt_capacitor", "opt_shield__a", "opt_shield__b", "opt_thruster", "opt_coolant")
+        for o in o_bake:
+            bn = o.name[len("bake_"):]
+            if bn.startswith("opt_"):
+                o.hide_render = bn.split(".")[0] not in sample_o
+        render(os.path.join(out, "orbital_loadout.png"), cam, target, (26.0, 240.0, 12.0), (0.0, 256.0, 6.0), 1000, lens=28)
+        reset_pose(o_bones)
+        set_visible(o_bake, False)
+        # the planet alone
+        for so in space:
+            so.location = earth_loc
+            so.scale = (1, 1, 1)
+        render(os.path.join(out, "earth.png"), cam, target, (9.0, -900 - 14.0, 4.0), earth_loc, 1000, lens=40)
+        set_visible(space, False)
+        bgn.inputs["Color"].default_value = old_bg
+        ground.hide_render = False
         set_visible(rg_bake, True)
         ground.location = (0, 0, 0)
 
     # ---------------- Save the editable .blend ----------------
     os.makedirs(out, exist_ok=True)
-    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow):
+    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow, o_atlas, o_glow, d_atlas, d_glow):
         try:
             img.pack()
         except RuntimeError:

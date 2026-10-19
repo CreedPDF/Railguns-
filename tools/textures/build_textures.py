@@ -987,7 +987,112 @@ def panel_display():
     img.save(A / "textures/gui/panel_display.png")
 
 
+
+# =============================================================================================
+# Orbital uplink environment: Earth maps (graded from tools/earth), starfield, space sprites
+# =============================================================================================
+
+EARTH_SRC = Path(__file__).resolve().parents[1] / "earth"
+
+
+def environment_textures():
+    out = A / "textures/environment"
+    out.mkdir(parents=True, exist_ok=True)
+    day_p = EARTH_SRC / "earth_day_4096.jpg"
+    if day_p.exists():
+        day = np.asarray(Image.open(day_p).convert("RGB")).astype(np.float32) / 255
+        brc = np.asarray(Image.open(EARTH_SRC / "earth_bump_roughness_clouds_4096.jpg").convert("RGB")).astype(np.float32) / 255
+        land = np.clip((brc[..., 1] - 0.25) * 3, 0, 1)                  # roughness: land is rough
+        # deepen and enrich the oceans a touch, keep land natural
+        ocean = 1 - land
+        g = day.copy()
+        navy = np.array([0.03, 0.10, 0.24])[None, None, :]
+        g = g * (1 - 0.55 * ocean[..., None]) + navy * 0.55 * ocean[..., None] + g * 0.18 * ocean[..., None]
+        g = np.clip((g - 0.5) * 1.06 + 0.5, 0, 1) ** 1.05
+        Image.fromarray((np.clip(g, 0, 1) * 255).astype(np.uint8), "RGB").save(out / "earth_day.png", optimize=True)
+        # ocean mask for the sun glint (white, alpha = water)
+        om = np.asarray(Image.fromarray((ocean * 255).astype(np.uint8)).resize((2048, 1024), Image.LANCZOS)).astype(np.float32) / 255
+        orgba = np.dstack([np.ones_like(om), np.ones_like(om) * 0.97, np.ones_like(om) * 0.9, om])
+        Image.fromarray((orgba * 255).astype(np.uint8), "RGBA").save(out / "earth_ocean.png", optimize=True)
+
+        night = np.asarray(Image.open(EARTH_SRC / "earth_night_4096.jpg").convert("RGB").resize((2048, 1024), Image.LANCZOS)).astype(np.float32) / 255
+        lum = night.max(axis=2, keepdims=True)
+        lights = np.clip((lum - 0.06) * 1.8, 0, 1) ** 1.2
+        warm = np.array([1.0, 0.78, 0.45])[None, None, :]
+        nrgb = np.clip(warm * lights * 1.15 + night * 0.25, 0, 1)
+        Image.fromarray((nrgb * 255).astype(np.uint8), "RGB").save(out / "earth_night.png", optimize=True)
+
+        cl = np.asarray(Image.fromarray((brc[..., 2] * 255).astype(np.uint8)).resize((4096, 2048), Image.LANCZOS)).astype(np.float32) / 255
+        a = np.clip((cl - 0.2) * 1.45, 0, 1) ** 1.35 * 0.92
+        crgba = np.dstack([np.full_like(a, 1.0), np.full_like(a, 1.0), np.full_like(a, 1.0), a])
+        Image.fromarray((crgba * 255).astype(np.uint8), "RGBA").save(out / "earth_clouds.png", optimize=True)
+
+    # ---- starfield (equirectangular): thousands of stars, a dusty Milky Way band ----
+    W, H = 4096, 2048
+    rs = np.random.default_rng(91)
+    img = np.zeros((H, W, 3), np.float32)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    lat = (0.5 - yy / H) * np.pi
+    lon = (xx / W) * 2 * np.pi
+    # galactic band: tilted great circle
+    tilt = 0.95
+    gx = np.cos(lat) * np.cos(lon)
+    gy = np.cos(lat) * np.sin(lon)
+    gz = np.sin(lat)
+    band_d = gy * np.sin(tilt) - gz * np.cos(tilt)
+    n1 = periodic_noise(H // 4, W // 4, 6, 12, 5)
+    n1 = np.asarray(Image.fromarray((n1 * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC)).astype(np.float32) / 255
+    n2 = periodic_noise(H // 4, W // 4, 18, 36, 4)
+    n2 = np.asarray(Image.fromarray((n2 * 255).astype(np.uint8)).resize((W, H), Image.BICUBIC)).astype(np.float32) / 255
+    band = np.exp(-(band_d / 0.22) ** 2)
+    dust = np.clip(n2 - 0.45, 0, 1) * 1.6
+    glow = band * (0.35 + 0.65 * n1) * (1 - 0.7 * dust * band)
+    img += glow[..., None] * np.array([0.10, 0.10, 0.13])[None, None, :]
+    img += (band * np.clip(n1 - 0.55, 0, 1) * 1.2)[..., None] * np.array([0.12, 0.08, 0.10])[None, None, :]
+    # stars (more density inside the band)
+    pil = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8))
+    d = ImageDraw.Draw(pil)
+    for k in range(26000):
+        x, y = rs.uniform(0, W), rs.uniform(0, H)
+        latk = (0.5 - y / H) * np.pi
+        if rs.random() > np.cos(latk) * 1.05:      # equal-area thinning toward the poles
+            continue
+        m = rs.random() ** 6
+        t = rs.random()
+        col = (np.array([0.75, 0.82, 1.0]) if t < 0.5 else np.array([1.0, 0.92, 0.8]) if t < 0.85 else np.array([1.0, 0.7, 0.55]))
+        v = 0.25 + 0.75 * m
+        c = tuple(int(255 * min(1, v * ch)) for ch in col)
+        if m > 0.55:
+            d.ellipse([x - 1.2, y - 1.2, x + 1.2, y + 1.2], fill=c)
+        else:
+            d.point((x, y), fill=c)
+    arr = np.asarray(pil).astype(np.float32)
+    bloom = np.asarray(pil.filter(ImageFilter.GaussianBlur(2.2))).astype(np.float32)
+    arr = np.clip(arr + bloom * 0.9, 0, 255)
+    Image.fromarray(arr.astype(np.uint8), "RGB").save(out / "stars.png", optimize=True)
+
+    # ---- sprites: sun, glint, lens rings, RCS puff, beam head, atmosphere flash ----
+    def sprite(name, arr):
+        Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGBA").save(out / f"{name}.png")
+
+    r, th = radial(256)
+    a = np.exp(-(r / 0.05) ** 2) + 0.55 * np.exp(-(r / 0.22) ** 2) + 0.25 * np.exp(-(r / 0.7) ** 2)
+    a += (np.abs(np.cos(th * 3)) ** 80) * np.clip(1 - r, 0, 1) ** 2 * 0.25
+    rgb = np.dstack([np.full_like(r, 255), np.full_like(r, 245), 225 + 30 * np.exp(-(r / 0.1) ** 2)])
+    sprite("sun", np.dstack([rgb, np.clip(a, 0, 1) * 255]))
+    sprite("glint", glow_frame(128, 0.06, 0.25, (255, 240, 220), rays=4, ray_len=1.0, ray_w=0.03))
+    ring = np.exp(-((r - 0.7) / 0.05) ** 2) * 0.5 + np.exp(-((r - 0.45) / 0.15) ** 2) * 0.15
+    sprite("lens_ring", np.dstack([np.full_like(r, 160), np.full_like(r, 200), np.full_like(r, 255), np.clip(ring, 0, 1) * 255]))
+    r2, _ = radial(64)
+    n = periodic_noise(64, 64, 5, 5, 3)
+    puff = np.clip((1 - r2 / 0.9) * (0.7 + 0.6 * n), 0, 1) ** 1.3
+    sprite("rcs_puff", np.dstack([np.full_like(r2, 235), np.full_like(r2, 245), np.full_like(r2, 255), puff * 255]))
+    head = np.exp(-(r / 0.08) ** 2) + 0.5 * np.exp(-(r / 0.3) ** 2)
+    sprite("beam_head", np.dstack([np.full_like(r, 255), 200 + 55 * np.exp(-(r / 0.1) ** 2), 170 + 85 * np.exp(-(r / 0.1) ** 2), np.clip(head, 0, 1) * 255]))
+    print("[environment] earth, stars and space sprites")
+
 def main():
+    environment_textures()
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)
     panel_display()
     tablet_display()

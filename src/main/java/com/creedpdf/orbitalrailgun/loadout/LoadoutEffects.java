@@ -265,7 +265,7 @@ public final class LoadoutEffects {
 
     // ---- sunburst ----
 
-    private static void sunburstTick(ServerWorld w, int t, Vec3d impact) {
+    public static void sunburstTick(ServerWorld w, int t, Vec3d impact) {
         if (t > RailgunConfig.FIRE_TICKS) return;
         // Mushroom cloud: a rising stem that spreads into a cap.
         double h = Math.min(45, t * 0.7);
@@ -458,7 +458,7 @@ public final class LoadoutEffects {
         return new Vec3d(p.x, y, p.z);
     }
 
-    private static void ignite(ServerWorld w, Vec3d c, int radius) {
+    public static void ignite(ServerWorld w, Vec3d c, int radius) {
         if (!RailgunConfig.BREAK_BLOCKS) return;
         Random r = w.random;
         for (int i = 0; i < radius * radius; i++) {
@@ -470,7 +470,7 @@ public final class LoadoutEffects {
         }
     }
 
-    private static void magma(ServerWorld w, Vec3d c, int radius) {
+    public static void magma(ServerWorld w, Vec3d c, int radius) {
         BlockPos center = BlockPos.ofFloored(c);
         for (BlockPos p : BlockPos.iterate(center.add(-radius, -radius, -radius), center.add(radius, 2, radius))) {
             if (p.getSquaredDistance(center) > radius * radius) continue;
@@ -484,7 +484,7 @@ public final class LoadoutEffects {
         }
     }
 
-    private static void freeze(ServerWorld w, Vec3d c, int radius) {
+    public static void freeze(ServerWorld w, Vec3d c, int radius) {
         BlockPos center = BlockPos.ofFloored(c);
         Random r = w.random;
         for (BlockPos p : BlockPos.iterate(center.add(-radius, -4, -radius), center.add(radius, 6, radius))) {
@@ -507,7 +507,7 @@ public final class LoadoutEffects {
         }
     }
 
-    private static void carveSphere(ServerWorld w, Vec3d c, int radius) {
+    public static void carveSphere(ServerWorld w, Vec3d c, int radius) {
         BlockPos center = BlockPos.ofFloored(c);
         for (BlockPos p : BlockPos.iterate(center.add(-radius, -radius, -radius), center.add(radius, radius, radius))) {
             if (p.getSquaredDistance(center) > radius * radius) continue;
@@ -538,7 +538,7 @@ public final class LoadoutEffects {
         }
     }
 
-    private static void arc(ServerWorld w, Vec3d a, Vec3d b) {
+    public static void arc(ServerWorld w, Vec3d a, Vec3d b) {
         Vec3d d = b.subtract(a);
         double len = d.length();
         Random r = w.random;

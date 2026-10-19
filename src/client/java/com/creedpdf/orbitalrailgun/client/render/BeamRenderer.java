@@ -121,6 +121,70 @@ public final class BeamRenderer {
         LoadoutVfx.firing(consumers, m, matrices, world, targetPos, firingTicks, l, beam, surface, p, time, pal, width, origin);
     }
 
+    /**
+     * Orbital shot: like {@link #renderShot} but with an explicit surface point, its own bore and
+     * width, and a travel phase in which only the head races down the column.
+     */
+    public static void renderOrbitalShot(VertexConsumerProvider consumers, MatrixStack matrices, net.minecraft.world.World world,
+                                         Vec3d origin, Vec3d muzzleW, Vec3d surfaceW, net.minecraft.util.math.BlockPos targetPos,
+                                         Loadout l, float ticks, float travelTicks, float time,
+                                         double boreDepth, double boreSpeed, float widthMul) {
+        Matrix4f m = matrices.peek().getPositionMatrix();
+        Pal pal = new Pal(l);
+        float width = l.beamWidth() * widthMul;
+        Vector3f muzzle = toLocal(muzzleW, origin);
+        if (ticks < travelTicks) {
+            float f = (float) Math.pow(Math.max(0f, ticks) / travelTicks, 1.6);
+            Vec3d headW = muzzleW.add(surfaceW.subtract(muzzleW).multiply(f));
+            Beam beam = new Beam(muzzle, toLocal(headW, origin));
+            if (beam.length > 0.5f) renderTravel(consumers, m, beam, time, pal, width);
+            return;
+        }
+        float firing = ticks - travelTicks;
+        Vec3d dir = surfaceW.subtract(muzzleW).normalize();
+        double bore = Math.min(boreDepth * l.boreDepthMul(), firing * boreSpeed * l.boreDepthMul());
+        Vector3f surface = toLocal(surfaceW, origin);
+        Vector3f end = toLocal(surfaceW.add(dir.multiply(bore)), origin);
+        Beam beam = new Beam(muzzle, end);
+        float p = MathHelper.clamp(firing / RailgunConfig.FIRE_TICKS, 0f, 1f);
+        renderFiring(consumers, m, beam, surface, p, time, pal, width);
+        LoadoutVfx.firing(consumers, m, matrices, world, targetPos, firing, l, beam, surface, p, time, pal, width, origin);
+    }
+
+    /** A beam in the orbital space scene, between two camera-relative points. */
+    public static void renderSpaceBeam(VertexConsumerProvider consumers, MatrixStack matrices, Vector3f from, Vector3f to,
+                                       Loadout l, float p, float time, float widthMul, boolean travelling) {
+        Matrix4f m = matrices.peek().getPositionMatrix();
+        Pal pal = new Pal(l);
+        Beam beam = new Beam(from, to);
+        if (beam.length < 0.5f) return;
+        if (travelling) renderTravel(consumers, m, beam, time, pal, l.beamWidth() * widthMul);
+        else renderFiring(consumers, m, beam, to, p, time, pal, l.beamWidth() * widthMul);
+    }
+
+    /** Only the beam body and a blinding head: the shot on its way down. */
+    private static void renderTravel(VertexConsumerProvider cp, Matrix4f m, Beam b, float time, Pal pal, float width) {
+        float i = pal.alpha;
+        float B = 1.9f * width;
+        float[] cc = pal.c, pc = pal.p, hc = pal.h;
+        texTube(tex(cp, pal.core), m, b, 0.9f * B, cc[0], cc[1], cc[2], i, 5f, time * 3.4f, 0f, 0.06f, time);
+        texTube(tex(cp, pal.plasma), m, b, 1.8f * B, pc[0], pc[1], pc[2], 0.9f * i, 10f, time * 2.2f, time * 0.06f, 0.12f, time);
+        texTube(tex(cp, pal.halo), m, b, 3.4f * B, hc[0], hc[1], hc[2], 0.6f * i, 16f, time * 0.8f, time * 0.03f, 0.22f, time);
+        glowTube(glow(cp), m, b, 7.0f * B, hc[0], hc[1] * 0.24f, hc[2] * 0.12f, 0.12f * i, time);
+        helix(tex(cp, pal.helix), m, b, 2.6f * B, 1.0f * B, 0.22f, time * 0.45f, pc[0], Math.min(1, pc[1] * 1.3f), Math.min(1, pc[2] * 1.5f), 0.85f * i, time);
+        glowSphere(glow(cp), m, b.b, 3.5f * B, cc[0], cc[1], cc[2], i);
+        glowSphere(glow(cp), m, b.b, 9f * B, hc[0], hc[1] * 0.7f, hc[2] * 0.4f, 0.4f * i);
+        glowSphere(glow(cp), m, b.b, 22f * B, hc[0], hc[1] * 0.3f, hc[2] * 0.15f, 0.12f * i);
+        texSphere(tex(cp, pal.plasma), m, b.b, 5f * B, pc[0], Math.min(1, pc[1] * 1.3f), Math.min(1, pc[2] * 1.5f), 0.9f * i, time * 0.07f, time * 0.04f);
+        for (int k = 0; k < 4; k++) {
+            float d = b.length - 6f - k * 9f - (time * 7f) % 9f;
+            if (d < 0) continue;
+            Vector3f c = new Vector3f(b.dir).mul(d).add(b.a);
+            float rr = 3f * B + k * 2.5f;
+            texRing(tex(cp, pal.shock), m, c, b.dir, rr, rr + 2.5f, pc[0], pc[1], pc[2], 0.7f * (1f - k / 4f) * i, time * 0.03f);
+        }
+    }
+
     // =========================================================================================
     // Charging
     // =========================================================================================

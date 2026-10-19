@@ -28,6 +28,9 @@ public interface RailgunClientBridge {
     /** Starts the looping re-entry roar that follows a falling platform (client only). */
     default void startReentrySound(RailgunEntity railgun) {}
 
+    /** Opens the orbital depot's console (selected parts + SEND). */
+    default void openDepotPanel(com.creedpdf.orbitalrailgun.entity.OrbitalDepotEntity depot) {}
+
     /** Called on the client whenever the synced state of a railgun changes. */
     default void onStateChanged(RailgunEntity railgun, RailgunState newState) {}
 }

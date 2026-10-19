@@ -40,6 +40,25 @@ public final class ModSounds {
     public static final SoundEvent DRONE_DOCK = register("drone.dock");
     public static final SoundEvent DRONE_ASCEND = register("drone.ascend");
     public static final SoundEvent RAILGUN_ATTACH = register("railgun.attach");
+    // ---- orbital mode ----
+    public static final SoundEvent ORBITAL_AMBIENCE = register("orbital.ambience");
+    public static final SoundEvent ORBITAL_WHOOSH = register("orbital.whoosh");
+    public static final SoundEvent ORBITAL_TITLE = register("orbital.title");
+    public static final SoundEvent ORBITAL_DEPLOY = register("orbital.deploy");
+    public static final SoundEvent ORBITAL_CHARGE = register("orbital.charge");
+    public static final SoundEvent ORBITAL_FIRE = register("orbital.fire");
+    public static final SoundEvent ORBITAL_RIDE = register("orbital.ride");
+    public static final SoundEvent ORBITAL_INCOMING = register("orbital.incoming");
+    public static final SoundEvent ORBITAL_IMPACT = register("orbital.impact");
+    public static final SoundEvent ORBITAL_RCS = register("orbital.rcs");
+    public static final SoundEvent ORBITAL_DOCK = register("orbital.dock");
+    public static final SoundEvent ORBITAL_UI = register("orbital.ui");
+    public static final SoundEvent DEPOT_LAND = register("depot.land");
+    public static final SoundEvent DEPOT_OPEN = register("depot.open");
+    public static final SoundEvent DEPOT_SELECT = register("depot.select");
+    public static final SoundEvent DEPOT_SEND = register("depot.send");
+    public static final SoundEvent DEPOT_LAUNCH = register("depot.launch");
+    public static final SoundEvent CLAMP_THRUSTER = register("railgun.clamp_thruster");
 
     private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);
     private static final java.util.Map<Loadout.Option, SoundEvent> IMPACT = new java.util.EnumMap<>(Loadout.Option.class);

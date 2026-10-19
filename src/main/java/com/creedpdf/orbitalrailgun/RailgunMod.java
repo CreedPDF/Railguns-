@@ -63,6 +63,30 @@ public final class RailgunMod implements ModInitializer {
                     .build());
 
 
+    /** The orbital configuration: only ever instantiated client-side by the orbital uplink scene. */
+    public static final EntityType<com.creedpdf.orbitalrailgun.entity.OrbitalRailgunEntity> ORBITAL_RAILGUN = Registry.register(
+            Registries.ENTITY_TYPE,
+            id("orbital_railgun"),
+            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.OrbitalRailgunEntity>create(SpawnGroup.MISC,
+                            com.creedpdf.orbitalrailgun.entity.OrbitalRailgunEntity::new)
+                    .dimensions(EntityDimensions.fixed(1.0f, 1.0f))
+                    .disableSaving()
+                    .disableSummon()
+                    .build());
+
+    /** Orbital depot: holds every attachment, sends the chosen ones up to the orbital railgun. */
+    public static final EntityType<com.creedpdf.orbitalrailgun.entity.OrbitalDepotEntity> ORBITAL_DEPOT = Registry.register(
+            Registries.ENTITY_TYPE,
+            id("orbital_depot"),
+            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.OrbitalDepotEntity>create(SpawnGroup.MISC,
+                            com.creedpdf.orbitalrailgun.entity.OrbitalDepotEntity::new)
+                    .dimensions(EntityDimensions.fixed(3.0f, 6.0f))
+                    .trackRangeChunks(16)
+                    .trackedUpdateRate(1)
+                    .forceTrackedVelocityUpdates(true)
+                    .fireImmune()
+                    .build());
+
     /** Invisible collision for the deployed railgun (see RailgunColliderBlock). No item. */
     public static final Block RAILGUN_COLLIDER = Registry.register(
             Registries.BLOCK,
@@ -89,12 +113,21 @@ public final class RailgunMod implements ModInitializer {
         ModSounds.init();
         ModParticles.init();
         ModPackets.registerServerReceivers();
+        com.creedpdf.orbitalrailgun.orbital.OrbitalPackets.registerServerReceivers();
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(RAILGUN_REMOTE));
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(RAILGUN_REMOTE));
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> DeploymentScheduler.clear());
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            DeploymentScheduler.clear();
+            com.creedpdf.orbitalrailgun.orbital.OrbitalStrike.clear();
+        });
+        ServerTickEvents.END_WORLD_TICK.register(com.creedpdf.orbitalrailgun.orbital.OrbitalStrike::tick);
+        ServerTickEvents.END_SERVER_TICK.register(com.creedpdf.orbitalrailgun.orbital.OrbitalCinema::tick);
+        ServerLifecycleEvents.SERVER_STOPPING.register(com.creedpdf.orbitalrailgun.orbital.OrbitalCinema::releaseAll);
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                com.creedpdf.orbitalrailgun.orbital.OrbitalCinema.release(handler.player));
 
         LOGGER.info("Orbital Railgun online. Uplink established.");
     }
