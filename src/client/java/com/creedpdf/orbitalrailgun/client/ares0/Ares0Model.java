@@ -88,7 +88,7 @@ public class Ares0Model extends GeoModel<Ares0Entity> {
             };
             mast.setPosY(-30f * (1f - up));
         }
-        CoreGeoBone dish = bone("dish");
+        CoreGeoBone dish = bone("a0_dish");
         if (dish != null) dish.setRotY(time * 0.03f);
     }
 

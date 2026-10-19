@@ -539,6 +539,141 @@
       }
     ]
   },
+  "rift.portal": {
+    "subtitle": "subtitles.orbital_railgun.rift.portal",
+    "sounds": [
+      {
+        "name": "orbital_railgun:rift_portal",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "space.reentry": {
+    "subtitle": "subtitles.orbital_railgun.space.reentry",
+    "sounds": [
+      {
+        "name": "orbital_railgun:space_reentry",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "space.ambient": {
+    "subtitle": "subtitles.orbital_railgun.space.ambient",
+    "sounds": [
+      {
+        "name": "orbital_railgun:space_ambient",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "jetpack.thrust": {
+    "subtitle": "subtitles.orbital_railgun.jetpack.thrust",
+    "sounds": [
+      {
+        "name": "orbital_railgun:jetpack_thrust",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "jetpack.boost": {
+    "subtitle": "subtitles.orbital_railgun.jetpack.boost",
+    "sounds": [
+      {
+        "name": "orbital_railgun:jetpack_boost",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "jetpack.ignite": {
+    "subtitle": "subtitles.orbital_railgun.jetpack.ignite",
+    "sounds": [
+      {
+        "name": "orbital_railgun:jetpack_ignite",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "suit.alarm": {
+    "subtitle": "subtitles.orbital_railgun.suit.alarm",
+    "sounds": [
+      {
+        "name": "orbital_railgun:suit_alarm",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "suit.seal": {
+    "subtitle": "subtitles.orbital_railgun.suit.seal",
+    "sounds": [
+      {
+        "name": "orbital_railgun:suit_seal",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "ares0.deploy": {
+    "subtitle": "subtitles.orbital_railgun.ares0.deploy",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ares0_deploy",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "ares0.charge": {
+    "subtitle": "subtitles.orbital_railgun.ares0.charge",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ares0_charge",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "ares0.fire": {
+    "subtitle": "subtitles.orbital_railgun.ares0.fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ares0_fire",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ares0.beam": {
+    "subtitle": "subtitles.orbital_railgun.ares0.beam",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ares0_beam",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "planet.crack": {
+    "subtitle": "subtitles.orbital_railgun.planet.crack",
+    "sounds": [
+      {
+        "name": "orbital_railgun:planet_crack",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "planet.collapse": {
+    "subtitle": "subtitles.orbital_railgun.planet.collapse",
+    "sounds": [
+      {
+        "name": "orbital_railgun:planet_collapse",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "planet.explode": {
+    "subtitle": "subtitles.orbital_railgun.planet.explode",
+    "sounds": [
+      {
+        "name": "orbital_railgun:planet_explode",
+        "attenuation_distance": 320
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

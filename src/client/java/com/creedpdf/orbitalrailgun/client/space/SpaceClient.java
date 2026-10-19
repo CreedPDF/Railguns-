@@ -156,6 +156,7 @@ public final class SpaceClient {
         }
         Jetpack.tick(client, p, w);
         ReentryFx.tick(client, p);
+        blastSounds(p, w);
 
         boolean airless = SpaceDims.isAirless(w);
         float g = SpaceDims.gravity(w);
@@ -186,6 +187,31 @@ public final class SpaceClient {
             if (e >= 0 && e < Blast.EJECT) {
                 RailgunHud.shake(0.15f + 0.9f * e / Blast.EJECT);
                 if ((int) e % 40 == 0) p.playSound(ModSounds.PLANET_CRACK, 1.5f, 0.6f + 0.4f * e / Blast.EJECT);
+            }
+        }
+    }
+
+    private static final float[] LAST = new float[Body.ALL.length];
+
+    static {
+        java.util.Arrays.fill(LAST, -1f);
+    }
+
+    /** Crack, collapse and detonation of a planet ARES-0 hit, if you can see it. */
+    private static void blastSounds(ClientPlayerEntity p, ClientWorld w) {
+        for (Body b : Body.ALL) {
+            float e = ClientPlanets.elapsed(b, 0f);
+            float last = LAST[b.ordinal()];
+            LAST[b.ordinal()] = e;
+            if (e < 0 || last < 0 && e > 40) continue;
+            boolean visible = w.getRegistryKey() == World.OVERWORLD ? com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(w, b)
+                    : SpaceDims.isAirless(w);
+            if (!visible) continue;
+            if (last < 6 && e >= 6) p.playSound(ModSounds.PLANET_CRACK, 2f, 0.8f);
+            if (last < Blast.CRACK_END - 30 && e >= Blast.CRACK_END - 30) p.playSound(ModSounds.PLANET_COLLAPSE, 2f, 0.9f);
+            if (last < Blast.DETONATE && e >= Blast.DETONATE) {
+                p.playSound(ModSounds.PLANET_EXPLODE, 3f, 0.85f);
+                RailgunHud.shake(SpaceDims.isAirless(w) ? 2.4f : 1.2f);
             }
         }
     }
