@@ -467,47 +467,47 @@
       }
     ]
   },
-  "star.ignite": {
-    "subtitle": "subtitles.orbital_railgun.star.ignite",
+  "rift.charge": {
+    "subtitle": "subtitles.orbital_railgun.rift.charge",
     "sounds": [
       {
-        "name": "orbital_railgun:star_ignite",
+        "name": "orbital_railgun:rift_charge",
         "attenuation_distance": 160
       }
     ]
   },
-  "star.loop": {
-    "subtitle": "subtitles.orbital_railgun.star.loop",
+  "rift.tear": {
+    "subtitle": "subtitles.orbital_railgun.rift.tear",
     "sounds": [
       {
-        "name": "orbital_railgun:star_loop",
+        "name": "orbital_railgun:rift_tear",
         "attenuation_distance": 160
       }
     ]
   },
-  "star.flare": {
-    "subtitle": "subtitles.orbital_railgun.star.flare",
+  "rift.loop": {
+    "subtitle": "subtitles.orbital_railgun.rift.loop",
     "sounds": [
       {
-        "name": "orbital_railgun:star_flare",
+        "name": "orbital_railgun:rift_loop",
         "attenuation_distance": 160
       }
     ]
   },
-  "star.collapse": {
-    "subtitle": "subtitles.orbital_railgun.star.collapse",
+  "rift.zap": {
+    "subtitle": "subtitles.orbital_railgun.rift.zap",
     "sounds": [
       {
-        "name": "orbital_railgun:star_collapse",
+        "name": "orbital_railgun:rift_zap",
         "attenuation_distance": 160
       }
     ]
   },
-  "star.nova": {
-    "subtitle": "subtitles.orbital_railgun.star.nova",
+  "rift.close": {
+    "subtitle": "subtitles.orbital_railgun.rift.close",
     "sounds": [
       {
-        "name": "orbital_railgun:star_nova",
+        "name": "orbital_railgun:rift_close",
         "attenuation_distance": 160
       }
     ]

@@ -58,9 +58,10 @@ public final class RailgunParticles {
     static final Style SCAN_MOTE = new Style(10, 18, 0.12f, 0.24f, 0.6f, 0f, 0.96f, false, true, true, true, 1f, 0.2f, 0.1f);
     static final Style SCAN_FLARE = new Style(8, 10, 5f, 6f, 2.4f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
 
-    static final Style STAR_PLASMA = new Style(12, 22, 0.35f, 0.7f, 0.5f, 0f, 0.95f, false, true, true, false, 1f, 0.3f, 0.1f);
-    static final Style STAR_EMBER = new Style(20, 50, 0.1f, 0.25f, 0.6f, 0.05f, 0.96f, false, true, true, true, 1f, 0.6f, 0.2f);
-    static final Style NOVA_FLASH = new Style(10, 12, 24f, 30f, 2.2f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+    static final Style RIFT_SPARK = new Style(8, 18, 0.12f, 0.3f, 0.5f, 0.02f, 0.92f, false, true, true, true, 1f, 0.4f, 0.2f);
+    static final Style RIFT_DUST = new Style(40, 90, 0.08f, 0.2f, 0.7f, 0.004f, 0.985f, false, true, true, true, 0.9f, 0f, 0.05f);
+    static final Style RIFT_FLASH = new Style(8, 10, 14f, 20f, 2.0f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+    static final Style RIFT_WISP = new Style(20, 40, 0.4f, 0.9f, 1.8f, 0f, 0.97f, false, true, true, false, 0.7f, 0f, 0.08f);
 
     public static void register() {
         var reg = ParticleFactoryRegistry.getInstance();
@@ -106,9 +107,10 @@ public final class RailgunParticles {
         reg.register(ModParticles.DOCK_SPARK, sprites -> factory(sprites, DOCK_SPARK));
         reg.register(ModParticles.SCAN_MOTE, sprites -> factory(sprites, SCAN_MOTE));
         reg.register(ModParticles.SCAN_FLARE, sprites -> factory(sprites, SCAN_FLARE));
-        reg.register(ModParticles.STAR_PLASMA, sprites -> factory(sprites, STAR_PLASMA));
-        reg.register(ModParticles.STAR_EMBER, sprites -> factory(sprites, STAR_EMBER));
-        reg.register(ModParticles.NOVA_FLASH, sprites -> factory(sprites, NOVA_FLASH));
+        reg.register(ModParticles.RIFT_SPARK, sprites -> factory(sprites, RIFT_SPARK));
+        reg.register(ModParticles.RIFT_DUST, sprites -> factory(sprites, RIFT_DUST));
+        reg.register(ModParticles.RIFT_FLASH, sprites -> factory(sprites, RIFT_FLASH));
+        reg.register(ModParticles.RIFT_WISP, sprites -> factory(sprites, RIFT_WISP));
     }
 
     private static ParticleFactory<DefaultParticleType> factory(

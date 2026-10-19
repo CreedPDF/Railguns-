@@ -93,7 +93,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
             case POD -> List.of("ARES-9 RAILGUN POD", "[ USE PANEL ]");
             case ARMING -> List.of("ORBITAL STORAGE", "PARTS DOCKING");
             case SCANNING -> List.of("SCAN ARRAY", "PULSE ACTIVE");
-            case STAR -> List.of("ECLIPSE CORE", "CONTAINMENT ACTIVE");
+            case RIFT -> List.of("RIFT EMITTER", "SKY OPEN"); 
             case PANEL_OPEN -> List.of("PANEL RETRACTING");
             case TRANSFORMING -> List.of(String.format(Locale.ROOT, "DEPLOYING  %d%%",
                     Math.min(100, t * 100 / RailgunConfig.TRANSFORM_TICKS)));

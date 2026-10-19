@@ -68,9 +68,10 @@ public final class ModParticles {
     public static final DefaultParticleType DOCK_SPARK = register("dock_spark");
     public static final DefaultParticleType SCAN_MOTE = register("scan_mote");
     public static final DefaultParticleType SCAN_FLARE = register("scan_flare");
-    public static final DefaultParticleType STAR_PLASMA = register("star_plasma");
-    public static final DefaultParticleType STAR_EMBER = register("star_ember");
-    public static final DefaultParticleType NOVA_FLASH = register("nova_flash");
+    public static final DefaultParticleType RIFT_SPARK = register("rift_spark");
+    public static final DefaultParticleType RIFT_DUST = register("rift_dust");
+    public static final DefaultParticleType RIFT_FLASH = register("rift_flash");
+    public static final DefaultParticleType RIFT_WISP = register("rift_wisp");
 
     private static DefaultParticleType register(String name) {
         return Registry.register(Registries.PARTICLE_TYPE, RailgunMod.id(name), FabricParticleTypes.simple(true));

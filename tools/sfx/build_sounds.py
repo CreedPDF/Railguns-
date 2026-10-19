@@ -786,72 +786,70 @@ def drone_ascend():
     return room(mband_sat(x, (2.2, 1.6, 1.3)), 1.8, 0.3)
 
 
-def star_ignite():
-    """Ignition: an imploding suck, a thunderous whoomp and a rising, choir-like plasma swell."""
-    d = 4.5
-    x = canvas(d)
-    suck = sweep(white(0.6), "bandpass", 400, 5000) * np.linspace(0, 1, int(0.6 * SR)) ** 2 * 0.35
-    place(x, suck, 0.0)
-    place(x, kick(70, 24, 2.2, 0.7, 0.9) * 1.2, 0.6)
-    place(x, filt(brown(2.5), "lowpass", 300) * decay(2.5, 0.9) * 1.1, 0.6)
-    t = t_axis(3.6)
-    choir = sum(unison(glide(f, f * 1.5, 3.6, 0.5), 3.6, 4, 0.006, "saw") for f in (110, 165, 220, 277)) / 4
-    choir = sweep(choir, "lowpass", 400, 3200) * env(3.6, 0.8, 0.4, 0.8, 1.6) * 0.45
-    place(x, choir, 0.75)
-    place(x, crackle(3.0, 70, 0.0015, 2500, decay(3.0, 1.2)) * 0.4, 0.62)
-    return room(mband_sat(x, (2.4, 1.6, 1.25)), 2.6, 0.4)
-
-
-def star_loop():
-    """A seamless burning roar: deep plasma rumble, slow convection swells, crackle and a low drone."""
-    d = 4.25
-    t = t_axis(d)
-    rumble = filt(brown(d), "lowpass", 260) * (0.75 + 0.25 * np.sin(2 * np.pi * 0.5 * t))
-    roar = filt(white(d), "bandpass", [200, 2200]) * (0.55 + 0.45 * np.sin(2 * np.pi * 0.25 * t + 1) ** 2) * 0.35
-    drone = (osc(55, d) * 0.3 + osc(82.5, d, "tri") * 0.12) * (0.8 + 0.2 * np.sin(2 * np.pi * 1 * t))
-    crack = crackle(d, 55, 0.0012, 3000) * 0.3
-    x = rumble * 0.9 + roar + drone + crack
-    return make_loop(mband_sat(x, (2.2, 1.5, 1.2)), 0.25)
-
-
-def star_flare():
-    """A flare lashing out: a ripping plasma zap with a hot sizzle tail."""
-    d = 1.4
-    x = canvas(d)
-    zap = sweep(white(0.35), "bandpass", 6000, 700) * env(0.35, 0.002, 0.05, 0.6, 0.2) * 0.7
-    place(x, zap, 0.0)
-    place(x, fm(glide(900, 180, 0.4), 2.5, 3.0, 0.4) * env(0.4, 0.002, 0.05, 0.6, 0.25) * 0.4, 0.0)
-    place(x, crackle(1.1, 140, 0.0012, 3500, decay(1.1, 0.4)) * 0.5, 0.05)
-    place(x, kick(150, 60, 0.4, 0.15, 0.6) * 0.5, 0.02)
-    return room(mband_sat(x, (1.8, 1.5, 1.2)), 1.0, 0.25)
-
-
-def star_collapse():
-    """Collapse: everything drains inward, pitch falling, a tightening reverse swell."""
+def rift_charge():
+    """Rift emitter charging: a deep rising throb, detuned violet shimmer and crackle building up."""
     d = 2.4
     x = canvas(d)
     t = t_axis(2.2)
-    swell = filt(white(2.2), "bandpass", [300, 6000]) * (t / 2.2) ** 3 * 0.6
-    swell = sweep(swell, "bandpass", 5000, 300)
-    place(x, swell, 0.0)
-    fall = unison(glide(440, 55, 2.2, 1.5), 2.2, 5, 0.01, "saw")
-    place(x, filt(fall, "lowpass", 2500) * (t / 2.2) ** 1.5 * 0.45, 0.0)
-    place(x, filt(brown(2.2), "lowpass", 200) * (t / 2.2) ** 2 * 0.9, 0.0)
+    throb = unison(glide(70, 260, 2.2, 1.4), 2.2, 6, 0.012, "saw")
+    throb = sweep(throb, "lowpass", 300, 3000) * (0.7 + 0.3 * np.sin(2 * np.pi * (3 + 6 * t / 2.2) * t)) * env(2.2, 0.3, 0.1, 0.9, 0.2) * 0.45
+    place(x, throb, 0.0)
+    sh = sum(osc(glide(f, f * 1.6, 2.2, 1.2), 2.2) for f in (880, 1108.7, 1318.5)) / 3
+    place(x, sh * (t / 2.2) ** 2 * 0.12, 0.0)
+    place(x, crackle(2.2, 60, 0.0012, 3000) * (t / 2.2) ** 2 * 0.45, 0.0)
     return room(x, 1.4, 0.3)
 
 
-def star_nova():
-    """Nova: a white-out crack, a gut-punch sub drop and a long rolling shockwave with debris rain."""
-    d = 7.0
+def rift_tear():
+    """The sky tearing open: a colossal ripping crack, a sucking roar of wind and a cosmic chord."""
+    d = 6.0
     x = canvas(d)
-    place(x, sweep(white(0.25), "highpass", 9000, 1200) * env(0.25, 0.001, 0.02, 0.5, 0.2) * 1.0, 0.0)
-    place(x, kick(60, 18, 3.5, 1.2, 1.0) * 1.5, 0.0)
-    place(x, filt(brown(6.0), "lowpass", 220) * decay(6.0, 2.2) * 1.4, 0.03)
-    roll = filt(white(6.0), "bandpass", [150, 1800]) * decay(6.0, 1.8) * (0.7 + 0.3 * np.sin(2 * np.pi * 3 * t_axis(6.0))) * 0.6
-    place(x, roll, 0.08)
-    place(x, crackle(5.0, 90, 0.002, 1500, decay(5.0, 1.6)) * 0.55, 0.4)
-    place(x, metal(160, 3.5, 1.2, 1.0) * 0.25, 0.05)
-    return room(mband_sat(x, (2.8, 1.9, 1.35)), 3.2, 0.45)
+    rip = sweep(white(1.2), "bandpass", 8000, 400) * env(1.2, 0.005, 0.1, 0.7, 0.8) * 0.8
+    place(x, rip, 0.0)
+    place(x, crackle(1.6, 260, 0.001, 1800, decay(1.6, 0.6)) * 0.8, 0.0)
+    place(x, kick(55, 20, 3.0, 1.0, 1.0) * 1.3, 0.05)
+    wind = filt(white(5.0), "bandpass", [150, 1400]) * env(5.0, 0.4, 0.5, 0.7, 2.5) * 0.6
+    place(x, sweep(wind, "lowpass", 600, 2400), 0.2)
+    chord = sum(unison(f, 4.5, 4, 0.006, "saw") for f in (65.4, 98.0, 155.6, 196.0)) / 4
+    chord = filt(chord, "lowpass", 1800) * env(4.5, 1.2, 0.4, 0.8, 2.0) * 0.4
+    place(x, chord, 0.6)
+    return room(mband_sat(x, (2.6, 1.7, 1.3)), 3.4, 0.45)
+
+
+def rift_loop():
+    """The open rift: a seamless otherworldly howl, slow breathing wind and distant crackling."""
+    d = 4.5
+    t = t_axis(d)
+    howl = filt(white(d), "bandpass", [250, 1600]) * (0.55 + 0.45 * np.sin(2 * np.pi * (1 / 4.5) * t * 2) ** 2) * 0.45
+    drone = (osc(49, d) * 0.3 + osc(73.5, d, "tri") * 0.12 + osc(98, d) * 0.08) * (0.85 + 0.15 * np.sin(2 * np.pi * (2 / 4.5) * t))
+    choir = sum(osc(f, d) * (0.5 + 0.5 * np.sin(2 * np.pi * (k + 1) / 4.5 * t)) for k, f in enumerate((392, 466.2, 587.3))) * 0.03
+    crack = crackle(d, 35, 0.0012, 3500) * 0.3
+    return make_loop(mband_sat(howl + drone + choir + crack, (2.0, 1.4, 1.2)), 0.25)
+
+
+def rift_zap():
+    """Rift lightning: a snapping violet crack with a short electric buzz."""
+    d = 1.2
+    x = canvas(d)
+    place(x, sweep(white(0.25), "bandpass", 9000, 1200) * env(0.25, 0.001, 0.03, 0.5, 0.18) * 0.9, 0.0)
+    place(x, osc(glide(160, 60, 0.5), 0.5, "square") * env(0.5, 0.002, 0.05, 0.4, 0.35) * 0.18, 0.0)
+    place(x, crackle(0.9, 200, 0.0009, 4000, decay(0.9, 0.3)) * 0.6, 0.02)
+    place(x, kick(130, 50, 0.4, 0.15, 0.7) * 0.5, 0.0)
+    return room(x, 1.1, 0.3)
+
+
+def rift_close():
+    """Slamming shut: an inhale of air, a cosmic thunderclap and a long rolling echo."""
+    d = 6.5
+    x = canvas(d)
+    inhale = sweep(white(1.2), "bandpass", 300, 6000) * np.linspace(0, 1, int(1.2 * SR)) ** 3 * 0.5
+    place(x, inhale, 0.0)
+    place(x, sweep(white(0.2), "highpass", 9000, 1500) * env(0.2, 0.001, 0.02, 0.5, 0.15), 1.2)
+    place(x, kick(58, 18, 3.4, 1.1, 1.0) * 1.5, 1.2)
+    place(x, filt(brown(5.0), "lowpass", 220) * decay(5.0, 2.0) * 1.2, 1.22)
+    place(x, filt(white(5.0), "bandpass", [200, 2000]) * decay(5.0, 1.6) * 0.5, 1.25)
+    place(x, crackle(4.0, 80, 0.002, 2000, decay(4.0, 1.4)) * 0.45, 1.4)
+    return room(mband_sat(x, (2.8, 1.9, 1.35)), 3.4, 0.5)
 
 
 def scan_charge():
@@ -1277,11 +1275,11 @@ LOADOUT_SOUNDS = {
     "scan_charge": scan_charge,
     "scan_pulse": scan_pulse,
     "scan_ping": scan_ping,
-    "star_ignite": star_ignite,
-    "star_loop": star_loop,
-    "star_flare": star_flare,
-    "star_collapse": star_collapse,
-    "star_nova": star_nova,
+    "rift_charge": rift_charge,
+    "rift_tear": rift_tear,
+    "rift_loop": rift_loop,
+    "rift_zap": rift_zap,
+    "rift_close": rift_close,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1295,7 +1293,7 @@ LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_th
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "drone_", "scan_", "star_", "railgun_", "muzzle_", "module_"):
+    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1327,7 +1325,7 @@ SOUNDS = {
     "ui_tablet_close": ui_tablet_close,
 }
 SOUNDS.update(LOADOUT_SOUNDS)
-LOOPS = {"railgun_charge_loop", "railgun_reentry", "star_loop"}
+LOOPS = {"railgun_charge_loop", "railgun_reentry", "rift_loop"}
 
 # sound event id -> (file, extra properties)
 EVENTS = {
@@ -1353,7 +1351,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "scan_pulse", "star_", "module_seismic", "module_thruster")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 

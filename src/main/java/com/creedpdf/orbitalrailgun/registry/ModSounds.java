@@ -44,11 +44,11 @@ public final class ModSounds {
     public static final SoundEvent SCAN_CHARGE = register("scan.charge");
     public static final SoundEvent SCAN_PULSE = register("scan.pulse");
     public static final SoundEvent SCAN_PING = register("scan.ping");
-    public static final SoundEvent STAR_IGNITE = register("star.ignite");
-    public static final SoundEvent STAR_LOOP = register("star.loop");
-    public static final SoundEvent STAR_FLARE = register("star.flare");
-    public static final SoundEvent STAR_COLLAPSE = register("star.collapse");
-    public static final SoundEvent STAR_NOVA = register("star.nova");
+    public static final SoundEvent RIFT_CHARGE = register("rift.charge");
+    public static final SoundEvent RIFT_TEAR = register("rift.tear");
+    public static final SoundEvent RIFT_LOOP = register("rift.loop");
+    public static final SoundEvent RIFT_ZAP = register("rift.zap");
+    public static final SoundEvent RIFT_CLOSE = register("rift.close");
 
     private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);
     private static final java.util.Map<Loadout.Option, SoundEvent> IMPACT = new java.util.EnumMap<>(Loadout.Option.class);

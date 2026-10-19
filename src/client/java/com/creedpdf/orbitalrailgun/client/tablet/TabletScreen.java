@@ -113,8 +113,8 @@ public class TabletScreen extends Screen {
                 ClientPackets::sendAbort, false, Page.FIRE));
         buttons.add(new Btn(72, 178, 60, 28, "SCAN", CYAN, () -> TabletStatus.latest.state == RailgunState.IDLE,
                 ClientPackets::sendScan, false, Page.FIRE));
-        buttons.add(new Btn(136, 178, 60, 28, "IGNITE", 0xFFFF9A2A, () -> TabletStatus.latest.state == RailgunState.IDLE,
-                ClientPackets::sendIgnite, false, Page.FIRE));
+        buttons.add(new Btn(136, 178, 60, 28, "RIFT", 0xFFB070FF, () -> TabletStatus.latest.state == RailgunState.IDLE,
+                ClientPackets::sendRift, false, Page.FIRE));
         buttons.add(new Btn(208, 150, 184, 56, "FIRE", RED, () -> {
             TabletStatus st = TabletStatus.latest;
             return st.state == RailgunState.IDLE && st.hasTarget && st.sameDimension;

@@ -785,6 +785,7 @@ def particles():
     option_particles()
     scan_textures()
     star_textures()
+    rift_textures()
 
     for name, tex in PARTICLES.items():
         p = A / f"particles/{name}.json"
@@ -1090,50 +1091,142 @@ def star_textures():
     rgb = np.dstack([255 * np.ones_like(v), 255 * (0.55 + 0.45 * v), 255 * (0.25 + 0.75 * v ** 2)]) * v[..., None]
     save_rgba(np.dstack([rgb, np.full_like(v, 255)]), E / "star_surface.png")
 
-    # corona: long soft rays and streamers around an empty middle
-    S = 256
-    r, th = radial(S)
-    rays = np.zeros_like(r)
-    for k, (w, amp) in enumerate(((7, 1.0), (13, 0.6), (23, 0.35))):
-        rays += amp * np.abs(np.cos(th * w / 2 + k * 1.3)) ** (6 + 4 * k)
-    streams = periodic_noise(S, S, 2, 14, 3)
-    a = np.clip((rays * 0.6 + 0.4) * np.exp(-((r - 0.18) / 0.32) ** 2) * (0.6 + 0.6 * streams), 0, 1)
-    a *= np.clip((r - 0.08) / 0.1, 0, 1)
-    save_rgba(np.dstack([np.full_like(a, 255), 200 + 55 * a, 140 + 115 * a, a * 255]), E / "star_corona.png")
 
-    # nova shell: turbulent, filamentary band (tileable), white (tinted in game)
-    W, H = 256, 128
-    rs2 = np.random.default_rng(17)
+
+# =============================================================================================
+# Rift: deep space disk, nebula, orbit lines, planets, rift particles
+# =============================================================================================
+
+
+def _soft_noise(H, W, cells, seed, octaves=3):
+    """Smooth tileable value noise: bicubic-upsampled random grids (no high-frequency grain)."""
+    r = np.random.default_rng(seed)
     f = np.zeros((H, W), np.float32)
-    for k, (h, w, amp) in enumerate(((8, 16, 0.6), (16, 32, 0.3), (32, 64, 0.15))):
-        lo = rs2.random((h, w)).astype(np.float32)
-        lo = np.tile(lo, (3, 3))
+    amp, tot = 1.0, 0.0
+    for o in range(octaves):
+        ch, cw = max(2, int(cells * H / W) * 2 ** o), cells * 2 ** o
+        lo = np.tile(r.random((ch, cw)).astype(np.float32), (3, 3))
         up = np.asarray(Image.fromarray((lo * 255).astype(np.uint8)).resize((W * 3, H * 3), Image.BICUBIC)).astype(np.float32) / 255
         f += amp * up[H:2 * H, W:2 * W]
-    f /= 1.05
-    ridge = 1 - np.abs(f - 0.5) * 2
-    fil = np.clip((ridge - 0.55) * 2.6, 0, 1) ** 1.3
-    yy = np.linspace(0, 1, H)[:, None]
-    band = 0.35 + 0.65 * np.exp(-((yy - 0.5) / 0.35) ** 2)
-    a = np.clip(fil * band + 0.08, 0, 1)
-    save_rgba(np.dstack([np.full((H, W), 255.0), 225 + 30 * a, 190 + 65 * a, a * 255]), E / "nova_shell.png")
+        tot += amp
+        amp *= 0.5
+    return f / tot
+
+
+def _equirect_planet(W, H, fn):
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    lat = (0.5 - (yy + 0.5) / H) * np.pi
+    lon = (xx + 0.5) / W * 2 * np.pi
+    return fn(lat, lon, yy, xx)
+
+
+def rift_textures():
+    E = A / "textures/effect"
+    rs = np.random.default_rng(23)
+    # deep space: near-black indigo, two nebula clouds, thousands of stars (square, planar-mapped)
+    S = 512
+    n1 = periodic_noise(S, S, 4, 4, 5)
+    n2 = periodic_noise(S, S, 6, 6, 4)
+    base = np.dstack([np.full((S, S), 4.0), np.full((S, S), 3.0), np.full((S, S), 12.0)])
+    neb = np.clip(n1 - 0.52, 0, 1) * 2.2
+    neb2 = np.clip(n2 - 0.58, 0, 1) * 2.0
+    img = base + neb[..., None] * np.array([60, 20, 110]) + neb2[..., None] * np.array([10, 50, 110])
+    pil = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8), "RGB")
+    d = ImageDraw.Draw(pil)
+    for k in range(5200):
+        x, y = rs.uniform(0, S), rs.uniform(0, S)
+        m = rs.random() ** 7
+        t = rs.random()
+        col = np.array([0.8, 0.85, 1.0]) if t < 0.6 else np.array([1.0, 0.9, 0.8]) if t < 0.9 else np.array([0.9, 0.7, 1.0])
+        v = 0.3 + 0.7 * m
+        c = tuple(int(255 * min(1, v * ch)) for ch in col)
+        if m > 0.5:
+            d.ellipse([x - 1.1, y - 1.1, x + 1.1, y + 1.1], fill=c)
+        else:
+            d.point((x, y), fill=c)
+    arr = np.asarray(pil).astype(np.float32)
+    bloom = np.asarray(pil.filter(ImageFilter.GaussianBlur(1.6))).astype(np.float32)
+    arr = np.clip(arr + bloom * 0.7, 0, 255)
+    save_rgba(np.dstack([arr, np.full((S, S), 255.0)]), E / "rift_space.png")
+
+    # nebula for the ring mapping (U around, V radial): soft clouds that fade at the rim
+    W, H = 256, 64
+    n = periodic_noise(H, W, 3, 10, 4)
+    v = np.linspace(0, 1, H)[:, None]
+    a = np.clip((n - 0.35) * 1.8, 0, 1) * np.clip(1 - v ** 2, 0, 1)
+    save_rgba(np.dstack([180 + 75 * a, 120 + 60 * a, np.full_like(a, 255), a * 200]), E / "rift_nebula.png")
+
+    # orbit line: a thin soft line across V
+    W, H = 32, 32
+    v = np.linspace(0, 1, H)[:, None] * np.ones((1, W))
+    a = np.exp(-((v - 0.5) / 0.16) ** 2)
+    save_rgba(np.dstack([np.full_like(a, 255), np.full_like(a, 255), np.full_like(a, 255), a * 255]), E / "orbit_ring.png")
+
+    # planets (equirect 128x64)
+    def rock(lat, lon, yy, xx):
+        nz = _soft_noise(64, 128, 6, 47, 4)
+        cr = _soft_noise(64, 128, 14, 53, 2)
+        v = 0.55 + 0.35 * nz - np.clip(cr - 0.7, 0, 1) * 1.5
+        return np.dstack([150 * v + 30, 135 * v + 25, 120 * v + 20])
+
+    def ocean(lat, lon, yy, xx):
+        nz = _soft_noise(64, 128, 6, 31, 4)
+        land = nz > 0.52
+        rgb = np.where(land[..., None], np.dstack([60 + 80 * nz, 120 + 60 * nz, 50 + 30 * nz]), np.dstack([20 + 0 * nz, 60 + 30 * nz, 150 + 60 * nz]))
+        cap = np.abs(lat) > 1.2
+        rgb[cap] = [235, 240, 250]
+        cl = _soft_noise(64, 128, 8, 37, 3) > 0.62
+        rgb[cl] = rgb[cl] * 0.3 + 230 * 0.7
+        return rgb
+
+    def desert(lat, lon, yy, xx):
+        nz = _soft_noise(64, 128, 5, 43, 4)
+        return np.dstack([200 * (0.6 + 0.4 * nz) + 30, 120 * (0.6 + 0.4 * nz) + 20, 70 * (0.6 + 0.4 * nz)])
+
+    def gas(lat, lon, yy, xx):
+        nz = periodic_noise(64, 128, 2, 16, 3)
+        bands = 0.5 + 0.5 * np.sin(lat * 14 + nz * 3)
+        rgb = np.dstack([180 + 60 * bands, 140 + 50 * bands, 100 + 40 * bands])
+        spot = np.exp(-(((lat + 0.35) / 0.12) ** 2 + ((lon - 2.0) / 0.3) ** 2))
+        rgb = rgb * (1 - spot[..., None] * 0.5) + spot[..., None] * np.array([200, 90, 60]) * 0.5
+        return rgb
+
+    def ice(lat, lon, yy, xx):
+        nz = _soft_noise(64, 128, 5, 59, 3)
+        return np.dstack([170 + 70 * nz, 210 + 40 * nz, 235 + 20 * nz])
+
+    def lava(lat, lon, yy, xx):
+        nz = _soft_noise(64, 128, 6, 41, 4)
+        cracks = np.clip(1 - np.abs(nz - 0.5) * 12, 0, 1)
+        return np.dstack([40 + 215 * cracks, 25 + 120 * cracks, 25 + 20 * cracks])
+
+    for name, fn in (("rock", rock), ("ocean", ocean), ("desert", desert), ("gas", gas), ("ice", ice), ("lava", lava)):
+        rgb = np.clip(_equirect_planet(128, 64, fn), 0, 255)
+        save_rgba(np.dstack([rgb, np.full(rgb.shape[:2], 255.0)]), E / f"planet_{name}.png")
 
     # particles
+    particle("rift_spark", [glow_frame(16, 0.14 - i * 0.02, 0.4, (190, 120, 255), rays=4, ray_len=0.9, rot=i * 0.4) for i in range(4)])
     frames = []
-    for i in range(6):
-        r, _ = radial(32)
-        nz = periodic_noise(32, 32, 5, 5, 3)
-        v = np.clip(1.1 - r * 1.4 + (nz - 0.5) * 0.7 - i * 0.08, 0, 1)
-        frames.append(ramp(v, [(0, (80, 10, 0, 0)), (0.3, (255, 90, 20, 160)), (0.65, (255, 190, 80, 230)), (1, (255, 250, 230, 255))]))
-    particle("star_plasma", frames)
-    particle("star_ember", [glow_frame(16, 0.13 - i * 0.02, 0.38, (255, 150, 50), rays=4, ray_len=0.8, rot=i * 0.5) for i in range(4)])
+    for i in range(4):
+        r, th = radial(16)
+        a = np.exp(-(r / 0.12) ** 2) + (np.abs(np.cos(th * 2)) ** 60) * np.clip(1 - r / 0.9, 0, 1) * (0.6 - i * 0.12)
+        a = np.clip(a, 0, 1)
+        frames.append(np.dstack([220 + 35 * a, 200 + 55 * a, np.full_like(a, 255), a * 255]))
+    particle("rift_dust", frames)
     frames = []
     for i in range(4):
         r, th = radial(128)
-        a = np.exp(-(r / (0.18 + 0.12 * i)) ** 2) + 0.4 * np.exp(-(r / 0.7) ** 2) + np.abs(np.cos(th * 4)) ** 120 * np.clip(1 - r, 0, 1)
+        a = np.exp(-(r / (0.16 + 0.1 * i)) ** 2) + 0.35 * np.exp(-(r / 0.7) ** 2)
         a = np.clip(a, 0, 1) * (1 - i * 0.2)
-        frames.append(np.dstack([np.full_like(a, 255), 230 + 25 * a, 200 + 55 * a, a * 255]))
-    particle("nova_flash", frames)
+        frames.append(np.dstack([210 + 45 * a, 170 + 85 * a, np.full_like(a, 255), a * 255]))
+    particle("rift_flash", frames)
+    frames = []
+    for i in range(6):
+        r, _ = radial(32)
+        nz = periodic_noise(32, 32, 4, 4, 3)
+        a = np.clip((1 - r / (0.6 + 0.06 * i)) * (0.5 + 0.8 * nz), 0, 1) * (1 - i / 7)
+        frames.append(np.dstack([140 + 60 * nz, 70 + 40 * nz, np.full((32, 32), 230.0), a * 200]))
+    particle("rift_wisp", frames)
 
 def main():
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)

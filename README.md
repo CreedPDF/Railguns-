@@ -80,16 +80,15 @@ soft top light, crisp bevels, thin panel grooves, decals and glowing light strip
 around every face, and is sampled with linear filtering (`railgun.png.mcmeta`), so it reads as
 smooth surfaces rather than pixel art.
 
-## Eclipse Core
-Press **IGNITE** on the tablet while the railgun is idle. Four containment arms unfold out of the
-turret and rise into a cradle sixteen blocks up, two counter-rotating rings scale in around it,
-and the barrel and arm emitters stream plasma into the centre until it ignites into a miniature
-star: a granulated burning surface over a white-hot core, layered halos, a rotating corona,
-plasma prominences looping off the limb, a lensing ring and a pool of light on the ground.
-For about 22 seconds it lashes solar flares into the nearest hostile mob within 40 blocks
-(damage, fire, knockback) and thaws snow and ice beneath it. Then it collapses inward and goes
-nova: a white-out flash, an expanding filament shockwave dome and ground rings that damage,
-scorch and throw back everything within 36 blocks except you. One ignition per minute.
+## Rift
+Press **RIFT** on the tablet while the railgun is idle. A crown of six emitter petals and a
+spinning halo blooms open around the muzzle, the rail swings straight up, and a violet beam
+punches fifty blocks into the sky and tears it open. Behind the lumpy, crackling violet rim is
+deep space: a starfield with nebulae, a burning sun and six planets turning on glowing orbit
+lines (one ringed). For about 18 seconds the rift is a void vortex: hostile mobs within 32
+blocks are lifted off the ground, spun up the funnel and swallowed, rift lightning crawls
+along the rim and lashes the ground, and stardust rains from the edge. Then it collapses and
+slams shut with a thunderclap and a shockwave rolling across the sky. One rift per minute.
 
 ## Scan mode
 Press **SCAN** on the tablet while the railgun is idle. A sensor mast telescopes up out of the

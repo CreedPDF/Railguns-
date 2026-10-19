@@ -685,27 +685,21 @@ def build_railgun():
     box(sh, "cyan", [-21.0, 149, -21.2], [0.4, 2, 2.4])
     octagon("scan_lens", sh, "cyan", 156, 5, 2, center_xz=(-34, -20))
 
-    # ---- Eclipse Core: a star cradle that unfolds out of the turret ------------------------------
-    STAR_Y = 260.0
-    for q, (sx, sz) in QUADS.items():
-        bone(f"forge_arm_{q}", "hull", [sx * 21, 104, sz * 21])
-        A_ = B[f"forge_arm_{q}"]
-        k70, k56 = 70 / math.sqrt(2), 56 / math.sqrt(2)
-        diag_box(A_, "dark", sx, sz, (0, 0), 28, 72, 6, 102, 109)
-        diag_box(A_, "steel", sx, sz, (0, 0), 30, 70, 3, 109, 111)
-        box(A_, "white", [sx * k70 - 2.5, 104, sz * k70 - 2.5], [5, 132, 5])
-        box(A_, "steel", [sx * k70 - 3, 150, sz * k70 - 3], [6, 3, 6])
-        box(A_, "steel", [sx * k70 - 3, 196, sz * k70 - 3], [6, 3, 6])
-        box(A_, "orange", [sx * k70 - 0.3 + sx * -2.5, 112, sz * k70 - 0.3 + sz * -2.5], [0.6, 120, 0.6])
-        diag_box(A_, "white", sx, sz, (0, 0), 54, 72, 5, 232, 238)
-        box(A_, "dark", [sx * k56 - 3.5, 228, sz * k56 - 3.5], [7, 14, 7])
-        box(A_, "amber", [sx * (k56 - 3.6) - 1.5, 231, sz * (k56 - 3.6) - 1.5], [3, 8, 3])
-    bone("forge_ring_a", "hull", [0, STAR_Y, 0])
-    ring_y(B["forge_ring_a"], "steel", 0, 0, STAR_Y - 2, STAR_Y + 2, 64, 3)
-    ring_y(B["forge_ring_a"], "orange", 0, 0, STAR_Y - 0.6, STAR_Y + 0.6, 63.4, 0.5)
-    bone("forge_ring_b", "hull", [0, STAR_Y, 0])
-    ring_z(B["forge_ring_b"], "steel", 0, STAR_Y, -2, 2, 72, 3)
-    ring_z(B["forge_ring_b"], "amber", 0, STAR_Y, -0.6, 0.6, 71.4, 0.5)
+    # ---- Rift crown: six emitter petals and a halo that unfold around the muzzle --------------------
+    MZ_ = -316.0
+    bone("rift_crown", "seg2", [0, BARREL_Y, MZ_])
+    RC = B["rift_crown"]
+    ring_z(RC, "dark", 0, BARREL_Y, MZ_ - 6, MZ_ - 2, 26, 3)
+    ring_z(RC, "violet", 0, BARREL_Y, MZ_ - 4.6, MZ_ - 3.4, 25.4, 0.5)
+    for k in range(6):
+        a_ = 30 + k * 60
+        rbox(RC, "white", [-3.5, BARREL_Y + 24, MZ_ - 30], [7, 3, 26], [0, BARREL_Y, MZ_], "z", a_, name="petal")
+        rbox(RC, "dark", [-2.5, BARREL_Y + 27, MZ_ - 28], [5, 2, 22], [0, BARREL_Y, MZ_], "z", a_, name="petal_spine")
+        rbox(RC, "violet", [-1, BARREL_Y + 23.6, MZ_ - 29], [2, 0.6, 24], [0, BARREL_Y, MZ_], "z", a_, name="petal_glow")
+        rbox(RC, "violet", [-3, BARREL_Y + 24.5, MZ_ - 34], [6, 2.4, 4], [0, BARREL_Y, MZ_], "z", a_, name="petal_tip")
+    bone("rift_halo", "rift_crown", [0, BARREL_Y, MZ_ - 40])
+    ring_z(B["rift_halo"], "steel", 0, BARREL_Y, MZ_ - 41.5, MZ_ - 38.5, 34, 2)
+    ring_z(B["rift_halo"], "cyan", 0, BARREL_Y, MZ_ - 40.4, MZ_ - 39.6, 33.4, 0.5)
 
     # ---- Loadout attachments (bones "opt_<id>"; the mod shows only the installed ones) ---------
     build_options(bone, B)
@@ -2148,7 +2142,7 @@ def main():
             bn = o.name[len("bake_"):]
             if bn.startswith("opt_"):
                 o.hide_render = bn not in sample
-            if bn in ("scan_mast", "scan_head") or bn.startswith("forge_"):
+            if bn in ("scan_mast", "scan_head") or bn.startswith("rift_"):
                 o.hide_render = True
         barrel = rg_bones["barrel"]
 
@@ -2164,10 +2158,10 @@ def main():
         set_visible(scan_objs, True)
         render(os.path.join(out, "railgun_scan.png"), cam, target, (-9.5, -9.0, 10.0), (-2.1, 1.0, 7.6), 1000, lens=35)
         set_visible(scan_objs, False)
-        forge_objs = [o for o in rg_bake if o.name[len("bake_"):].startswith("forge_")]
-        set_visible(forge_objs, True)
-        render(os.path.join(out, "railgun_eclipse.png"), cam, target, (18.0, -22.0, 12.0), (0.0, 0.0, 9.0), 1100, lens=28)
-        set_visible(forge_objs, False)
+        crown_objs = [o for o in rg_bake if o.name[len("bake_"):].startswith("rift_")]
+        set_visible(crown_objs, True)
+        render(os.path.join(out, "railgun_rift_crown.png"), cam, target, (9.0, 27.0, 10.0), (0.0, 20.5, 7.4), 1000, lens=35)
+        set_visible(crown_objs, False)
         pose(rg_bones, "animation.railgun.pod", 0.0)
         rail_up(True)
         render(os.path.join(out, "railgun_pod.png"), cam, target, (9.0, -10.0, 6.0), (0.0, 0.0, 4.5), 900, lens=32)

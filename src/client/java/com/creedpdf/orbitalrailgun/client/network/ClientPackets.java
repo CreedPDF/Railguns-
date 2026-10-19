@@ -52,11 +52,11 @@ public final class ClientPackets {
                 if (client.world != null) com.creedpdf.orbitalrailgun.client.render.ScanFx.add(client.world, head, groundY, pos, kind, mobs);
             });
         });
-        ClientPlayNetworking.registerGlobalReceiver(ModPackets.STAR_FLARE, (client, handler, buf, sender) -> {
+        ClientPlayNetworking.registerGlobalReceiver(ModPackets.RIFT_BOLT, (client, handler, buf, sender) -> {
             net.minecraft.util.math.Vec3d a = new net.minecraft.util.math.Vec3d(buf.readDouble(), buf.readDouble(), buf.readDouble());
             net.minecraft.util.math.Vec3d b = new net.minecraft.util.math.Vec3d(buf.readDouble(), buf.readDouble(), buf.readDouble());
             client.execute(() -> {
-                if (client.world != null) com.creedpdf.orbitalrailgun.client.render.StarFx.flare(client.world, a, b);
+                if (client.world != null) com.creedpdf.orbitalrailgun.client.render.RiftFx.bolt(client.world, a, b);
             });
         });
         ClientPlayNetworking.registerGlobalReceiver(ModPackets.TABLET_INFO, (client, handler, buf, sender) -> {
@@ -65,8 +65,8 @@ public final class ClientPackets {
         });
     }
 
-    public static void sendIgnite() {
-        ClientPlayNetworking.send(ModPackets.TABLET_IGNITE, PacketByteBufs.create());
+    public static void sendRift() {
+        ClientPlayNetworking.send(ModPackets.TABLET_RIFT, PacketByteBufs.create());
     }
 
     public static void sendScan() {

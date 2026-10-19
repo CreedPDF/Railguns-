@@ -66,7 +66,7 @@ public final class RailgunAnimator {
             case PANEL_OPEN -> { name = "animation.railgun.panel_open"; time = t; }
             case TRANSFORMING -> { name = "animation.railgun.deploy"; time = t; }
             case PACKING -> { name = "animation.railgun.pack"; time = t; }
-            case IDLE, COOLDOWN, ARMING, SCANNING, STAR -> { name = "animation.railgun.idle"; time = age; }
+            case IDLE, COOLDOWN, ARMING, SCANNING, RIFT -> { name = "animation.railgun.idle"; time = age; }
             case CHARGING -> { name = "animation.railgun.charge"; time = age; }
             case FIRING -> {
                 Anim fire = anims.get("animation.railgun.fire");
@@ -82,7 +82,7 @@ public final class RailgunAnimator {
 
         applyLoadout(e, processor, partialTick);
         applyScanner(e, processor, partialTick);
-        applyForge(e, processor, partialTick);
+        applyRiftCrown(e, processor, partialTick);
 
         for (String boneName : animatedBones) {
             CoreGeoBone bone = processor.getBone(boneName);
@@ -138,40 +138,32 @@ public final class RailgunAnimator {
         }
     }
 
-    /** Eclipse cradle: arms rise out of the turret, rings scale in and spin around the star. */
-    private static void applyForge(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float pt) {
+    /** Rift crown: petals bloom open around the muzzle while the rail points at the sky; halo spins. */
+    private static void applyRiftCrown(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float pt) {
+        CoreGeoBone crown = processor.getBone("rift_crown");
+        CoreGeoBone halo = processor.getBone("rift_halo");
+        if (crown == null) return;
         float t = e.getStateTicks() + pt;
-        float out = 0f;
-        if (e.getState() == RailgunState.STAR) {
-            out = smooth(t / 36f);
-            if (t > RailgunEntity.STAR_NOVA + 10) out *= smooth((RailgunEntity.STAR_TICKS - t) / 40f);
+        float open = 0f;
+        if (e.getState() == RailgunState.RIFT) {
+            open = smooth((t - 10f) / 24f);
+            if (t > RailgunEntity.RIFT_SNAP + 8) open *= smooth((RailgunEntity.RIFT_TICKS - 30 - t) / 24f);
         }
-        boolean on = out > 0.02f;
-        for (String q : new String[]{"pp", "pn", "np", "nn"}) {
-            CoreGeoBone arm = processor.getBone("forge_arm_" + q);
-            if (arm == null) continue;
-            arm.setHidden(!on);
-            arm.setChildrenHidden(!on);
-            arm.setScaleY(Math.max(0.02f, out));
-            float s = 0.5f + 0.5f * out;
-            arm.setScaleX(s);
-            arm.setScaleZ(s);
+        boolean on = open > 0.02f;
+        crown.setHidden(!on);
+        crown.setChildrenHidden(!on);
+        float s = Math.max(0.02f, open);
+        crown.setScaleX(0.4f + 0.6f * s);
+        crown.setScaleY(0.4f + 0.6f * s);
+        crown.setScaleZ(s);
+        crown.setRotZ(t * 0.02f + (1 - open) * 1.2f);
+        if (halo != null) {
+            float firing = t > RailgunEntity.RIFT_FIRE && t < RailgunEntity.RIFT_SNAP ? 1f : 0.4f;
+            halo.setRotZ(-t * 0.12f * firing);
+            float pulse = 1f + 0.06f * net.minecraft.util.math.MathHelper.sin(t * 0.5f) * firing;
+            halo.setScaleX(pulse);
+            halo.setScaleY(pulse);
         }
-        float ring = smooth((t - 24f) / 20f) * out;
-        float spin = t * 0.05f + Math.max(0, t - RailgunEntity.STAR_IGNITE) * 0.04f;
-        float collapse = t > RailgunEntity.STAR_COLLAPSE && t < RailgunEntity.STAR_NOVA ? 1f + (t - RailgunEntity.STAR_COLLAPSE) * 0.02f : 1f;
-        CoreGeoBone ra = processor.getBone("forge_ring_a"), rb = processor.getBone("forge_ring_b");
-        for (CoreGeoBone rg : new CoreGeoBone[]{ra, rb}) {
-            if (rg == null) continue;
-            boolean v = ring > 0.02f;
-            rg.setHidden(!v);
-            rg.setChildrenHidden(!v);
-            rg.setScaleX(Math.max(0.02f, ring));
-            rg.setScaleY(Math.max(0.02f, ring));
-            rg.setScaleZ(Math.max(0.02f, ring));
-        }
-        if (ra != null) { ra.setRotY(spin * collapse); ra.setRotX(0.35f * net.minecraft.util.math.MathHelper.sin(t * 0.02f)); }
-        if (rb != null) { rb.setRotY(-spin * 0.7f * collapse); rb.setRotZ(spin * 0.9f * collapse); }
     }
 
     private static float smooth(float f) {
@@ -193,7 +185,7 @@ public final class RailgunAnimator {
         Map<String, PartDrop.Pose> poses = new HashMap<>();
         for (PartDrop.Entry en : PartDrop.schedule(l)) {
             PartDrop.Pose pose = switch (state) {
-                case IDLE, CHARGING, FIRING, COOLDOWN, SCANNING, STAR -> PartDrop.Pose.DOCKED;
+                case IDLE, CHARGING, FIRING, COOLDOWN, SCANNING, RIFT -> PartDrop.Pose.DOCKED;
                 case ARMING -> PartDrop.arrive(en, t - en.start());
                 case PACKING -> PartDrop.depart(en, t - PartDrop.departStart(en));
                 default -> PartDrop.Pose.HIDDEN;

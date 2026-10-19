@@ -29,8 +29,8 @@ public enum RailgunState {
     ARMING,
     /** Scan array up: a holographic pulse maps ores and hostiles around the emplacement. */
     SCANNING,
-    /** Eclipse Core: the turret cradles a miniature star, which flares at hostiles and ends in a nova. */
-    STAR;
+    /** Rift: the rail fires into the sky and tears a rift into deep space that swallows hostiles. */
+    RIFT;
 
     private static final RailgunState[] VALUES = values();
 
