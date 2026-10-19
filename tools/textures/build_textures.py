@@ -784,6 +784,7 @@ def particles():
     loadout_particles()
     option_particles()
     scan_textures()
+    star_textures()
 
     for name, tex in PARTICLES.items():
         p = A / f"particles/{name}.json"
@@ -1057,6 +1058,82 @@ def scan_textures():
         a = np.clip(ring * (1 - i / 4) + core + rays * 0.6, 0, 1)
         frames.append(np.dstack([150 + 105 * a, 230 + 25 * a, np.full_like(a, 255), a * 255]))
     particle("scan_flare", frames)
+
+
+# =============================================================================================
+# Eclipse Core: star surface, corona, nova shell, plasma / ember / flash particles
+# =============================================================================================
+
+
+def star_textures():
+    E = A / "textures/effect"
+    # granulation: bright convection cells separated by dark lanes (tileable), warm grey (tinted in game)
+    S = 256
+    rs = np.random.default_rng(5)
+    pts = rs.uniform(0, S, (420, 2))
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    d1 = np.full((S, S), 1e9, np.float32)
+    d2 = np.full((S, S), 1e9, np.float32)
+    for px, py in pts:
+        dx = np.minimum(np.abs(xx - px), S - np.abs(xx - px))
+        dy = np.minimum(np.abs(yy - py), S - np.abs(yy - py))
+        d = np.sqrt(dx * dx + dy * dy)
+        d2 = np.where(d < d1, d1, np.minimum(d2, d))
+        d1 = np.minimum(d1, d)
+    lanes = np.clip((d2 - d1) / 2.2, 0, 1)
+    cell = np.clip(1 - d1 / 14.0, 0, 1)            # bright cell centres
+    n = periodic_noise(S, S, 8, 8, 4)
+    v = np.clip(0.5 + 0.5 * lanes ** 0.8 * (0.6 + 0.4 * cell + 0.35 * (n - 0.5)), 0, 1)
+    v = np.asarray(Image.fromarray((v * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.9))).astype(np.float32) / 255
+    spots = periodic_noise(S, S, 3, 3, 2)
+    v *= np.clip(1.15 - np.clip(spots - 0.72, 0, 1) * 3.5, 0.35, 1)
+    rgb = np.dstack([255 * np.ones_like(v), 255 * (0.55 + 0.45 * v), 255 * (0.25 + 0.75 * v ** 2)]) * v[..., None]
+    save_rgba(np.dstack([rgb, np.full_like(v, 255)]), E / "star_surface.png")
+
+    # corona: long soft rays and streamers around an empty middle
+    S = 256
+    r, th = radial(S)
+    rays = np.zeros_like(r)
+    for k, (w, amp) in enumerate(((7, 1.0), (13, 0.6), (23, 0.35))):
+        rays += amp * np.abs(np.cos(th * w / 2 + k * 1.3)) ** (6 + 4 * k)
+    streams = periodic_noise(S, S, 2, 14, 3)
+    a = np.clip((rays * 0.6 + 0.4) * np.exp(-((r - 0.18) / 0.32) ** 2) * (0.6 + 0.6 * streams), 0, 1)
+    a *= np.clip((r - 0.08) / 0.1, 0, 1)
+    save_rgba(np.dstack([np.full_like(a, 255), 200 + 55 * a, 140 + 115 * a, a * 255]), E / "star_corona.png")
+
+    # nova shell: turbulent, filamentary band (tileable), white (tinted in game)
+    W, H = 256, 128
+    rs2 = np.random.default_rng(17)
+    f = np.zeros((H, W), np.float32)
+    for k, (h, w, amp) in enumerate(((8, 16, 0.6), (16, 32, 0.3), (32, 64, 0.15))):
+        lo = rs2.random((h, w)).astype(np.float32)
+        lo = np.tile(lo, (3, 3))
+        up = np.asarray(Image.fromarray((lo * 255).astype(np.uint8)).resize((W * 3, H * 3), Image.BICUBIC)).astype(np.float32) / 255
+        f += amp * up[H:2 * H, W:2 * W]
+    f /= 1.05
+    ridge = 1 - np.abs(f - 0.5) * 2
+    fil = np.clip((ridge - 0.55) * 2.6, 0, 1) ** 1.3
+    yy = np.linspace(0, 1, H)[:, None]
+    band = 0.35 + 0.65 * np.exp(-((yy - 0.5) / 0.35) ** 2)
+    a = np.clip(fil * band + 0.08, 0, 1)
+    save_rgba(np.dstack([np.full((H, W), 255.0), 225 + 30 * a, 190 + 65 * a, a * 255]), E / "nova_shell.png")
+
+    # particles
+    frames = []
+    for i in range(6):
+        r, _ = radial(32)
+        nz = periodic_noise(32, 32, 5, 5, 3)
+        v = np.clip(1.1 - r * 1.4 + (nz - 0.5) * 0.7 - i * 0.08, 0, 1)
+        frames.append(ramp(v, [(0, (80, 10, 0, 0)), (0.3, (255, 90, 20, 160)), (0.65, (255, 190, 80, 230)), (1, (255, 250, 230, 255))]))
+    particle("star_plasma", frames)
+    particle("star_ember", [glow_frame(16, 0.13 - i * 0.02, 0.38, (255, 150, 50), rays=4, ray_len=0.8, rot=i * 0.5) for i in range(4)])
+    frames = []
+    for i in range(4):
+        r, th = radial(128)
+        a = np.exp(-(r / (0.18 + 0.12 * i)) ** 2) + 0.4 * np.exp(-(r / 0.7) ** 2) + np.abs(np.cos(th * 4)) ** 120 * np.clip(1 - r, 0, 1)
+        a = np.clip(a, 0, 1) * (1 - i * 0.2)
+        frames.append(np.dstack([np.full_like(a, 255), 230 + 25 * a, 200 + 55 * a, a * 255]))
+    particle("nova_flash", frames)
 
 def main():
     (A / "textures/gui").mkdir(parents=True, exist_ok=True)

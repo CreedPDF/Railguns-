@@ -66,7 +66,7 @@ public final class RailgunAnimator {
             case PANEL_OPEN -> { name = "animation.railgun.panel_open"; time = t; }
             case TRANSFORMING -> { name = "animation.railgun.deploy"; time = t; }
             case PACKING -> { name = "animation.railgun.pack"; time = t; }
-            case IDLE, COOLDOWN, ARMING, SCANNING -> { name = "animation.railgun.idle"; time = age; }
+            case IDLE, COOLDOWN, ARMING, SCANNING, STAR -> { name = "animation.railgun.idle"; time = age; }
             case CHARGING -> { name = "animation.railgun.charge"; time = age; }
             case FIRING -> {
                 Anim fire = anims.get("animation.railgun.fire");
@@ -82,6 +82,7 @@ public final class RailgunAnimator {
 
         applyLoadout(e, processor, partialTick);
         applyScanner(e, processor, partialTick);
+        applyForge(e, processor, partialTick);
 
         for (String boneName : animatedBones) {
             CoreGeoBone bone = processor.getBone(boneName);
@@ -137,6 +138,42 @@ public final class RailgunAnimator {
         }
     }
 
+    /** Eclipse cradle: arms rise out of the turret, rings scale in and spin around the star. */
+    private static void applyForge(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float pt) {
+        float t = e.getStateTicks() + pt;
+        float out = 0f;
+        if (e.getState() == RailgunState.STAR) {
+            out = smooth(t / 36f);
+            if (t > RailgunEntity.STAR_NOVA + 10) out *= smooth((RailgunEntity.STAR_TICKS - t) / 40f);
+        }
+        boolean on = out > 0.02f;
+        for (String q : new String[]{"pp", "pn", "np", "nn"}) {
+            CoreGeoBone arm = processor.getBone("forge_arm_" + q);
+            if (arm == null) continue;
+            arm.setHidden(!on);
+            arm.setChildrenHidden(!on);
+            arm.setScaleY(Math.max(0.02f, out));
+            float s = 0.5f + 0.5f * out;
+            arm.setScaleX(s);
+            arm.setScaleZ(s);
+        }
+        float ring = smooth((t - 24f) / 20f) * out;
+        float spin = t * 0.05f + Math.max(0, t - RailgunEntity.STAR_IGNITE) * 0.04f;
+        float collapse = t > RailgunEntity.STAR_COLLAPSE && t < RailgunEntity.STAR_NOVA ? 1f + (t - RailgunEntity.STAR_COLLAPSE) * 0.02f : 1f;
+        CoreGeoBone ra = processor.getBone("forge_ring_a"), rb = processor.getBone("forge_ring_b");
+        for (CoreGeoBone rg : new CoreGeoBone[]{ra, rb}) {
+            if (rg == null) continue;
+            boolean v = ring > 0.02f;
+            rg.setHidden(!v);
+            rg.setChildrenHidden(!v);
+            rg.setScaleX(Math.max(0.02f, ring));
+            rg.setScaleY(Math.max(0.02f, ring));
+            rg.setScaleZ(Math.max(0.02f, ring));
+        }
+        if (ra != null) { ra.setRotY(spin * collapse); ra.setRotX(0.35f * net.minecraft.util.math.MathHelper.sin(t * 0.02f)); }
+        if (rb != null) { rb.setRotY(-spin * 0.7f * collapse); rb.setRotZ(spin * 0.9f * collapse); }
+    }
+
     private static float smooth(float f) {
         f = Math.max(0f, Math.min(1f, f));
         return f * f * (3f - 2f * f);
@@ -156,7 +193,7 @@ public final class RailgunAnimator {
         Map<String, PartDrop.Pose> poses = new HashMap<>();
         for (PartDrop.Entry en : PartDrop.schedule(l)) {
             PartDrop.Pose pose = switch (state) {
-                case IDLE, CHARGING, FIRING, COOLDOWN, SCANNING -> PartDrop.Pose.DOCKED;
+                case IDLE, CHARGING, FIRING, COOLDOWN, SCANNING, STAR -> PartDrop.Pose.DOCKED;
                 case ARMING -> PartDrop.arrive(en, t - en.start());
                 case PACKING -> PartDrop.depart(en, t - PartDrop.departStart(en));
                 default -> PartDrop.Pose.HIDDEN;

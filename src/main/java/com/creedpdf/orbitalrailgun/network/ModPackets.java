@@ -63,6 +63,8 @@ public final class ModPackets {
     public static final Identifier BEAM_SHOT = RailgunMod.id("beam_shot");
     public static final Identifier TABLET_SCAN = RailgunMod.id("tablet_scan");
     public static final Identifier SCAN_RESULT = RailgunMod.id("scan_result");
+    public static final Identifier TABLET_IGNITE = RailgunMod.id("tablet_ignite");
+    public static final Identifier STAR_FLARE = RailgunMod.id("star_flare");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -120,6 +122,14 @@ public final class ModPackets {
                     RailgunEntity railgun = owned(player);
                     if (railgun == null) { deny(player, "no_railgun"); return; }
                     if (!railgun.tryStartScan()) deny(player, railgun.getState() == RailgunState.IDLE ? "scan_cooldown"
+                            : railgun.getState().isOperational() ? "busy" : "not_deployed");
+                    sendTabletInfo(player);
+                }));
+        ServerPlayNetworking.registerGlobalReceiver(TABLET_IGNITE, (server, player, handler, buf, sender) ->
+                server.execute(() -> {
+                    RailgunEntity railgun = owned(player);
+                    if (railgun == null) { deny(player, "no_railgun"); return; }
+                    if (!railgun.tryIgnite()) deny(player, railgun.getState() == RailgunState.IDLE ? "star_cooldown"
                             : railgun.getState().isOperational() ? "busy" : "not_deployed");
                     sendTabletInfo(player);
                 }));
@@ -223,6 +233,21 @@ public final class ModPackets {
             if (p.getUuid().equals(railgun.getOwnerUuid())) {
                 p.sendMessage(Text.translatable("message.orbital_railgun.scan.result", ores.size(), mobs.length).formatted(Formatting.AQUA), true);
             }
+        }
+    }
+
+    /** A solar flare arc for clients to draw (star surface to target). */
+    public static void broadcastFlare(ServerWorld world, Vec3d from, Vec3d to) {
+        for (ServerPlayerEntity p : world.getPlayers()) {
+            if (p.squaredDistanceTo(from) > 256 * 256) continue;
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeDouble(from.x);
+            buf.writeDouble(from.y);
+            buf.writeDouble(from.z);
+            buf.writeDouble(to.x);
+            buf.writeDouble(to.y);
+            buf.writeDouble(to.z);
+            ServerPlayNetworking.send(p, STAR_FLARE, buf);
         }
     }
 

@@ -467,6 +467,51 @@
       }
     ]
   },
+  "star.ignite": {
+    "subtitle": "subtitles.orbital_railgun.star.ignite",
+    "sounds": [
+      {
+        "name": "orbital_railgun:star_ignite",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "star.loop": {
+    "subtitle": "subtitles.orbital_railgun.star.loop",
+    "sounds": [
+      {
+        "name": "orbital_railgun:star_loop",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "star.flare": {
+    "subtitle": "subtitles.orbital_railgun.star.flare",
+    "sounds": [
+      {
+        "name": "orbital_railgun:star_flare",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "star.collapse": {
+    "subtitle": "subtitles.orbital_railgun.star.collapse",
+    "sounds": [
+      {
+        "name": "orbital_railgun:star_collapse",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "star.nova": {
+    "subtitle": "subtitles.orbital_railgun.star.nova",
+    "sounds": [
+      {
+        "name": "orbital_railgun:star_nova",
+        "attenuation_distance": 160
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

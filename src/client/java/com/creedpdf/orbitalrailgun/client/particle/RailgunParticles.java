@@ -58,6 +58,10 @@ public final class RailgunParticles {
     static final Style SCAN_MOTE = new Style(10, 18, 0.12f, 0.24f, 0.6f, 0f, 0.96f, false, true, true, true, 1f, 0.2f, 0.1f);
     static final Style SCAN_FLARE = new Style(8, 10, 5f, 6f, 2.4f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
 
+    static final Style STAR_PLASMA = new Style(12, 22, 0.35f, 0.7f, 0.5f, 0f, 0.95f, false, true, true, false, 1f, 0.3f, 0.1f);
+    static final Style STAR_EMBER = new Style(20, 50, 0.1f, 0.25f, 0.6f, 0.05f, 0.96f, false, true, true, true, 1f, 0.6f, 0.2f);
+    static final Style NOVA_FLASH = new Style(10, 12, 24f, 30f, 2.2f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+
     public static void register() {
         var reg = ParticleFactoryRegistry.getInstance();
         reg.register(ModParticles.PLASMA_SPARK, sprites -> factory(sprites, PLASMA_SPARK));
@@ -102,6 +106,9 @@ public final class RailgunParticles {
         reg.register(ModParticles.DOCK_SPARK, sprites -> factory(sprites, DOCK_SPARK));
         reg.register(ModParticles.SCAN_MOTE, sprites -> factory(sprites, SCAN_MOTE));
         reg.register(ModParticles.SCAN_FLARE, sprites -> factory(sprites, SCAN_FLARE));
+        reg.register(ModParticles.STAR_PLASMA, sprites -> factory(sprites, STAR_PLASMA));
+        reg.register(ModParticles.STAR_EMBER, sprites -> factory(sprites, STAR_EMBER));
+        reg.register(ModParticles.NOVA_FLASH, sprites -> factory(sprites, NOVA_FLASH));
     }
 
     private static ParticleFactory<DefaultParticleType> factory(

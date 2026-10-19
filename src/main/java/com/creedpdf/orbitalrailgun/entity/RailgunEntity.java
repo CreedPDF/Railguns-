@@ -175,6 +175,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             case LAUNCHING -> tickLaunching(t);
             case ARMING -> tickArming(t);
             case SCANNING -> tickScanning(t);
+            case STAR -> tickStar(t);
         }
 
         ServerWorld sw = (ServerWorld) getWorld();
@@ -300,6 +301,118 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
+    // ---- Eclipse Core --------------------------------------------------------------------------------
+
+    /** Timeline (ticks): cradle unfolds, plasma accretes, ignition, burn, collapse, nova, fold away. */
+    public static final int STAR_ACCRETE = 40, STAR_IGNITE = 80, STAR_COLLAPSE = 520, STAR_NOVA = 560, STAR_TICKS = 610;
+    public static final int STAR_COOLDOWN = 1200;
+    public static final double STAR_HEIGHT = 260 / 16.0, STAR_FLARE_RANGE = 40.0, NOVA_RADIUS = 36.0;
+    private int starReadyAge;
+
+    public boolean tryIgnite() {
+        if (getState() != RailgunState.IDLE || this.age < starReadyAge) return false;
+        setState(RailgunState.STAR);
+        return true;
+    }
+
+    public boolean starReady() {
+        return this.age >= starReadyAge;
+    }
+
+    public Vec3d getStarPos(float tickDelta) {
+        return getLerpedPos(tickDelta).add(0, STAR_HEIGHT, 0);
+    }
+
+    private void tickStar(int t) {
+        ServerWorld world = (ServerWorld) getWorld();
+        Vec3d star = getStarPos(1f);
+        PlayerEntity owner = getOwner(world) instanceof PlayerEntity pe ? pe : null;
+        if (t == 0) world.playSound(null, getX(), getY() + 8, getZ(), ModSounds.RAILGUN_TRANSFORM, SoundCategory.BLOCKS, 2.5f, 1.3f);
+        if (t == STAR_ACCRETE) world.playSound(null, star.x, star.y, star.z, ModSounds.SCAN_CHARGE, SoundCategory.BLOCKS, 4f, 0.6f);
+        if (t == STAR_IGNITE) {
+            world.playSound(null, star.x, star.y, star.z, ModSounds.STAR_IGNITE, SoundCategory.BLOCKS, 10f, 1f);
+            RailgunFx.burst(world, ModParticles.NOVA_FLASH, star, 1, 0, 0, 0);
+            RailgunFx.burst(world, ModParticles.STAR_EMBER, star, 160, 1.5, 1.5, 0.9);
+            if (owner instanceof net.minecraft.server.network.ServerPlayerEntity sp) {
+                sp.sendMessage(Text.translatable("message.orbital_railgun.star.ignited").formatted(Formatting.GOLD), true);
+            }
+        }
+        if (t > STAR_IGNITE && t < STAR_COLLAPSE) {
+            if (t % 8 == 0) solarFlare(world, star, owner);
+            if (t % 20 == 0) meltBelow(world);
+            if (t % 3 == 0) RailgunFx.burst(world, ModParticles.STAR_EMBER, star, 6, 2.2, 2.2, 0.25);
+        }
+        if (t == STAR_COLLAPSE) world.playSound(null, star.x, star.y, star.z, ModSounds.STAR_COLLAPSE, SoundCategory.BLOCKS, 8f, 1f);
+        if (t == STAR_NOVA) nova(world, star, owner);
+        if (t >= STAR_TICKS) {
+            starReadyAge = this.age + STAR_COOLDOWN;
+            setState(RailgunState.IDLE);
+        }
+    }
+
+    /** A flare arcs off the star into the nearest hostile in range. */
+    private void solarFlare(ServerWorld world, Vec3d star, @Nullable PlayerEntity owner) {
+        LivingEntity target = world.getEntitiesByClass(LivingEntity.class, new Box(star, star).expand(STAR_FLARE_RANGE),
+                        e -> e.isAlive() && e instanceof net.minecraft.entity.mob.Monster)
+                .stream().min(java.util.Comparator.comparingDouble(e -> e.squaredDistanceTo(star))).orElse(null);
+        if (target == null) return;
+        Vec3d to = target.getBoundingBox().getCenter();
+        target.damage(beamDamage(world), 14f);
+        target.setOnFireFor(6);
+        Vec3d push = to.subtract(star).normalize().multiply(0.6);
+        target.addVelocity(push.x, 0.3, push.z);
+        target.velocityModified = true;
+        world.playSound(null, to.x, to.y, to.z, ModSounds.STAR_FLARE, SoundCategory.BLOCKS, 3f, 0.9f + 0.2f * random.nextFloat());
+        RailgunFx.burst(world, ModParticles.STAR_EMBER, to, 24, 0.5, 0.5, 0.4);
+        com.creedpdf.orbitalrailgun.network.ModPackets.broadcastFlare(world, star, to);
+    }
+
+    /** The star's heat thaws the ground beneath it. */
+    private void meltBelow(ServerWorld world) {
+        BlockPos c = getBlockPos();
+        for (int i = 0; i < 40; i++) {
+            BlockPos p = c.add(random.nextInt(29) - 14, random.nextInt(9) - 3, random.nextInt(29) - 14);
+            BlockState st = world.getBlockState(p);
+            if (st.isOf(Blocks.SNOW) || st.isOf(Blocks.POWDER_SNOW) || st.isOf(Blocks.SNOW_BLOCK)) {
+                world.setBlockState(p, Blocks.AIR.getDefaultState());
+                RailgunFx.burst(world, ModParticles.COOLANT_VAPOR, Vec3d.ofCenter(p), 3, 0.3, 0.2, 0.02);
+            } else if (st.isOf(Blocks.ICE) || st.isOf(Blocks.PACKED_ICE) || st.isOf(Blocks.FROSTED_ICE)) {
+                world.setBlockState(p, Blocks.WATER.getDefaultState());
+                RailgunFx.burst(world, ModParticles.COOLANT_VAPOR, Vec3d.ofCenter(p), 4, 0.3, 0.2, 0.02);
+            }
+        }
+    }
+
+    private void nova(ServerWorld world, Vec3d star, @Nullable PlayerEntity owner) {
+        world.playSound(null, star.x, star.y, star.z, ModSounds.STAR_NOVA, SoundCategory.BLOCKS, 24f, 1f);
+        RailgunFx.burst(world, ModParticles.NOVA_FLASH, star, 2, 0, 0, 0);
+        RailgunFx.burst(world, ModParticles.STAR_EMBER, star, 600, 3, 3, 2.4);
+        RailgunFx.burst(world, ModParticles.STAR_PLASMA, star, 200, 2, 2, 1.6);
+        for (int i = 0; i < 96; i++) {
+            double a = i / 96.0 * Math.PI * 2;
+            RailgunFx.launch(world, ModParticles.SHOCK_DUST, getPos().add(Math.cos(a) * 3, 0.3, Math.sin(a) * 3),
+                    new Vec3d(Math.cos(a) * 1.8, 0.05, Math.sin(a) * 1.8));
+        }
+        for (LivingEntity e : world.getEntitiesByClass(LivingEntity.class, new Box(star, star).expand(NOVA_RADIUS), LivingEntity::isAlive)) {
+            if (owner != null && e.getUuid().equals(owner.getUuid())) continue;
+            double d = e.getPos().distanceTo(star);
+            if (d > NOVA_RADIUS) continue;
+            float k = (float) (1.0 - d / NOVA_RADIUS);
+            e.damage(beamDamage(world), 10f + 50f * k);
+            e.setOnFireFor(8);
+            Vec3d push = e.getPos().subtract(star).normalize().multiply(2.4 * k + 0.4);
+            e.addVelocity(push.x, 0.6 + 0.6 * k, push.z);
+            e.velocityModified = true;
+        }
+        for (PlayerEntity p : world.getPlayers()) {
+            if (p.squaredDistanceTo(star) < 160 * 160) {
+                if (p instanceof net.minecraft.server.network.ServerPlayerEntity sp && owner != null && sp.getUuid().equals(owner.getUuid())) {
+                    sp.sendMessage(Text.translatable("message.orbital_railgun.star.nova").formatted(Formatting.GOLD), true);
+                }
+            }
+        }
+    }
+
     // ---- scan array ---------------------------------------------------------------------------------
 
     public static final int SCAN_TICKS = 80, SCAN_PULSE_TICK = 30, SCAN_COOLDOWN = 400;
@@ -407,6 +520,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
 
     private boolean clampsDown(RailgunState state, int t) {
         return state.isOperational() || state == RailgunState.ARMING || state == RailgunState.SCANNING
+                || state == RailgunState.STAR
                 || (state == RailgunState.TRANSFORMING && t >= RailgunConfig.CLAMP_SLAM_TICK)
                 || (state == RailgunState.PACKING && t < RailgunConfig.PACK_TICKS - RailgunConfig.CLAMP_SLAM_TICK);
     }
@@ -838,6 +952,32 @@ public class RailgunEntity extends Entity implements GeoEntity {
                     world.addParticle(ModParticles.ENERGY_MOTE, p.x + (rand.nextDouble() - 0.5), p.y + 0.6,
                             p.z + 0.2, 0, 0.02, 0);
                 }
+            }
+            case STAR -> {
+                Vec3d star = getStarPos(1f);
+                if (t >= STAR_ACCRETE && t < STAR_IGNITE) {
+                    Vec3d muzzle = getMuzzlePos(1f);
+                    for (int i = 0; i < 6; i++) {
+                        Vec3d p = muzzle.lerp(star, rand.nextDouble()).add((rand.nextDouble() - 0.5) * 0.6, (rand.nextDouble() - 0.5) * 0.6, (rand.nextDouble() - 0.5) * 0.6);
+                        Vec3d v = star.subtract(p).multiply(0.08);
+                        world.addParticle(ModParticles.STAR_PLASMA, p.x, p.y, p.z, v.x, v.y, v.z);
+                    }
+                    for (int q = 0; q < 4; q++) {
+                        double sx = (q & 1) == 0 ? 1 : -1, sz = (q & 2) == 0 ? 1 : -1;
+                        Vec3d tip = getPos().add(sx * 2.47, 14.6, sz * 2.47);
+                        Vec3d v = star.subtract(tip).multiply(0.12);
+                        world.addParticle(ModParticles.STAR_PLASMA, tip.x, tip.y, tip.z, v.x, v.y, v.z);
+                    }
+                } else if (t >= STAR_IGNITE && t < STAR_NOVA) {
+                    for (int i = 0; i < 2; i++) {
+                        double a = rand.nextDouble() * Math.PI * 2, b = rand.nextDouble() * Math.PI - Math.PI / 2;
+                        Vec3d dir = new Vec3d(Math.cos(a) * Math.cos(b), Math.sin(b), Math.sin(a) * Math.cos(b));
+                        Vec3d p = star.add(dir.multiply(3.3));
+                        world.addParticle(ModParticles.STAR_EMBER, p.x, p.y, p.z, dir.x * 0.15, dir.y * 0.15 - 0.02, dir.z * 0.15);
+                    }
+                    if (t == STAR_IGNITE) RailgunMod.client().shake(this, 0.8f);
+                }
+                if (t == STAR_NOVA) RailgunMod.client().shake(this, 2.2f);
             }
             case SCANNING -> {
                 Vec3d head = getScanHeadPos(1f);

@@ -28,7 +28,9 @@ public enum RailgunState {
     /** After deploying: attachment parts drop from orbital storage, vector in and dock. */
     ARMING,
     /** Scan array up: a holographic pulse maps ores and hostiles around the emplacement. */
-    SCANNING;
+    SCANNING,
+    /** Eclipse Core: the turret cradles a miniature star, which flares at hostiles and ends in a nova. */
+    STAR;
 
     private static final RailgunState[] VALUES = values();
 

@@ -34,6 +34,7 @@ public final class RailgunModClient implements ClientModInitializer {
         ClientPackets.registerReceivers();
         com.creedpdf.orbitalrailgun.client.render.RemoteBeams.register();
         com.creedpdf.orbitalrailgun.client.render.ScanFx.register();
+        com.creedpdf.orbitalrailgun.client.render.StarFx.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);
@@ -81,6 +82,7 @@ public final class RailgunModClient implements ClientModInitializer {
             switch (newState) {
                 case POD -> RailgunHud.shake((float) Math.max(0.0, 1.0 - dist / 60.0));
                 case CHARGING -> client.getSoundManager().play(new RailgunChargeSoundInstance(railgun));
+                case STAR -> client.getSoundManager().play(new com.creedpdf.orbitalrailgun.client.sound.StarSoundInstance(railgun));
                 case FIRING -> {
                     double toImpact = Math.sqrt(client.player.getBlockPos().getSquaredDistance(railgun.getTarget()));
                     float near = (float) Math.max(0.0, 1.0 - Math.min(dist, toImpact) / 120.0);

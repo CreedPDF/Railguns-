@@ -109,10 +109,12 @@ public class TabletScreen extends Screen {
         // Fire-control page
         buttons.add(new Btn(8, 128, 90, 16, "SET", RED, this::canRetarget, this::submitTarget, false, Page.FIRE));
         buttons.add(new Btn(104, 128, 92, 16, "PAINT", AMBER, () -> canRetarget() && aimed != null, this::paint, false, Page.FIRE));
-        buttons.add(new Btn(8, 178, 92, 28, "ABORT", AMBER, () -> TabletStatus.latest.state == RailgunState.CHARGING,
+        buttons.add(new Btn(8, 178, 60, 28, "ABORT", AMBER, () -> TabletStatus.latest.state == RailgunState.CHARGING,
                 ClientPackets::sendAbort, false, Page.FIRE));
-        buttons.add(new Btn(104, 178, 92, 28, "SCAN", CYAN, () -> TabletStatus.latest.state == RailgunState.IDLE,
+        buttons.add(new Btn(72, 178, 60, 28, "SCAN", CYAN, () -> TabletStatus.latest.state == RailgunState.IDLE,
                 ClientPackets::sendScan, false, Page.FIRE));
+        buttons.add(new Btn(136, 178, 60, 28, "IGNITE", 0xFFFF9A2A, () -> TabletStatus.latest.state == RailgunState.IDLE,
+                ClientPackets::sendIgnite, false, Page.FIRE));
         buttons.add(new Btn(208, 150, 184, 56, "FIRE", RED, () -> {
             TabletStatus st = TabletStatus.latest;
             return st.state == RailgunState.IDLE && st.hasTarget && st.sameDimension;
