@@ -30,12 +30,12 @@ public final class RailgunModClient implements ClientModInitializer {
         RailgunMod.setClientBridge(new Bridge());
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
+        registerPortalRenderer();
         RailgunParticles.register();
         ClientPackets.registerReceivers();
         com.creedpdf.orbitalrailgun.client.render.RemoteBeams.register();
         com.creedpdf.orbitalrailgun.client.render.ScanFx.register();
         com.creedpdf.orbitalrailgun.client.render.RiftFx.register();
-        com.creedpdf.orbitalrailgun.client.render.RiftDimensionClient.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);
@@ -46,6 +46,12 @@ public final class RailgunModClient implements ClientModInitializer {
                 lines.add(Text.translatable("item.orbital_railgun.railgun_remote.tooltip.2").formatted(Formatting.DARK_RED));
             }
         });
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void registerPortalRenderer() {
+        EntityRendererRegistry.register(RailgunMod.RIFT_PORTAL,
+                (net.minecraft.client.render.entity.EntityRendererFactory) qouteall.imm_ptl.core.render.PortalEntityRenderer::new);
     }
 
     /** Real client-side implementation of the hooks common code calls into. */

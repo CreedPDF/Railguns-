@@ -1,0 +1,6 @@
+{
+  "message_id": "orbital_railgun.vacuum",
+  "exhaustion": 0.0,
+  "scaling": "never",
+  "effects": "freezing"
+}

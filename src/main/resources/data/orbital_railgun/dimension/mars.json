@@ -1,0 +1,11 @@
+{
+  "type": "orbital_railgun:mars",
+  "generator": {
+    "type": "minecraft:noise",
+    "settings": "orbital_railgun:mars",
+    "biome_source": {
+      "type": "minecraft:fixed",
+      "biome": "orbital_railgun:mars_surface"
+    }
+  }
+}

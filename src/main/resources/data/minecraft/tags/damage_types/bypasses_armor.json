@@ -1,1 +1,1 @@
-{ "replace": false, "values": ["orbital_railgun:beam"] }
+{ "replace": false, "values": ["orbital_railgun:beam", "orbital_railgun:vacuum", "orbital_railgun:crushed"] }

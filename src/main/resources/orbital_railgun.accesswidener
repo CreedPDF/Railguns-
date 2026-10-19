@@ -4,3 +4,6 @@ accessWidener v2 named
 accessible method net/minecraft/client/render/RenderLayer of (Ljava/lang/String;Lnet/minecraft/client/render/VertexFormat;Lnet/minecraft/client/render/VertexFormat$DrawMode;IZZLnet/minecraft/client/render/RenderLayer$MultiPhaseParameters;)Lnet/minecraft/client/render/RenderLayer$MultiPhase;
 accessible class net/minecraft/client/render/RenderLayer$MultiPhase
 accessible class net/minecraft/client/render/RenderLayer$MultiPhaseParameters
+
+# Space: floating in zero-g / riding the EVA jetpack must not trip the "flying is not enabled" kick.
+accessible field net/minecraft/server/network/ServerPlayNetworkHandler floatingTicks I

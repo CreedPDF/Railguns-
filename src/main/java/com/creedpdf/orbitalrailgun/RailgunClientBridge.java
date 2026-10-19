@@ -30,4 +30,15 @@ public interface RailgunClientBridge {
 
     /** Called on the client whenever the synced state of a railgun changes. */
     default void onStateChanged(RailgunEntity railgun, RailgunState newState) {}
+
+    /** GeckoLib RenderProvider for the EVA suit (client only; null on the server). */
+    default Object evaRenderProvider() {
+        return null;
+    }
+
+    /** GeckoLib RenderProvider is not needed for ARES-0 (entity renderer); camera shake for big events. */
+    default void shakeAt(net.minecraft.util.math.Vec3d pos, float strength, double range) {}
+
+    /** Opens ARES-0's planet targeting console. */
+    default void openAres0(com.creedpdf.orbitalrailgun.entity.Ares0Entity ares) {}
 }

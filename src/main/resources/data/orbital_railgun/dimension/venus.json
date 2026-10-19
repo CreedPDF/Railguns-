@@ -1,0 +1,11 @@
+{
+  "type": "orbital_railgun:venus",
+  "generator": {
+    "type": "minecraft:noise",
+    "settings": "orbital_railgun:venus",
+    "biome_source": {
+      "type": "minecraft:fixed",
+      "biome": "orbital_railgun:venus_surface"
+    }
+  }
+}

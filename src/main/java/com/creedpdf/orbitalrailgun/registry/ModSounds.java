@@ -68,6 +68,23 @@ public final class ModSounds {
         }
     }
     public static final SoundEvent MODULE_SHIELD_BLOCK = register("module.shield_block");
+    // v4: space, EVA suit, ARES-0, planets
+    public static final SoundEvent REENTRY_BURN = register("space.reentry");
+    public static final SoundEvent SPACE_AMBIENT = register("space.ambient");
+    public static final SoundEvent JETPACK_THRUST = register("jetpack.thrust");
+    public static final SoundEvent JETPACK_BOOST = register("jetpack.boost");
+    public static final SoundEvent JETPACK_IGNITE = register("jetpack.ignite");
+    public static final SoundEvent SUIT_ALARM = register("suit.alarm");
+    public static final SoundEvent SUIT_SEAL = register("suit.seal");
+    public static final SoundEvent ARES0_DEPLOY = register("ares0.deploy");
+    public static final SoundEvent ARES0_CHARGE = register("ares0.charge");
+    public static final SoundEvent ARES0_FIRE = register("ares0.fire");
+    public static final SoundEvent ARES0_BEAM = register("ares0.beam");
+    public static final SoundEvent PLANET_CRACK = register("planet.crack");
+    public static final SoundEvent PLANET_COLLAPSE = register("planet.collapse");
+    public static final SoundEvent PLANET_EXPLODE = register("planet.explode");
+    public static final SoundEvent RIFT_PORTAL = register("rift.portal");
+
 
     /** Muzzle firing signature, ammunition fire sound, or the module's own sound. */
     public static SoundEvent signature(Loadout.Option o) {

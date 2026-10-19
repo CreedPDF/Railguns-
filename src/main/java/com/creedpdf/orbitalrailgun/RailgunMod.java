@@ -63,6 +63,32 @@ public final class RailgunMod implements ModInitializer {
                     .build());
 
 
+    /** ARES-0, the planet killer. */
+    public static final EntityType<com.creedpdf.orbitalrailgun.entity.Ares0Entity> ARES0 = Registry.register(
+            Registries.ENTITY_TYPE,
+            id("ares0"),
+            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.Ares0Entity>create(SpawnGroup.MISC, com.creedpdf.orbitalrailgun.entity.Ares0Entity::new)
+                    .dimensions(EntityDimensions.fixed(9.0f, 9.0f))
+                    .trackRangeChunks(16)
+                    .trackedUpdateRate(1)
+                    .forceTrackedVelocityUpdates(true)
+                    .fireImmune()
+                    .build());
+
+    /** The see-through rift opening (Immersive Portals portal). */
+    public static final EntityType<com.creedpdf.orbitalrailgun.space.RiftPortal> RIFT_PORTAL = Registry.register(
+            Registries.ENTITY_TYPE, id("rift_portal"), com.creedpdf.orbitalrailgun.space.RiftPortal.TYPE);
+
+    public static final Item EVA_HELMET = eva("eva_helmet", net.minecraft.item.ArmorItem.Type.HELMET);
+    public static final Item EVA_CHESTPLATE = eva("eva_chestplate", net.minecraft.item.ArmorItem.Type.CHESTPLATE);
+    public static final Item EVA_LEGGINGS = eva("eva_leggings", net.minecraft.item.ArmorItem.Type.LEGGINGS);
+    public static final Item EVA_BOOTS = eva("eva_boots", net.minecraft.item.ArmorItem.Type.BOOTS);
+
+    private static Item eva(String name, net.minecraft.item.ArmorItem.Type type) {
+        return Registry.register(Registries.ITEM, id(name),
+                new com.creedpdf.orbitalrailgun.item.EvaSuitItem(type, new Item.Settings().maxCount(1).fireproof().rarity(Rarity.EPIC)));
+    }
+
     /** Invisible collision for the deployed railgun (see RailgunColliderBlock). No item. */
     public static final Block RAILGUN_COLLIDER = Registry.register(
             Registries.BLOCK,
@@ -91,14 +117,31 @@ public final class RailgunMod implements ModInitializer {
         ModPackets.registerServerReceivers();
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(RAILGUN_REMOTE));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> entries.add(RAILGUN_REMOTE));
+        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
+            entries.add(RAILGUN_REMOTE);
+            entries.add(EVA_HELMET);
+            entries.add(EVA_CHESTPLATE);
+            entries.add(EVA_LEGGINGS);
+            entries.add(EVA_BOOTS);
+        });
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> DeploymentScheduler.clear());
 
+        // v3.5 rift dimension: anyone still inside is sent home (the rift now opens into real space)
         ServerTickEvents.END_WORLD_TICK.register(com.creedpdf.orbitalrailgun.rift.RiftDimension::tick);
+
+        // v4: space, planets, EVA suit, ARES-0
+        ServerTickEvents.END_WORLD_TICK.register(com.creedpdf.orbitalrailgun.space.SpaceServer::tick);
+        ServerTickEvents.END_SERVER_TICK.register(com.creedpdf.orbitalrailgun.space.SpaceServer::tickBlasts);
+        net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
+                com.creedpdf.orbitalrailgun.space.PlanetState.get(server).sync(handler.player));
         net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                com.creedpdf.orbitalrailgun.rift.RiftDimension.forget(handler.player));
+                com.creedpdf.orbitalrailgun.space.SpaceServer.forget(handler.player));
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> com.creedpdf.orbitalrailgun.space.RiftPortals.clear());
+        // EVA boots: shock absorbers (no fall damage)
+        net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+                !(source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && com.creedpdf.orbitalrailgun.space.EvaSuit.boots(entity)));
 
         LOGGER.info("Orbital Railgun online. Uplink established.");
     }
