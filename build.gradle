@@ -10,6 +10,11 @@ base { archivesName = project.archives_base_name }
 
 repositories {
     maven {
+        name = 'JitPack'
+        url = 'https://jitpack.io'
+        content { includeGroupByRegex('com\\.github\\.iPortalTeam.*') }
+    }
+    maven {
         name = 'GeckoLib'
         url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
         content {
@@ -39,6 +44,16 @@ dependencies {
 
     modImplementation "software.bernie.geckolib:geckolib-fabric-${project.minecraft_version}:${project.geckolib_version}"
     implementation 'com.eliotlash.mclib:mclib:20'
+
+    // Immersive Portals: see-through portals and seamless (loading-screen free) dimension changes.
+    modImplementation("com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core:${project.immersive_portals_version}") {
+        exclude(group: 'net.fabricmc.fabric-api')
+        transitive = false
+    }
+    modImplementation("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${project.immersive_portals_version}") {
+        exclude(group: 'net.fabricmc.fabric-api')
+        transitive = false
+    }
 }
 
 processResources {
