@@ -170,47 +170,38 @@
       }
     ]
   },
-  "capsule.reentry": {
-    "subtitle": "subtitles.orbital_railgun.capsule.reentry",
+  "drone.descent": {
+    "subtitle": "subtitles.orbital_railgun.drone.descent",
     "sounds": [
       {
-        "name": "orbital_railgun:capsule_reentry",
+        "name": "orbital_railgun:drone_descent",
         "attenuation_distance": 160
       }
     ]
   },
-  "capsule.land": {
-    "subtitle": "subtitles.orbital_railgun.capsule.land",
+  "drone.retro": {
+    "subtitle": "subtitles.orbital_railgun.drone.retro",
     "sounds": [
       {
-        "name": "orbital_railgun:capsule_land",
+        "name": "orbital_railgun:drone_retro",
         "attenuation_distance": 160
       }
     ]
   },
-  "capsule.open": {
-    "subtitle": "subtitles.orbital_railgun.capsule.open",
+  "drone.dock": {
+    "subtitle": "subtitles.orbital_railgun.drone.dock",
     "sounds": [
       {
-        "name": "orbital_railgun:capsule_open",
+        "name": "orbital_railgun:drone_dock",
         "attenuation_distance": 160
       }
     ]
   },
-  "capsule.transfer": {
-    "subtitle": "subtitles.orbital_railgun.capsule.transfer",
+  "drone.ascend": {
+    "subtitle": "subtitles.orbital_railgun.drone.ascend",
     "sounds": [
       {
-        "name": "orbital_railgun:capsule_transfer",
-        "attenuation_distance": 160
-      }
-    ]
-  },
-  "capsule.launch": {
-    "subtitle": "subtitles.orbital_railgun.capsule.launch",
-    "sounds": [
-      {
-        "name": "orbital_railgun:capsule_launch",
+        "name": "orbital_railgun:drone_ascend",
         "attenuation_distance": 160
       }
     ]

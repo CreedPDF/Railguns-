@@ -699,7 +699,7 @@ def railgun_launch():
 
 
 # =============================================================================================
-# Loadout options, orbital storage capsule
+# Loadout options, orbital storage part drops
 # =============================================================================================
 
 
@@ -726,69 +726,64 @@ def ui_loadout_order():
     return room(x, 1.4, 0.3)
 
 
-def capsule_reentry():
-    """Small supply capsule falling: thinner, higher-pitched sheath scream that rises in pitch."""
-    d = 4.5
+def drone_descent():
+    """An attachment part dropping from orbital storage: thin plasma-sheath shriek, a doppler
+    whistle diving in pitch, and a low pressure roar that swells as it closes in."""
+    d = 2.6
     t = t_axis(d)
-    shape = np.clip(t / 0.6, 0, 1) * np.clip((d - t) / 0.4, 0, 1)
-    scream = filt(white(d), "bandpass", [1200, 6000]) * (0.6 + 0.4 * np.sin(2 * np.pi * 11 * t)) * 0.35
-    whistle = osc(glide(700, 1500, d, 0.7), d) * 0.08
-    roar = filt(brown(d), "lowpass", 900) * 0.8
-    crack = crackle(d, 140, 0.0015, 2500) * 0.4
-    return room(mband_sat((scream + whistle + roar + crack) * shape, (2.0, 1.6, 1.3)), 1.5, 0.25)
+    shape = np.clip(t / 0.3, 0, 1) ** 1.5 * np.clip((d - t) / 0.15, 0, 1)
+    swell = 0.35 + 0.65 * (t / d) ** 2
+    scream = filt(white(d), "bandpass", [1800, 8000]) * (0.65 + 0.35 * np.sin(2 * np.pi * 17 * t)) * 0.3
+    whistle = osc(glide(2600, 700, d, 0.6), d, "sine") * 0.12
+    roar = filt(brown(d), "lowpass", 700) * 0.9 * swell
+    crack = crackle(d, 160, 0.0012, 3500) * 0.35
+    return room(mband_sat((scream + whistle + roar + crack) * shape, (2.2, 1.6, 1.3)), 1.3, 0.25)
 
 
-def capsule_land():
-    d = 3.0
+def drone_retro():
+    """Retro thrusters lighting: a hard ignition thump, then a vectoring jet that flutters as the
+    part steers itself onto its approach line."""
+    d = 2.0
     x = canvas(d)
-    place(x, hydraulic(0.6, 4500, 0.7), 0.0)                     # retro burn cut-off
-    place(x, kick(160, 42, 1.4, 0.35, 0.9) * 1.3, 0.25)
-    place(x, metal(240, 1.6, 0.6, 1.2) * 0.5, 0.26)
-    place(x, crackle(1.2, 120, 0.003, 900, decay(1.2, 0.3)) * 0.6, 0.27)
+    place(x, kick(140, 48, 0.8, 0.25, 0.7) * 0.9, 0.0)
+    t = t_axis(1.8)
+    jet = filt(white(1.8), "bandpass", [500, 5000]) * (0.75 + 0.25 * np.sin(2 * np.pi * (6 + 9 * t) * t))
+    jet = sweep(jet, "lowpass", 7000, 1600) * env(1.8, 0.03, 0.2, 0.8, 0.6)
+    place(x, jet * 0.6 + filt(brown(1.8), "lowpass", 400) * env(1.8, 0.03, 0.2, 0.7, 0.6) * 0.6, 0.02)
+    for i in range(5):
+        place(x, osc(1400 + 300 * i, 0.04, "square") * env(0.04, 0.001, 0.01, 0.7, 0.02) * 0.08, 0.3 + 0.22 * i)
+    return room(mband_sat(x, (1.8, 1.4, 1.2)), 1.0, 0.25)
+
+
+def drone_dock():
+    """Docking arms reach out, grab the hull, magnetic clamps bite and the arms fold away."""
+    d = 2.4
+    x = canvas(d)
+    place(x, servo(0.45, 300, 520, 14, 0.5), 0.0)                 # arms extend
     for i in range(4):
-        place(x, latch(0.6, 700 + 90 * i), 0.6 + 0.08 * i)         # landing legs lock
-    return room(mband_sat(x, (2.4, 1.6, 1.2)), 1.6, 0.3)
+        place(x, latch(0.5, 640 + 70 * i), 0.5 + 0.04 * i)          # four claws grab
+    place(x, kick(90, 40, 0.6, 0.2, 0.5) * 0.9, 0.62)               # hull seats
+    place(x, metal(310, 1.2, 0.5, 1.4) * 0.35, 0.63)
+    hum = fm(glide(110, 220, 0.5), 2.0, 1.5, 0.6) * env(0.6, 0.02, 0.1, 0.6, 0.3) * 0.3
+    place(x, hum, 0.66)                                            # mag-lock energises
+    place(x, servo(0.6, 520, 280, 12, 0.45), 1.15)                 # arms fold back
+    place(x, beep([1568, 2093], 0.25, "tri", 0.3), 1.85)
+    return room(x, 1.0, 0.25)
 
 
-def capsule_open():
-    d = 2.2
+def drone_ascend():
+    """Undocked part boosting back to orbit: clamp release, ignition and a climbing roar."""
+    d = 3.6
     x = canvas(d)
-    place(x, steam(0.9, 0.7), 0.0)                                # pressure seal vents
-    place(x, latch(1.0, 520), 0.0)
-    place(x, servo(1.0, 220, 380, 11, 0.7), 0.15)                 # petals swing open
-    for i in range(4):
-        place(x, clank(0.6, 300 + 40 * i, 0.25), 1.1 + 0.06 * i)
-    place(x, beep([1760, 2349], 0.3, "tri", 0.35), 1.5)
-    return room(x, 1.2, 0.25)
-
-
-def capsule_transfer():
-    """Cargo cradle rising + hard-light transfer stream into the railgun."""
-    d = 3.2
-    x = canvas(d)
-    t = t_axis(2.6)
-    stream = unison(glide(220, 660, 2.6, 0.6), 2.6, 7, 0.01, "saw")
-    stream = sweep(stream, "bandpass", 400, 3000) * (0.7 + 0.3 * np.sin(2 * np.pi * 14 * t))
-    place(x, stream * env(2.6, 0.3, 0.2, 0.8, 0.6) * 0.5, 0.1)
-    sparkle = crackle(2.6, 80, 0.001, 5000) * 0.35
-    place(x, sparkle, 0.1)
-    place(x, servo(0.8, 160, 260, 9, 0.5), 0.0)
-    place(x, beep([1046.5, 1318.5, 1568, 2093], 0.6, "sine", 0.4), 2.6)
-    return room(x, 1.6, 0.3)
-
-
-def capsule_launch():
-    d = 5.5
-    x = canvas(d)
-    place(x, latch(0.9, 450), 0.0)
-    place(x, kick(110, 30, 1.6, 0.5, 0.6) * 1.1, 0.1)
-    rd = 5.0
+    place(x, latch(0.6, 560), 0.0)
+    place(x, kick(120, 36, 1.0, 0.4, 0.6) * 0.9, 0.3)
+    rd = 3.2
     t = t_axis(rd)
-    shape = np.clip(t / 0.25, 0, 1) * np.exp(-np.maximum(t - 1.0, 0) / 1.6)
-    burn = filt(white(rd), "bandpass", [700, 7000]) * 0.6 + filt(brown(rd), "lowpass", 600) * 0.9
-    burn = sweep(burn, "lowpass", 9000, 900) * shape
-    place(x, burn + osc(glide(300, 900, rd), rd, "saw") * shape * 0.05, 0.1)
-    return room(mband_sat(x, (2.4, 1.8, 1.3)), 2.2, 0.3)
+    shape = np.clip(t / 0.15, 0, 1) * np.exp(-np.maximum(t - 0.8, 0) / 1.1)
+    burn = filt(white(rd), "bandpass", [800, 7500]) * 0.55 + filt(brown(rd), "lowpass", 500) * 0.8
+    burn = sweep(burn, "lowpass", 8000, 1200) * shape
+    place(x, burn + osc(glide(400, 1300, rd), rd, "saw") * shape * 0.04, 0.3)
+    return room(mband_sat(x, (2.2, 1.6, 1.3)), 1.8, 0.3)
 
 
 def railgun_attach():
@@ -1134,11 +1129,10 @@ def module_afterburn():
 LOADOUT_SOUNDS = {
     "ui_loadout_select": ui_loadout_select,
     "ui_loadout_order": ui_loadout_order,
-    "capsule_reentry": capsule_reentry,
-    "capsule_land": capsule_land,
-    "capsule_open": capsule_open,
-    "capsule_transfer": capsule_transfer,
-    "capsule_launch": capsule_launch,
+    "drone_descent": drone_descent,
+    "drone_retro": drone_retro,
+    "drone_dock": drone_dock,
+    "drone_ascend": drone_ascend,
     "railgun_attach": railgun_attach,
     "muzzle_lancer": muzzle_lancer,
     "muzzle_triprong": muzzle_triprong,
@@ -1165,12 +1159,12 @@ LOADOUT_SOUNDS = {
     "module_autoloader": module_autoloader,
     "module_afterburn": module_afterburn,
 }
-LOUD_EVENTS = {"ammo_", "muzzle_", "capsule_land", "module_seismic", "module_thruster"}
+LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_thruster"}
 
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "capsule_", "railgun_", "muzzle_", "module_"):
+    for pre in ("ui_", "drone_", "railgun_", "muzzle_", "module_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1228,7 +1222,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("capsule_", "module_seismic", "module_thruster")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "module_seismic", "module_thruster")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 

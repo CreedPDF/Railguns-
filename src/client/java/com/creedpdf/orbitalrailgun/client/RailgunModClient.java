@@ -30,9 +30,9 @@ public final class RailgunModClient implements ClientModInitializer {
         RailgunMod.setClientBridge(new Bridge());
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
-        EntityRendererRegistry.register(RailgunMod.SUPPLY_CAPSULE, com.creedpdf.orbitalrailgun.client.render.SupplyCapsuleRenderer::new);
         RailgunParticles.register();
         ClientPackets.registerReceivers();
+        com.creedpdf.orbitalrailgun.client.render.RemoteBeams.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);

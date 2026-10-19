@@ -42,7 +42,7 @@ public final class LoadoutEffects {
     private LoadoutEffects() {}
 
     // Sentry turret mounts in world space relative to the entity (bulwark tops, see the model).
-    private static final Vec3d[] SENTRY_MOUNTS = {new Vec3d(-4.85, 7.9, -4.85), new Vec3d(4.85, 7.9, 4.85)};
+    private static final Vec3d[] SENTRY_MOUNTS = {new Vec3d(4.85, 7.9, -4.85), new Vec3d(-4.85, 7.9, 4.85)};
     public static final double SHIELD_RADIUS = 10.0;
     public static final double AFTERBURN_RADIUS = 7.0;
     public static final int AFTERBURN_TICKS = 240;
@@ -72,13 +72,13 @@ public final class LoadoutEffects {
                 e.addVelocity(d.multiply(0.06 / len));
                 e.velocityModified = true;
             }
-            if (t % 4 == 0) rg.ring(w, ModParticles.SHOCK_DUST, target, 14 + w.random.nextDouble() * 4, 24, -0.6);
+            if (t % 4 == 0) rg.ring(w, ModParticles.GRAVITON_RIPPLE, target, 14 + w.random.nextDouble() * 4, 24, -0.6);
         }
         if (l.has(Option.CAPACITOR) && t % 3 == 0) {
             Vec3d hull = rg.getPos().add(0, 5.6, 0);
             for (int s = -1; s <= 1; s += 2) {
                 Vec3d side = new Vec3d(Math.cos(rg.getAimYawRad(1f)) * s * 2.4, 0, -Math.sin(rg.getAimYawRad(1f)) * s * 2.4);
-                RailgunFx.burst(w, ModParticles.ION_ARC, hull.add(side), 2, 0.4, 0.5, 0.0);
+                RailgunFx.burst(w, ModParticles.CAPACITOR_ARC, hull.add(side), 2, 0.4, 0.5, 0.0);
             }
         }
         if (l.has(Option.OVERCLOCK) && t % 2 == 0) {
@@ -123,17 +123,17 @@ public final class LoadoutEffects {
             for (int i = 0; i < 3; i++) {
                 double a = i * Math.PI * 2 / 3;
                 Vec3d jet = new Vec3d(Math.cos(a), Math.sin(a), 0);
-                for (int k = 1; k < 6; k++) RailgunFx.burst(w, ModParticles.LENS_GLINT, muzzle.add(jet.multiply(k * 0.8)), 1, 0.1, 0.1, 0);
+                for (int k = 1; k < 6; k++) RailgunFx.burst(w, ModParticles.PRONG_ARC, muzzle.add(jet.multiply(k * 0.8)), 1, 0.1, 0.1, 0);
             }
         } else if (mz == Option.SHROUD) {
-            for (int i = 0; i < 3; i++) rg.ring(w, ModParticles.THERMITE_FLAME, muzzle, 1.5 + i, 30, 0.4 + i * 0.2);
+            for (int i = 0; i < 3; i++) rg.ring(w, ModParticles.SHROUD_FLAME, muzzle, 1.5 + i, 30, 0.4 + i * 0.2);
         } else if (mz == Option.SCATTER) {
             for (Vec3d sat : scatterPoints(w, rg.getTarget())) {
                 rg.damageAlongBeam(w, muzzle, sat, 0.5f);
                 if (l.breaksBlocks() && RailgunConfig.BREAK_BLOCKS) rg.carveLine(w, sat.add(0, 1, 0), sat.subtract(0, 6, 0), 2.0);
                 RailgunFx.detonate(w, rg, sat, RailgunConfig.IMPACT_EXPLOSION_POWER * 0.45f * l.blastMul(), l.breaksBlocks() && RailgunConfig.BREAK_BLOCKS);
-                RailgunFx.burst(w, ModParticles.FLASH, sat.add(0, 1, 0), 2, 1, 1, 0);
-                RailgunFx.burst(w, ModParticles.PLASMA_SMOKE, sat, 60, 3, 2, 0.12);
+                RailgunFx.burst(w, ModParticles.SCATTER_FLASH, sat.add(0, 1, 0), 3, 1, 1, 0);
+                RailgunFx.burst(w, AmmoFx.smoke(l), sat, 60, 3, 2, 0.12);
             }
         } else if (mz == Option.GRAVITY) {
             for (Entity e : w.getOtherEntities(rg, new Box(impact, impact).expand(20), Entity::isAlive)) {
@@ -223,9 +223,10 @@ public final class LoadoutEffects {
             if (t == due - 10) RailgunFx.launch(w, ModParticles.BOMBLET, spot.add(0, 15, 0), new Vec3d(0, -1.5, 0));
             if (t == due) {
                 RailgunFx.detonate(w, rg, spot, 5.5f, RailgunConfig.BREAK_BLOCKS);
-                RailgunFx.burst(w, ModParticles.FLASH, spot.add(0, 1, 0), 1, 0.5, 0.5, 0);
-                RailgunFx.burst(w, ModParticles.PLASMA_SMOKE, spot, 30, 2, 1.5, 0.1);
-                RailgunFx.burst(w, ModParticles.EMBER, spot, 20, 1.5, 1, 0.5);
+                Loadout l = rg.getLoadout();
+                RailgunFx.burst(w, AmmoFx.flash(l), spot.add(0, 1, 0), 1, 0.5, 0.5, 0);
+                RailgunFx.burst(w, AmmoFx.smoke(l), spot, 30, 2, 1.5, 0.1);
+                RailgunFx.burst(w, AmmoFx.spark(l), spot, 20, 1.5, 1, 0.5);
             }
         }
     }
@@ -254,9 +255,11 @@ public final class LoadoutEffects {
             for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, new Box(core, core).expand(10), LivingEntity::isAlive)) {
                 e.damage(rg.beamDamage(w), 60f);
             }
-            RailgunFx.burst(w, ModParticles.FLASH, core, 6, 2, 2, 0);
+            Loadout l = rg.getLoadout();
+            RailgunFx.burst(w, AmmoFx.flash(l), core, 6, 2, 2, 0);
             RailgunFx.burst(w, ModParticles.SINGULARITY_MOTE, core, 300, 2, 2, 1.6);
-            rg.ring(w, ModParticles.SHOCK_DUST, impact, 4, 128, 2.2);
+            RailgunFx.burst(w, AmmoFx.spark(l), core, 160, 2, 2, 1.2);
+            rg.ring(w, AmmoFx.smoke(l), impact, 4, 128, 2.2);
         }
     }
 
@@ -274,7 +277,8 @@ public final class LoadoutEffects {
                         new Vec3d(Math.cos(a) * 0.15, 0.03, Math.sin(a) * 0.15));
             }
         }
-        if (t < 30 && t % 3 == 0) RailgunFx.burst(w, ModParticles.THERMITE_FLAME, impact.add(0, h * 0.5, 0), 20, 3, h * 0.3 + 1, 0.1);
+        if (t < 30 && t % 3 == 0) RailgunFx.burst(w, ModParticles.AMMO_SPARK.get(Option.SUNBURST), impact.add(0, h * 0.5, 0), 20, 3, h * 0.3 + 1, 0.1);
+        if (t < 30 && t % 6 == 0) RailgunFx.burst(w, ModParticles.AMMO_FLASH.get(Option.SUNBURST), impact.add(0, h, 0), 1, 1, 1, 0);
     }
 
     // ---- seismic ----
@@ -383,7 +387,7 @@ public final class LoadoutEffects {
             double len = d.length();
             Vec3d step = d.multiply(1 / len);
             for (double k = 0.8; k < len; k += 0.7) RailgunFx.burst(w, ModParticles.SENTRY_BOLT, gun.add(step.multiply(k)), 1, 0, 0, 0);
-            RailgunFx.burst(w, ModParticles.LENS_GLINT, gun.add(step.multiply(0.6)), 1, 0, 0, 0);
+            RailgunFx.burst(w, ModParticles.SENTRY_FLASH, gun.add(step.multiply(0.6)), 1, 0, 0, 0);
             target.damage(rg.beamDamage(w), 7f);
             play(w, gun, ModSounds.signature(Option.SENTRY), 2.5f, 0.9f + w.random.nextFloat() * 0.2f);
         }
@@ -424,7 +428,7 @@ public final class LoadoutEffects {
         if (!rg.getLoadout().has(Option.THRUSTER)) return;
         play(w, rg.getPos(), ModSounds.signature(Option.THRUSTER), 10f, 1f);
         rg.ring(w, ModParticles.THRUSTER_FLAME, rg.getPos().add(0, 0.3, 0), 1.5, 48, 1.2);
-        rg.ring(w, ModParticles.SHOCK_DUST, rg.getPos().add(0, 0.3, 0), 2, 64, 1.5);
+        rg.ring(w, ModParticles.THRUSTER_SHOCK, rg.getPos().add(0, 0.3, 0), 2, 64, 1.5);
         for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, rg.getBoundingBox().expand(8, 2, 8), LivingEntity::isAlive)) {
             Vec3d d = e.getPos().subtract(rg.getPos());
             e.addVelocity(new Vec3d(d.x, 0, d.z).normalize().multiply(1.2).add(0, 0.5, 0));

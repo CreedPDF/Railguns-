@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * The railgun's field configuration: one muzzle device, one ammunition type and up to
  * {@link #MAX_MODULES} support modules, chosen on the pod's panel before deployment and delivered
- * from orbital storage by a supply capsule.
+ * from orbital storage when the railgun deploys (see PartDrop).
  *
  * <p>Packed into one int so it syncs as a single TrackedData value:
  * bits 0-3 muzzle (0 = standard bore), bits 4-7 ammunition (0 = ferro slug), bits 8+ one bit per
@@ -147,6 +147,11 @@ public final class Loadout {
         List<Option> out = new ArrayList<>();
         for (int i = 0; i < MODULES.size(); i++) if ((raw >> (8 + i) & 1) != 0) out.add(MODULES.get(i));
         return out;
+    }
+
+    /** No attachments at all: nothing to drop from orbital storage. */
+    public boolean isStandard() {
+        return raw == 0;
     }
 
     public boolean has(Option o) {

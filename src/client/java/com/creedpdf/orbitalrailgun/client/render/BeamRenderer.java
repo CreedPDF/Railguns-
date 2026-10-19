@@ -45,7 +45,7 @@ public final class BeamRenderer {
     private BeamRenderer() {}
 
     private static final int SIDES = 16;
-    private static final int MAX_SEGMENTS = 160;
+    private static final int MAX_SEGMENTS = 420;
     private static final int LIGHT = LightmapTextureManager.MAX_LIGHT_COORDINATE;
 
     /** Per-shot colours and textures: the standard slug is the classic red, ammunition tints it. */
@@ -77,29 +77,48 @@ public final class BeamRenderer {
         }
     }
 
+    /**
+     * Entity pass: only the charge-up (it lives at the muzzle). The firing beam itself is drawn by
+     * {@link RemoteBeams} in a world-render pass with fog disabled, so it shows at any distance,
+     * even when the railgun entity is far outside the tracking range.
+     */
     public static void render(RailgunEntity railgun, float tickDelta, MatrixStack matrices, VertexConsumerProvider consumers) {
+        if (railgun.getState() != RailgunState.CHARGING) return;
         Vec3d origin = railgun.getLerpedPos(tickDelta);
         Vector3f muzzle = toLocal(railgun.getMuzzlePos(tickDelta), origin);
         Vector3f surface = toLocal(Vec3d.ofCenter(railgun.getTarget()), origin);
-        // While firing, the beam keeps going: it bores on through the target.
-        Vector3f target = railgun.getState() == RailgunState.FIRING
-                ? toLocal(railgun.getBeamEnd(tickDelta), origin) : surface;
         Matrix4f m = matrices.peek().getPositionMatrix();
         float time = railgun.age + tickDelta;
-        Beam beam = new Beam(muzzle, target);
+        Beam beam = new Beam(muzzle, surface);
         if (beam.length < 0.5f) return;
         Loadout l = railgun.getLoadout();
         Pal pal = new Pal(l);
+        renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time, pal);
+        if (l.has(Loadout.Option.GRAVITY)) gravityField(consumers, m, surface, railgun.getCharge(), time);
+    }
 
-        if (railgun.getState() == RailgunState.CHARGING) {
-            renderChargeUp(consumers, m, beam, railgun, railgun.getCharge(), time, pal);
-            if (l.has(Loadout.Option.GRAVITY)) gravityField(consumers, m, surface, railgun.getCharge(), time);
-        } else if (railgun.getState() == RailgunState.FIRING) {
-            float p = MathHelper.clamp((railgun.getStateTicks() + tickDelta) / RailgunConfig.FIRE_TICKS, 0f, 1f);
-            float width = l.beamWidth();
-            renderFiring(consumers, m, beam, surface, p, time, pal, width);
-            LoadoutVfx.firing(consumers, m, matrices, railgun, l, beam, surface, p, time, pal, width, origin, tickDelta);
-        }
+    /**
+     * The firing beam. {@code matrices} is translated to {@code origin} (camera-relative);
+     * {@code firingTicks} counts from the moment of the shot.
+     */
+    public static void renderShot(VertexConsumerProvider consumers, MatrixStack matrices, net.minecraft.world.World world,
+                                  Vec3d origin, Vec3d muzzleW, net.minecraft.util.math.BlockPos targetPos, Loadout l,
+                                  float firingTicks, float time) {
+        Vec3d surfaceW = Vec3d.ofCenter(targetPos);
+        Vec3d dir = surfaceW.subtract(muzzleW);
+        if (dir.lengthSquared() < 0.25) return;
+        double bore = Math.min(RailgunConfig.BORE_DEPTH * l.boreDepthMul(), firingTicks * RailgunConfig.BORE_SPEED * l.boreDepthMul());
+        Vec3d endW = surfaceW.add(dir.normalize().multiply(bore));
+        Vector3f muzzle = toLocal(muzzleW, origin);
+        Vector3f surface = toLocal(surfaceW, origin);
+        Vector3f target = toLocal(endW, origin);
+        Matrix4f m = matrices.peek().getPositionMatrix();
+        Beam beam = new Beam(muzzle, target);
+        Pal pal = new Pal(l);
+        float p = MathHelper.clamp(firingTicks / RailgunConfig.FIRE_TICKS, 0f, 1f);
+        float width = l.beamWidth();
+        renderFiring(consumers, m, beam, surface, p, time, pal, width);
+        LoadoutVfx.firing(consumers, m, matrices, world, targetPos, firingTicks, l, beam, surface, p, time, pal, width, origin);
     }
 
     // =========================================================================================

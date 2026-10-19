@@ -41,6 +41,8 @@ import numpy as np
 from mathutils import Vector
 
 FPS = 20  # one Blender frame = one Minecraft tick
+RG_TPP = 3   # texels per model pixel on the railgun atlas (smooth, high-res look)
+RG_PAD = 2   # gutter texels around every face (bilinear filtering)
 
 # =============================================================================================
 # Coordinate helpers
@@ -172,49 +174,11 @@ def bake_material(kind, image, mask):
         emit.inputs["Color"].default_value = (1, 1, 1, 1) if kind in GLOW_KINDS else (0, 0, 0, 1)
         return mat
 
-    seam, shade, light = PALETTE[kind]
-    coords = nt.nodes.new("ShaderNodeTexCoord")
-    noise = nt.nodes.new("ShaderNodeTexNoise")
-    # Low-frequency noise = subtle weathering, not per-pixel grain.
-    noise.inputs["Scale"].default_value = 2.2 if kind == "concrete" else 1.4
-    noise.inputs["Detail"].default_value = 2.0
-    nt.links.new(coords.outputs["Object"], noise.inputs["Vector"])
-
-    ramp = nt.nodes.new("ShaderNodeValToRGB")
-    els = ramp.color_ramp.elements
-    if kind in GLOW_KINDS:
-        nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
-        els[0].position, els[0].color = 0.3, srgb(shade)
-        els[1].position, els[1].color = 0.7, srgb(light)
-    else:
-        voronoi = nt.nodes.new("ShaderNodeTexVoronoi")
-        voronoi.feature = "DISTANCE_TO_EDGE"
-        voronoi.inputs["Scale"].default_value = 1.6 if kind == "concrete" else 1.1
-        nt.links.new(coords.outputs["Object"], voronoi.inputs["Vector"])
-
-        is_seam = nt.nodes.new("ShaderNodeMath")
-        is_seam.operation = "LESS_THAN"
-        is_seam.inputs[1].default_value = 0.025
-        nt.links.new(voronoi.outputs["Distance"], is_seam.inputs[0])
-
-        not_seam = nt.nodes.new("ShaderNodeMath")
-        not_seam.operation = "SUBTRACT"
-        not_seam.inputs[0].default_value = 1.0
-        nt.links.new(is_seam.outputs[0], not_seam.inputs[1])
-
-        value = nt.nodes.new("ShaderNodeMath")
-        value.operation = "MULTIPLY"
-        nt.links.new(noise.outputs["Fac"], value.inputs[0])
-        nt.links.new(not_seam.outputs[0], value.inputs[1])
-        nt.links.new(value.outputs[0], ramp.inputs["Fac"])
-
-        els[0].position, els[0].color = 0.04, srgb(seam)
-        els[1].position, els[1].color = 0.22, srgb(shade)
-        top = els.new(0.55)
-        top.color = srgb(light)
-
-    nt.links.new(ramp.outputs["Color"], emit.inputs["Color"])
+    # Flat base colour: all surface detail comes from the clean paint pass.
+    rgb = srgb(CLEAN.get(kind, PALETTE[kind][1]))
+    emit.inputs["Color"].default_value = rgb
     return mat
+
 
 
 def preview_material(name, atlas, glow):
@@ -225,10 +189,10 @@ def preview_material(name, atlas, glow):
     bsdf = nt.nodes.get("Principled BSDF")
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = atlas
-    tex.interpolation = "Closest"
+    tex.interpolation = "Linear"
     gtex = nt.nodes.new("ShaderNodeTexImage")
     gtex.image = glow
-    gtex.interpolation = "Closest"
+    gtex.interpolation = "Linear"
     mult = nt.nodes.new("ShaderNodeVectorMath")
     mult.operation = "MULTIPLY"
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
@@ -697,6 +661,7 @@ def build_railgun():
 
     # ---- Loadout attachments (bones "opt_<id>"; the mod shows only the installed ones) ---------
     build_options(bone, B)
+    add_docking_arms(bone, B)
     return bones
 
 
@@ -709,6 +674,74 @@ OPTION_IDS = ["lancer", "triprong", "shroud", "scatter", "gravity", "ghost",
               "tungsten", "thermite", "cryo", "ion", "cluster", "singularity", "sunburst",
               "capacitor", "coolant", "overclock", "targeting", "shield", "sentry", "thruster",
               "seismic", "autoloader", "afterburn"]
+
+
+# Orbital part drops: every attachment bone flies down from orbit on its own, vectors into a hover
+# point on this side of its mount, extends docking arms and clamps on (mirrored in PartDrop.java).
+DROP_APPROACH = {
+    **{f"opt_{m}": (0, 0, -1) for m in ("lancer", "triprong", "shroud", "scatter", "gravity", "ghost")},
+    **{f"opt_{a}": (1, 0, 0) for a in ("tungsten", "thermite", "cryo", "ion", "cluster", "singularity", "sunburst")},
+    "opt_capacitor": (0, 1, 0), "opt_coolant": (0, 1, 0), "opt_overclock": (0, 1, 0),
+    "opt_targeting": (0, 1, 0), "opt_targeting__laser": (-1, 0, 0),
+    "opt_shield__a": (0, 1, 0), "opt_shield__b": (0, 1, 0),
+    "opt_sentry__a": (0, 1, 0), "opt_sentry__b": (0, 1, 0),
+    "opt_thruster": (0, 1, 0),
+    "opt_seismic__pp": (0, 1, 0), "opt_seismic__pn": (0, 1, 0), "opt_seismic__np": (0, 1, 0), "opt_seismic__nn": (0, 1, 0),
+    "opt_autoloader": (0, 1, 0), "opt_afterburn": (0, -1, 0),
+}
+
+
+def add_docking_arms(bone, B):
+    """
+    Four telescoping docking arms per drop part: struts with claws that reach from the part's
+    contact face toward its mount. Bone "<part>__arms" (pivot at the contact face centre) is
+    scaled 0..1 by the mod while the part docks, so the arms extend out of and fold back into it.
+    """
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    for name, A in DROP_APPROACH.items():
+        if name not in B:
+            continue
+        pts = []
+        for o in bpy.context.scene.objects:
+            if o.parent is B[name] and o.get("export"):
+                ev = o.evaluated_get(dg)
+                pts += [b_to_mc(ev.matrix_world @ Vector(c)) for c in ev.bound_box]
+        if not pts:
+            continue
+        lo = [min(p[k] for p in pts) for k in range(3)]
+        hi = [max(p[k] for p in pts) for k in range(3)]
+        k = [i for i in range(3) if A[i] != 0][0]
+        dirk = -A[k]                                   # arms reach opposite to the approach
+        face = hi[k] if dirk > 0 else lo[k]
+        o1, o2 = [i for i in range(3) if i != k]
+        c = [(lo[i] + hi[i]) / 2 for i in range(3)]
+        c[k] = face
+        bone(name + "__arms", name, c)
+        Ab = B[name + "__arms"]
+        L = 10.0
+        for s1 in (-1, 1):
+            for s2 in (-1, 1):
+                p = list(c)
+                p[o1] = c[o1] + s1 * (hi[o1] - lo[o1]) * 0.32
+                p[o2] = c[o2] + s2 * (hi[o2] - lo[o2]) * 0.32
+                strut_o, strut_s = [0, 0, 0], [0, 0, 0]
+                for i, (lo_i, sz) in ((o1, (p[o1] - 0.8, 1.6)), (o2, (p[o2] - 0.8, 1.6)),
+                                      (k, (face if dirk > 0 else face - L, L))):
+                    strut_o[i], strut_s[i] = sz
+                box(Ab, "steel", strut_o, strut_s, name="arm")
+                claw_o, claw_s = list(strut_o), list(strut_s)
+                claw_o[o1] -= 0.7; claw_s[o1] += 1.4
+                claw_o[o2] -= 0.7; claw_s[o2] += 1.4
+                claw_o[k] = face + dirk * (L - 2.5) if dirk > 0 else face - L
+                claw_s[k] = 2.5
+                box(Ab, "dark", claw_o, claw_s, name="claw")
+                j_o, j_s = list(strut_o), list(strut_s)
+                j_o[k] = face + (0 if dirk > 0 else -1.2)
+                j_s[k] = 1.2
+                j_o[o1] -= 0.3; j_s[o1] += 0.6
+                j_o[o2] -= 0.3; j_s[o2] += 0.6
+                box(Ab, "cyan", j_o, j_s, name="armjoint")
 
 
 def build_options(bone, B):
@@ -985,63 +1018,6 @@ def build_remote(offset):
     return bones
 
 
-def build_capsule(offset):
-    """
-    Orbital storage supply capsule (GeckoLib entity): floor + roof joined by corner ribs, four
-    side petals that swing open on bottom hinges, telescoping landing legs, a nose cone with a
-    beacon, four retro thrusters, and a cargo cradle that rises when it unloads.
-    """
-    bones = {}
-
-    def bone(name, parent, pivot):
-        p = bones.get(parent)
-        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None, offset=offset)
-
-    bone("capsule", None, [0, 0, 0])
-    bone("cargo", "capsule", [0, 8, 0])
-    for n, (hx, hz) in {"px": (14, 0), "nx": (-14, 0), "pz": (0, 14), "nz": (0, -14)}.items():
-        bone(f"petal_{n}", "capsule", [hx, 8, hz])
-    for i, (sx, sz) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
-        bone(f"leg_{i}", "capsule", [sx * 13, 8, sz * 13])
-    Bc = bones["capsule"]
-    octagon("cp_base", Bc, "steel", 2, 26, 2)
-    octagon("cp_floor", Bc, "dark", 4, 30, 4)
-    octagon("cp_roof", Bc, "steel", 38, 30, 4)
-    octagon("cp_haz", Bc, "hazard", 36, 30.4, 1.6)
-    octagon("cp_n1", Bc, "paint", 42, 24, 6)
-    octagon("cp_n2", Bc, "paint", 48, 16, 5)
-    octagon("cp_n3", Bc, "dark", 53, 8, 3)
-    octagon("cp_tip", Bc, "glow", 56, 4, 2)
-    octagon("cp_nband", Bc, "dark", 46, 22.4, 1.2)
-    for sx, sz in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
-        diag_box(Bc, "dark", sx, sz, (0, 0), 13, 19.5, 4, 8, 38)
-        diag_box(Bc, "cyan", sx, sz, (0, 0), 19.3, 19.7, 1, 12, 34)
-        octagon(f"cp_thr{sx}{sz}", Bc, "dark", 0, 5, 2, center_xz=(sx * 7, sz * 7))
-        octagon(f"cp_thrg{sx}{sz}", Bc, "cyan", -0.4, 3, 0.4, center_xz=(sx * 7, sz * 7))
-    # petals (hinged at their bottom edge)
-    for n, (ax, az) in {"px": (1, 0), "nx": (-1, 0), "pz": (0, 1), "nz": (0, -1)}.items():
-        Pb = bones[f"petal_{n}"]
-        if ax:
-            x0 = 12 if ax > 0 else -15
-            make_part(f"pet_{n}", Pb, "paint", [([x0, 8, -9], [3, 30, 18])])
-            make_part(f"pet_g{n}", Pb, "cyan", [([x0 + (3 if ax > 0 else -0.3), 10, -0.6], [0.3, 26, 1.2])])
-            make_part(f"pet_h{n}", Pb, "hazard", [([x0 + (3 if ax > 0 else -0.3), 30, -8], [0.3, 2, 16])])
-        else:
-            z0 = 12 if az > 0 else -15
-            make_part(f"pet_{n}", Pb, "paint", [([-9, 8, z0], [18, 30, 3])])
-            make_part(f"pet_g{n}", Pb, "cyan", [([-0.6, 10, z0 + (3 if az > 0 else -0.3)], [1.2, 26, 0.3])])
-            make_part(f"pet_h{n}", Pb, "hazard", [([-8, 30, z0 + (3 if az > 0 else -0.3)], [16, 2, 0.3])])
-    for i, (sx, sz) in enumerate(((1, 1), (1, -1), (-1, 1), (-1, -1))):
-        Lg = bones[f"leg_{i}"]
-        diag_box(Lg, "steel", sx, sz, (0, 0), 15, 21, 3, 0, 10)
-        diag_box(Lg, "dark", sx, sz, (0, 0), 17, 24, 6, -0.5, 1)
-    Cg = bones["cargo"]
-    make_part("cg_crate", Cg, "steel", [([-6, 8, -6], [12, 12, 12])])
-    make_part("cg_band", Cg, "cyan", [([-6.2, 13, -6.2], [12.4, 2, 12.4])])
-    make_part("cg_top", Cg, "dark", [([-5, 20, -5], [10, 1, 10])])
-    return bones
-
-
 # =============================================================================================
 # Extraction: evaluated modelling objects -> list of boxes
 # =============================================================================================
@@ -1128,11 +1104,12 @@ def face_corners(lo, hi):
     }
 
 
-def pack_faces(boxes, texels_per_px, start_size):
+def pack_faces(boxes, texels_per_px, start_size, pad=0):
     """
     Skyline bottom-left packer for every face of every box. For each face (tallest first) it
-    finds the x position where the face sits lowest on the current skyline. Much denser than
-    shelf packing when there are long thin faces. Adds box['rects'][face] = (u, v, w, h).
+    finds the x position where the face sits lowest on the current skyline. Adds
+    box['rects'][face] = (u, v, w, h). With pad > 0 every face gets a gutter of that many texels
+    (filled later by edge extrusion) so bilinear filtering never bleeds neighbouring faces.
     """
     items = []
     for bi, box in enumerate(boxes):
@@ -1149,23 +1126,44 @@ def pack_faces(boxes, texels_per_px, start_size):
         placed = {}
         ok = True
         for th, tw, bi, face in items:
-            if tw > tex:
+            W, H = tw + 2 * pad, th + 2 * pad
+            if W > tex:
                 ok = False
                 break
-            tops = np.lib.stride_tricks.sliding_window_view(sky, tw).max(axis=1)
+            tops = np.lib.stride_tricks.sliding_window_view(sky, W).max(axis=1)
             x = int(np.argmin(tops))
             y = int(tops[x])
-            if y + th > tex:
+            if y + H > tex:
                 ok = False
                 break
-            sky[x:x + tw] = y + th
-            placed[(bi, face)] = (x, y, tw, th)
+            sky[x:x + W] = y + H
+            placed[(bi, face)] = (x + pad, y + pad, tw, th)
         if ok:
             break
         tex *= 2
     for (bi, face), rect in placed.items():
         boxes[bi].setdefault("rects", {})[face] = rect
     return tex
+
+
+def extrude_gutters(td, boxes, pad):
+    """Copies every face's border texels outward into its gutter (top-down atlas array)."""
+    if pad <= 0:
+        return
+    for b in boxes:
+        for (u, v, w, h) in b["rects"].values():
+            for k in range(1, pad + 1):
+                if v - k >= 0:
+                    td[v - k, u:u + w] = td[v, u:u + w]
+                if v + h - 1 + k < td.shape[0]:
+                    td[v + h - 1 + k, u:u + w] = td[v + h - 1, u:u + w]
+            x0, x1 = max(0, u - pad), min(td.shape[1], u + w + pad)
+            y0, y1 = max(0, v - pad), min(td.shape[0], v + h + pad)
+            for k in range(1, pad + 1):
+                if u - k >= 0:
+                    td[y0:y1, u - k] = td[y0:y1, u]
+                if u + w - 1 + k < td.shape[1]:
+                    td[y0:y1, u + w - 1 + k] = td[y0:y1, u + w - 1]
 
 
 def rotate_point(c, box):
@@ -1278,116 +1276,126 @@ def paint_screen(R, w, h, seed=0):
     R[-3, 2:2 + int((w - 4) * 0.7)] = red * 0.9
 
 
-def paint_faces(td, boxes, seed=7):
+# Clean, modern base colours (sRGB) per kind. The paint pass below builds everything else.
+CLEAN = {
+    "paint": "#d9dde2", "steel": "#4b525b", "hull": "#2f353d", "dark": "#17191d", "vent": "#101215",
+    "glass": "#0f1b27", "concrete": "#9a9ea3", "chrome": "#b8c1cb", "brass": "#b28b3e", "white": "#eef1f4",
+    "hazard": "#e8a317",
+    "glow": "#ff3a24", "amber": "#ffad2a", "cyan": "#35dcff", "violet": "#b46cff", "lime": "#b4ff4a", "orange": "#ff7a1c",
+}
+def _smoothstep(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def paint_faces(td, boxes, seed=7, tpp=1):
     """
-    Hand-painting in code. td is the atlas as [row(top->bottom), col, rgba] in sRGB 0..1.
-    For every face rectangle it adds, depending on the material kind:
-      - bevels: dark 1-texel outline + light top/left inner edge
-      - armour panel seams with highlight lip, rivets in panel corners, per-panel tint
-      - concrete formwork joints, cracks (random walks), speckle and rain streaks
-      - brushed-metal rows and corner bolts on steel
-      - slatted grilles on vents, reflections on glass, stripes on hazard
-      - vertical grime gradient on side faces; hot-centre gradient on glowing parts
+    Modern, minimal, clean surface painting (no pixel noise, no grime): per face a flat material
+    colour with soft top-lit gradient, smooth ambient occlusion toward the box edges, a crisp
+    bevel highlight, thin recessed panel grooves on large faces, and sparse decals (accent
+    stripes, stencil dashes, chevrons). Glow kinds get a hot core line that falls off smoothly.
+    td is the atlas [row (top->bottom), col, rgba] in sRGB 0..1; rects are in texels.
     """
     r = np.random.default_rng(seed)
+    accent = _hex01("#ff6a1a")
     for bi, b in enumerate(boxes):
         kind = b["kind"]
+        size = [b["max"][k] - b["min"][k] for k in range(3)]
         for face, (u, v, w, h) in b["rects"].items():
             R = td[v:v + h, u:u + w, :3]
             side = face in SIDE_FACES
-            yy, xx = np.mgrid[0:h, 0:w]
+            yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
 
             if kind == "screen":
                 paint_screen(R, w, h, seed=bi * 7 + len(face))
                 continue
 
+            base = _hex01(CLEAN.get(kind, "#808080"))
             if kind in GLOW_KINDS:
                 cy, cx = (h - 1) / 2, (w - 1) / 2
-                d = np.maximum(np.abs(yy - cy) / max(cy, 0.5), np.abs(xx - cx) / max(cx, 0.5))
-                hot = np.clip(1 - d, 0, 1) ** 1.5
-                R[:] = R * (0.75 + 0.25 * hot[..., None]) + hot[..., None] * 0.35 * np.array([1, 0.85, 0.75])
-                np.clip(R, 0, 1, out=R)
+                # light strip: bright along its long axis, soft falloff across it
+                d = np.abs(yy - cy) / max(cy, 0.5) if w >= h else np.abs(xx - cx) / max(cx, 0.5)
+                core = np.clip(1 - d, 0, 1) ** 1.6
+                col = base[None, None, :] * (0.78 + 0.22 * core[..., None]) + core[..., None] ** 2 * 0.45
+                R[:] = np.clip(col, 0, 1)
                 continue
 
+            col = np.broadcast_to(base, (h, w, 3)).astype(np.float32).copy()
             if kind == "hazard":
-                stripe = ((xx + yy + u + v) // 4) % 2 == 0
-                R[:] = np.where(stripe[..., None], _hex01("#e0b020"), _hex01("#17161a"))
-                R[:] *= (0.85 + 0.15 * r.random((h, w)))[..., None]
+                period = 6.0 * tpp
+                ph = ((xx + yy + u + v) % period) / period
+                stripe = _smoothstep(0.46, 0.5, ph) - _smoothstep(0.96, 1.0, ph)
+                col = col * (1 - stripe[..., None]) + _hex01("#1b1b1f")[None, None, :] * stripe[..., None]
 
-            if kind == "paint" and w >= 6 and h >= 6:
-                P = 16
-                ox, oy = (u * 7 + bi) % P, (v * 5 + bi) % P
-                pcol = (xx + ox) // P
-                prow = (yy + oy) // P
-                tint = 1 + (((pcol * 7 + prow * 13 + bi) % 5) - 2) * 0.018
-                R[:] *= tint[..., None]
-                seam_x = (xx + ox) % P == 0
-                seam_y = (yy + oy) % P == 0
-                lip_x = (xx + ox) % P == 1
-                lip_y = (yy + oy) % P == 1
-                R[seam_x | seam_y] *= 0.68
-                R[(lip_x | lip_y) & ~(seam_x | seam_y)] = np.minimum(R[(lip_x | lip_y) & ~(seam_x | seam_y)] * 1.07, 1)
-                mx, my = (xx + ox) % P, (yy + oy) % P
-                rivet = ((mx == 3) | (mx == P - 3)) & ((my == 3) | (my == P - 3))
-                R[rivet] *= 0.55
-                if side and w >= 20 and h >= 10 and r.random() < 0.35:
-                    band = slice(2, 4)
-                    R[band, 2:-2] = _hex01("#a3221c")
-                for _ in range(max(1, (w * h) // 600)):
-                    sx, sy = r.integers(0, w), r.integers(0, h)
-                    ln = r.integers(2, 6)
-                    R[sy, sx:sx + ln] *= 0.8 if r.random() < 0.5 else 1.1
+            if kind == "chrome":
+                g = 0.82 + 0.3 * np.exp(-((yy / max(h - 1, 1) - 0.3) / 0.18) ** 2)
+                col *= g[..., None]
+            elif kind == "vent":
+                slat = (yy % (3 * tpp)) < tpp
+                col[slat] *= 2.4
 
-            if kind == "concrete":
-                R[:] *= (0.93 + 0.07 * r.random((h, w)))[..., None]
-                R[r.random((h, w)) < 0.025] *= 0.7
-                if side:
-                    R[(yy + v) % 12 == 0] *= 0.86
-                    for _ in range(max(1, w // 10)):
-                        sx = r.integers(0, w)
-                        ln = r.integers(h // 3, h + 1)
-                        R[:ln, sx] *= 0.9
-                else:
-                    R[((xx + u) % 24 == 0) | ((yy + v) % 24 == 0)] *= 0.84
-                for _ in range((w * h) // 900):
-                    y0, x0 = r.integers(0, h), r.integers(0, w)
-                    for _k in range(r.integers(6, 18)):
-                        R[y0, x0] *= 0.55
-                        y0 = int(np.clip(y0 + r.integers(-1, 2), 0, h - 1))
-                        x0 = int(np.clip(x0 + r.integers(0, 2) * (1 if r.random() < 0.5 else -1), 0, w - 1))
+            # very low-frequency tonal variation (no grain)
+            col *= (0.985 + 0.03 * r.random())
 
-            if kind in ("steel", "hull"):
-                R[:] *= (0.94 + 0.12 * r.random((h, 1)))[..., None]  # brushed rows
-                if w >= 8 and h >= 8:
-                    for (by, bx) in ((2, 2), (2, w - 3), (h - 3, 2), (h - 3, w - 3)):
-                        R[by, bx] *= 0.5
-                        R[by - 1, bx] = np.minimum(R[by - 1, bx] * 1.3, 1)
+            # top-lit gradient on side faces, slightly lighter top faces
+            if side:
+                g = 1.05 - 0.13 * (yy / max(h - 1, 1)) ** 1.4
+                col *= g[..., None]
+            elif face == "up":
+                col *= 1.05
+            else:
+                col *= 0.88
 
-            if kind == "vent" and h >= 3:
-                R[yy % 3 == 0] = np.minimum(R[yy % 3 == 0] * 1.9 + 0.04, 1)
-                R[yy % 3 == 2] *= 0.35
+            # panel grooves on large faces
+            fw, fh = w / tpp, h / tpp
+            if kind in ("paint", "steel", "hull", "dark", "white", "concrete") and (fw >= 18 or fh >= 18):
+                P = 24.0 * tpp
+                oxp, oyp = (bi * 7.3 + u) % P, (bi * 3.1 + v) % P
+                gx = ((xx + oxp) % P) < 1.0
+                gy = ((yy + oyp) % P) < 1.0
+                hx = (((xx + oxp) % P) >= 1.0) & (((xx + oxp) % P) < 2.0)
+                hy = (((yy + oyp) % P) >= 1.0) & (((yy + oyp) % P) < 2.0)
+                if fw >= 18:
+                    col[gx] *= 0.62
+                    col[hx & ~gy] = np.minimum(col[hx & ~gy] * 1.08, 1)
+                if fh >= 18:
+                    col[gy] *= 0.62
+                    col[hy & ~gx] = np.minimum(col[hy & ~gx] * 1.08, 1)
 
-            if kind == "dark" and w * h > 64:
-                R[((xx + u) % 8 == 0) & ((yy + v) % 8 == 0)] *= 1.8
+            # decals on big light panels
+            if kind in ("paint", "white") and side and fw >= 20 and fh >= 14:
+                roll = r.random()
+                if roll < 0.35:
+                    y0 = int(3 * tpp)
+                    col[y0:y0 + max(1, int(1.2 * tpp)), int(2 * tpp):w - int(2 * tpp)] = accent
+                elif roll < 0.6:
+                    y0, x0 = h - int(5 * tpp), int(3 * tpp)
+                    for k in range(int(r.integers(3, 7))):
+                        ln = int(r.integers(2, 6) * tpp * 0.6) + 1
+                        col[y0:y0 + max(1, tpp // 2 + 1), x0:x0 + ln] = _hex01("#40464e")
+                        x0 += ln + max(1, tpp)
+                        if x0 > w - 4 * tpp:
+                            break
+                elif roll < 0.72:
+                    cxc, cyc = w - int(6 * tpp), int(5 * tpp)
+                    tri = (np.abs(xx - cxc) < (yy - cyc + 3 * tpp) * 0.8) & (yy >= cyc - 3 * tpp) & (yy <= cyc)
+                    col[tri] = accent
 
-            if kind == "glass":
-                refl = ((xx - yy * 0.8) % max(w, 6)) < 2
-                R[refl] = np.minimum(R[refl] + 0.18, 1)
-
-            # Grime: side faces darken toward the bottom; tops get a faint edge AO.
-            if side and h >= 4 and kind not in ("glass",):
-                g = 1 - 0.22 * (yy / max(h - 1, 1)) ** 2
-                R[:] *= g[..., None]
-
-            # Bevel: dark outline, light inner top/left edge.
-            if w >= 3 and h >= 3:
-                lift = 1.45 if kind in ("dark", "vent") else 1.12
-                R[1, 1:-1] = np.minimum(R[1, 1:-1] * lift, 1)
-                R[1:-1, 1] = np.minimum(R[1:-1, 1] * (1 + (lift - 1) * 0.6), 1)
-                edge = 1.6 if kind in ("dark", "vent") else 0.7
-                for sl in ((0, slice(None)), (-1, slice(None)), (slice(None), 0), (slice(None), -1)):
-                    R[sl] = np.clip(R[sl] * edge, 0, 1)
-            np.clip(R, 0, 1, out=R)
+            # smooth edge occlusion + crisp bevel
+            dx = np.minimum(xx, w - 1 - xx)
+            dy = np.minimum(yy, h - 1 - yy)
+            dmin = np.minimum(dx, dy)
+            ao = 0.8 + 0.2 * _smoothstep(0, 3.0 * tpp, dmin)
+            col *= ao[..., None]
+            if w >= 4 and h >= 4:
+                col[0, :] *= 0.55
+                col[-1, :] *= 0.5
+                col[:, 0] *= 0.6
+                col[:, -1] *= 0.55
+                hl = min(2, max(1, tpp // 2))
+                col[1:1 + hl, 1:-1] = np.minimum(col[1:1 + hl, 1:-1] * 1.22 + 0.03, 1)
+                col[1:-1, 1:1 + hl] = np.minimum(col[1:-1, 1:1 + hl] * 1.1, 1)
+            R[:] = np.clip(col, 0, 1)
 
 
 def assign_materials(objs, mats):
@@ -1399,7 +1407,7 @@ def assign_materials(objs, mats):
         o.data.update()
 
 
-def bake(objs, boxes, kinds, tex, label):
+def bake(objs, boxes, kinds, tex, label, tpp=1, pad=0):
     """
     Bakes the procedural colour into the atlas, then builds the glowmask straight from the UV
     rectangles of glowing boxes (exact, no second bake). Fails loudly if either is wrong, so a
@@ -1420,7 +1428,8 @@ def bake(objs, boxes, kinds, tex, label):
     color = color.reshape(tex, tex, 4)  # row 0 = bottom of the image in Blender
     color[..., 3] = 1.0
     td = np.ascontiguousarray(color[::-1])  # top-down, matching the UV rects
-    paint_faces(td, boxes)
+    paint_faces(td, boxes, tpp=tpp)
+    extrude_gutters(td, boxes, pad)
     color = np.ascontiguousarray(td[::-1])
 
     mask = np.zeros((tex, tex), dtype=bool)
@@ -2045,9 +2054,9 @@ def main():
     # ---------------- Railgun ----------------
     rg_bones = build_railgun()
     rg_boxes = extract_boxes(rg_bones)
-    rg_tex = pack_faces(rg_boxes, texels_per_px=1, start_size=256)
+    rg_tex = pack_faces(rg_boxes, texels_per_px=RG_TPP, start_size=1024, pad=RG_PAD)
     rg_bake = build_bake_objects(rg_boxes, rg_bones, rg_tex, kinds)
-    rg_atlas, rg_glow = bake(rg_bake, rg_boxes, kinds, rg_tex, "railgun")
+    rg_atlas, rg_glow = bake(rg_bake, rg_boxes, kinds, rg_tex, "railgun", tpp=RG_TPP, pad=RG_PAD)
     save_png(rg_atlas, os.path.join(assets, "textures/entity/railgun.png"))
     save_png(rg_glow, os.path.join(assets, "textures/entity/railgun_glowmask.png"))
     export_geo(rg_bones, rg_boxes, rg_tex, os.path.join(assets, "geo/railgun.geo.json"))
@@ -2062,32 +2071,17 @@ def main():
     offset = Vector((120, 0, 0))  # keep it away from the railgun in the scene
     rm_bones = build_remote(offset)
     rm_boxes = extract_boxes(rm_bones, offset=offset)
-    rm_tex = pack_faces(rm_boxes, texels_per_px=4, start_size=64)
+    rm_tex = pack_faces(rm_boxes, texels_per_px=8, start_size=128, pad=2)
     rm_bake = build_bake_objects(rm_boxes, rm_bones, rm_tex, kinds, offset=offset)
-    rm_atlas, rm_glow = bake(rm_bake, rm_boxes, kinds, rm_tex, "remote")
+    rm_atlas, rm_glow = bake(rm_bake, rm_boxes, kinds, rm_tex, "remote", tpp=8, pad=2)
     save_png(rm_atlas, os.path.join(assets, "textures/item/railgun_remote.png"))
     export_item_model(rm_boxes, rm_tex, os.path.join(assets, "models/item/railgun_remote.json"),
                       "orbital_railgun:item/railgun_remote")
     print(f"[remote] {len(rm_boxes)} elements, {rm_tex}px atlas")
 
-    # ---------------- Supply capsule ----------------
-    cap_off = Vector((-120, 0, 0))
-    cp_bones = build_capsule(cap_off)
-    cp_boxes = extract_boxes(cp_bones, offset=cap_off)
-    cp_tex = pack_faces(cp_boxes, texels_per_px=2, start_size=64)
-    cp_bake = build_bake_objects(cp_boxes, cp_bones, cp_tex, kinds, offset=cap_off)
-    cp_atlas, cp_glow = bake(cp_bake, cp_boxes, kinds, cp_tex, "capsule")
-    save_png(cp_atlas, os.path.join(assets, "textures/entity/supply_capsule.png"))
-    save_png(cp_glow, os.path.join(assets, "textures/entity/supply_capsule_glowmask.png"))
-    export_geo(cp_bones, cp_boxes, cp_tex, os.path.join(assets, "geo/supply_capsule.geo.json"),
-               identifier="geometry.supply_capsule", bounds=(4, 5, 2))
-    with open(os.path.join(assets, "animations/supply_capsule.animation.json"), "w") as f:
-        json.dump({"format_version": "1.8.0", "animations": {}}, f)
-    print(f"[capsule] {len(cp_boxes)} cubes, {cp_tex}px atlas")
 
     # ---------------- Preview materials + renders ----------------
-    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm"),
-                                    (cp_bake, cp_atlas, cp_glow, "cp")):
+    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm")):
         mat = preview_material(f"preview_{name}", atlas, glow)
         for o in objs:
             o.data.materials.clear()
@@ -2098,8 +2092,14 @@ def main():
     if not args.no_render:
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
-        set_visible(cp_bake, False)
         render_option_icons(rg_bake, rg_bones, cam, target, ground, assets)
+        # Preview renders show one sample loadout (in game only installed parts are shown).
+        sample = ("opt_shroud", "opt_sunburst", "opt_capacitor", "opt_shield__a", "opt_shield__b",
+                  "opt_sentry__a", "opt_sentry__a_head", "opt_sentry__b", "opt_sentry__b_head", "opt_coolant")
+        for o in rg_bake:
+            bn = o.name[len("bake_"):]
+            if bn.startswith("opt_"):
+                o.hide_render = bn not in sample
         barrel = rg_bones["barrel"]
 
         def rail_up(up):
@@ -2120,22 +2120,28 @@ def main():
             render(os.path.join(out, f"railgun_deploy_{t_s:04.1f}s.png"), cam, target, (15.0, -16.0, 9.0), (0.0, 0.0, 3.5), 800, lens=30)
         reset_pose(rg_bones)
         rail_up(False)
+        # Orbital part drop: the lancer hovering ahead of the muzzle, docking arms out.
+        pose(rg_bones, "animation.railgun.deploy", DEPLOY_LEN)
+        lan = rg_bones["opt_lancer"]
+        lan.location = Vector(lan["rest_location"]) + mc_to_b([0, 6, -40])
+        for o in rg_bake:
+            bn = o.name[len("bake_"):]
+            if bn.startswith("opt_"):
+                o.hide_render = bn not in ("opt_lancer", "opt_lancer__arms", "opt_capacitor", "opt_sunburst")
+        render(os.path.join(out, "railgun_part_docking.png"), cam, target, (8.0, 27.0, 10.5), (0.0, 21.5, 7.4), 900, lens=40)
+        reset_pose(rg_bones)
 
         set_visible(rg_bake, False)
         set_visible(rm_bake, True)
         ground.location = (120, 0, -0.01)
         render(os.path.join(out, "tablet.png"), cam, target, (120.6, -1.6, 1.4), (120.5, -0.45, 0.5), 700, lens=50)
         set_visible(rm_bake, False)
-        set_visible(cp_bake, True)
-        ground.location = (-120, 0, -0.01)
-        render(os.path.join(out, "supply_capsule.png"), cam, target, (-114.0, -6.0, 3.5), (-120.0, 0.0, 1.8), 700, lens=45)
-        set_visible(cp_bake, False)
         set_visible(rg_bake, True)
         ground.location = (0, 0, 0)
 
     # ---------------- Save the editable .blend ----------------
     os.makedirs(out, exist_ok=True)
-    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow, cp_atlas, cp_glow):
+    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow):
         try:
             img.pack()
         except RuntimeError:

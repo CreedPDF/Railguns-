@@ -12,7 +12,7 @@ public final class RailgunConfig {
 
     // ---- Remote / deployment ------------------------------------------------------------
     /** Max raycast distance for the remote, in blocks. */
-    public static final double REMOTE_RANGE = 256.0;
+    public static final double REMOTE_RANGE = 2000.0;
     /** Ticks between confirming a target and the platform being released from orbit. */
     public static final int DROP_COUNTDOWN_TICKS = 100;
     /** Item cooldown applied to the remote after a successful call-in. */
@@ -51,7 +51,7 @@ public final class RailgunConfig {
     public static final int COOLDOWN_TICKS = 100;
 
     // ---- Weapon --------------------------------------------------------------------------
-    public static final double MAX_FIRE_RANGE = 512.0;
+    public static final double MAX_FIRE_RANGE = 2000.0;
     public static final float IMPACT_EXPLOSION_POWER = 20.0f;
     public static final float SECONDARY_EXPLOSION_POWER = 10.0f;
     /**

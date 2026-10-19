@@ -35,11 +35,10 @@ public final class ModSounds {
     // ---- Loadout / orbital storage ----------------------------------------------------------
     public static final SoundEvent UI_LOADOUT_SELECT = register("ui.loadout_select");
     public static final SoundEvent UI_LOADOUT_ORDER = register("ui.loadout_order");
-    public static final SoundEvent CAPSULE_REENTRY = register("capsule.reentry");
-    public static final SoundEvent CAPSULE_LAND = register("capsule.land");
-    public static final SoundEvent CAPSULE_OPEN = register("capsule.open");
-    public static final SoundEvent CAPSULE_TRANSFER = register("capsule.transfer");
-    public static final SoundEvent CAPSULE_LAUNCH = register("capsule.launch");
+    public static final SoundEvent DRONE_DESCENT = register("drone.descent");
+    public static final SoundEvent DRONE_RETRO = register("drone.retro");
+    public static final SoundEvent DRONE_DOCK = register("drone.dock");
+    public static final SoundEvent DRONE_ASCEND = register("drone.ascend");
     public static final SoundEvent RAILGUN_ATTACH = register("railgun.attach");
 
     private static final java.util.Map<Loadout.Option, SoundEvent> SIGNATURE = new java.util.EnumMap<>(Loadout.Option.class);

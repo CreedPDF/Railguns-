@@ -20,7 +20,7 @@ public final class TabletStatus {
     public boolean sameDimension = true;
     public int stateTicks;
     public int loadout;
-    public boolean supplyInbound;
+    public boolean arming;
 
     /** Last orbital site survey for the tablet's landing zone. */
     public static volatile Survey survey = null;
@@ -43,7 +43,7 @@ public final class TabletStatus {
             s.sameDimension = buf.readBoolean();
             s.stateTicks = buf.readVarInt();
             s.loadout = buf.readVarInt();
-            s.supplyInbound = buf.readBoolean();
+            s.arming = buf.readBoolean();
         }
         return s;
     }

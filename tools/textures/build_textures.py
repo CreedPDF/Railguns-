@@ -15,6 +15,7 @@ Usage: python3 tools/textures/build_textures.py     (needs numpy + Pillow)
 """
 import json
 import math
+import random
 from pathlib import Path
 
 import numpy as np
@@ -256,7 +257,7 @@ def shard(size, pts, color, edge, glow=None):
 
 
 def loadout_particles():
-    """Sprites for the loadout options (muzzles, ammunition, modules) and the supply capsule."""
+    """Sprites for the loadout options (muzzles, ammunition, modules)."""
     # Tungsten spall: bright blue-white metal splinters.
     frames = []
     for i in range(4):
@@ -458,6 +459,234 @@ def loadout_particles():
     particle("transfer_mote", frames)
 
 
+
+# =============================================================================================
+# v3.1: a dedicated effect set for every ammunition, muzzle device, module and the part drops
+# =============================================================================================
+
+
+def _aa(draw_fn, size, ss=4, blur=0.0):
+    """Draws at ss x resolution with PIL and downsamples: smooth, anti-aliased sprites."""
+    img = Image.new("RGBA", (size * ss, size * ss))
+    draw_fn(ImageDraw.Draw(img), size * ss)
+    if blur:
+        img = img.filter(ImageFilter.GaussianBlur(blur * ss))
+    return np.array(img.resize((size, size), Image.LANCZOS)).astype(float)
+
+
+def _over(a, b):
+    """Additive-ish max composite of two RGBA float frames."""
+    out = a.copy()
+    al = b[..., 3:4] / 255
+    out[..., :3] = out[..., :3] * (1 - al) + b[..., :3] * al
+    out[..., 3] = np.maximum(a[..., 3], b[..., 3])
+    return out
+
+
+def _tint(arr, rgb):
+    out = arr.copy()
+    out[..., :3] = np.array(rgb)[None, None, :] * (arr[..., :3].mean(axis=2, keepdims=True) / 255)
+    return out
+
+
+def _flash(size, color, hot, kind, i, n):
+    """Impact flash variants: star / ring / hex / sun / void / burst / petal."""
+    p = i / max(1, n - 1)
+    r, th = radial(size)
+    if kind == "star":                                       # hard 4-ray penetrator flash
+        a = np.exp(-(r / (0.16 - 0.04 * p)) ** 2) + np.abs(np.cos(th * 2)) ** 60 * np.clip(1 - r / (1.0 - 0.3 * p), 0, 1) ** 1.5
+        a += np.abs(np.cos(th * 2 + math.pi / 4)) ** 120 * np.clip(1 - r / 0.55, 0, 1) * 0.5
+    elif kind == "bloom":                                    # incendiary bloom with 8 soft tongues
+        n8 = periodic_noise(size, size, 4, 4, 3)
+        a = np.exp(-(r / (0.35 + 0.25 * p)) ** 2) * (0.75 + 0.5 * n8) + np.abs(np.cos(th * 4 + i)) ** 8 * np.clip(1 - r / 0.9, 0, 1) * 0.5
+    elif kind == "hex":                                      # cryo: crisp hexagonal flash ring
+        hexr = r * np.cos((np.mod(th, math.pi / 3) - math.pi / 6)) / math.cos(math.pi / 6)
+        ring = np.exp(-((hexr - (0.35 + 0.5 * p)) / 0.05) ** 2)
+        a = ring + np.exp(-(r / 0.18) ** 2) * (1 - p)
+    elif kind == "ring":                                     # ion: violet ring with crackle spokes
+        ring = np.exp(-((r - (0.3 + 0.55 * p)) / 0.06) ** 2)
+        spokes = np.abs(np.cos(th * 7 + i * 1.3)) ** 30 * np.clip(1 - r, 0, 1) * (r > 0.15)
+        a = ring + spokes * 0.7 + np.exp(-(r / 0.14) ** 2)
+    elif kind == "burst":                                    # cluster: chunky amber pop
+        n8 = periodic_noise(size, size, 3, 3, 2)
+        a = np.clip(1 - r / (0.55 + 0.3 * p) + (n8 - 0.5) * 0.6, 0, 1) ** 0.7 * (1 - 0.5 * p)
+    elif kind == "void":                                     # singularity: dark core, lensed rim
+        rim = np.exp(-((r - (0.35 + 0.15 * p)) / 0.07) ** 2)
+        halo = np.exp(-((r - 0.6) / 0.25) ** 2) * 0.4
+        a = np.clip(rim + halo + (r < 0.33) * 0.95, 0, 1)
+        dark = (r < 0.33).astype(float)
+        rgb = np.array(color)[None, None, :] * (rim + halo)[..., None] * 1.6
+        rgb = rgb * (1 - dark[..., None]) + np.array((8, 0, 18))[None, None, :] * dark[..., None]
+        return np.dstack([np.clip(rgb, 0, 255), a * 255])
+    elif kind == "sun":                                      # sunburst: white disk + corona
+        core = np.clip((0.32 + 0.1 * p - r) * 18, 0, 1)
+        corona = np.exp(-((r - 0.36) / (0.22 + 0.1 * p)) ** 2) * (0.7 + 0.3 * np.abs(np.cos(th * 9 + i)) ** 3)
+        a = np.clip(core + corona, 0, 1)
+    elif kind == "petal":                                    # sentry: 3-petal muzzle flash
+        a = np.exp(-(r / 0.14) ** 2) + np.abs(np.cos(th * 1.5 + 0.3)) ** 6 * np.clip(1 - r / (0.8 - 0.3 * p), 0, 1) ** 1.2
+    elif kind == "dots":                                     # scatter: lime flash and pellet dots
+        a = np.exp(-(r / 0.2) ** 2)
+        for k in range(9):
+            ang = k * 2.4 + i
+            cx, cy = 0.5 + math.cos(ang) * (0.18 + 0.25 * p), 0.5 + math.sin(ang) * (0.18 + 0.25 * p)
+            yy, xx = np.mgrid[0:size, 0:size] / size
+            a += np.exp(-(((xx - cx) ** 2 + (yy - cy) ** 2) / 0.0012))
+    else:
+        a = np.exp(-(r / 0.3) ** 2)
+    a = np.clip(a, 0, 1)
+    w = np.clip(a ** 3, 0, 1)
+    rgb = np.array(color)[None, None, :] * (1 - w[..., None]) + np.array(hot)[None, None, :] * w[..., None]
+    return np.dstack([rgb, a * 255 * (1 - 0.35 * p)])
+
+
+def _smoke(size, color, glow, i, n, density=1.0, swirl=3.0):
+    p = i / max(1, n - 1)
+    base = periodic_noise(size, size, 3, 3, 3)
+    nn = warp(base, periodic_noise(size, size, 3, 3, 2), periodic_noise(size, size, 3, 3, 2), swirl + i * 1.5)
+    nn = np.array(Image.fromarray((np.clip(nn, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2))) / 255.0
+    r, _ = radial(size)
+    a = np.clip((1 - r / (0.55 + 0.35 * p) + (nn - 0.5) * 0.9) * 1.7, 0, 1) * (1 - p * 0.7) * density
+    yy = np.linspace(0, 1, size)[:, None]
+    hot = np.clip(yy - 0.45, 0, 1) * 1.8 * (1 - p) if glow is not None else 0
+    shade = 0.55 + 0.45 * nn
+    rgb = np.array(color)[None, None, :] * shade[..., None]
+    if glow is not None:
+        rgb = rgb + np.array(glow)[None, None, :] * hot[..., None] if np.ndim(hot) else rgb
+    return np.dstack([np.clip(rgb, 0, 255), a * 230])
+
+
+def _spark(size, color, hot, kind, i, n):
+    p = i / max(1, n - 1)
+    yy, xx = np.mgrid[0:size, 0:size].astype(float) / (size - 1) - 0.5
+    if kind == "streak":                                     # long hot tracer
+        a = np.exp(-(xx / 0.05) ** 2) * np.exp(-(yy / (0.42 - 0.1 * p)) ** 2)
+    elif kind == "drop":                                     # molten droplet with a tail
+        a = np.exp(-((xx ** 2 + (yy - 0.12) ** 2) / 0.012)) + np.exp(-(xx / 0.05) ** 2) * np.clip(-(yy - 0.12) / 0.45, 0, 1) * (yy < 0.12)
+    elif kind == "shard":                                    # ice shard: diamond
+        a = np.clip(1 - (np.abs(xx) / 0.14 + np.abs(yy) / 0.45), 0, 1) ** 0.6
+        a += np.clip(1 - (np.abs(xx) / 0.05 + np.abs(yy) / 0.3), 0, 1) * 0.5
+    elif kind == "crackle":                                  # ion: forked mini-bolt
+        frame = _aa(lambda d, S: _bolt(d, S, (230, 200, 255, 255), i), size, blur=0.02)
+        return _over(frame, glow_frame(size, 0.08, 0.3, color))
+    elif kind == "twinkle":                                  # 4-point twinkle star
+        r = np.hypot(xx, yy)
+        a = np.exp(-(r / 0.08) ** 2) + (np.exp(-(xx / 0.02) ** 2) + np.exp(-(yy / 0.02) ** 2)) * np.clip(1 - r / (0.5 - 0.2 * p), 0, 1) ** 2
+    elif kind == "comet":                                    # magenta comet curling inward
+        r = np.hypot(xx, yy)
+        th = np.arctan2(yy, xx)
+        a = np.exp(-((r - 0.3) / 0.04) ** 2) * np.clip((th + math.pi) / (2 * math.pi) - 0.4, 0, 1) * 1.6 + np.exp(-((xx - 0.3) ** 2 + yy ** 2) / 0.004)
+    else:                                                    # ember mote
+        a = np.exp(-((xx ** 2 + yy ** 2) / 0.02))
+    a = np.clip(a, 0, 1)
+    w = a ** 2.5
+    rgb = np.array(color)[None, None, :] * (1 - w[..., None]) + np.array(hot)[None, None, :] * w[..., None]
+    return np.dstack([rgb, a * 255])
+
+
+def _bolt(d, S, col, seed, branches=2, width=0.05):
+    rr = random.Random(seed * 31 + 7)
+    pts = [(S * 0.05, S * 0.5)]
+    for k in range(1, 9):
+        pts.append((S * (0.05 + k * 0.11), S * (0.5 + (rr.random() - 0.5) * 0.5)))
+    d.line(pts, fill=col[:3] + (120,), width=max(1, int(S * width * 2.2)), joint="curve")
+    d.line(pts, fill=col, width=max(1, int(S * width)), joint="curve")
+    for b in range(branches):
+        j = rr.randrange(2, 7)
+        x, y = pts[j]
+        bp = [(x, y)]
+        for k in range(3):
+            x += S * 0.08
+            y += S * (rr.random() - 0.5) * 0.3
+            bp.append((x, y))
+        d.line(bp, fill=col, width=max(1, int(S * width * 0.6)))
+
+
+AMMO_FX = {
+    #  id           flash colour       flash core       kind      smoke colour      smoke glow       spark colour     spark hot        spark kind
+    "tungsten":    ((120, 175, 255), (240, 248, 255), "star",  (120, 130, 150), (140, 180, 255), (150, 200, 255), (255, 255, 255), "streak"),
+    "thermite":    ((255, 110, 20), (255, 240, 170), "bloom",  (40, 30, 26), (255, 120, 30), (255, 120, 20), (255, 245, 200), "drop"),
+    "cryo":        ((110, 230, 255), (240, 255, 255), "hex",   (210, 240, 255), None, (140, 235, 255), (255, 255, 255), "shard"),
+    "ion":         ((170, 90, 255), (250, 235, 255), "ring",   (90, 50, 150), (180, 110, 255), (180, 110, 255), (255, 255, 255), "crackle"),
+    "cluster":     ((255, 190, 40), (255, 250, 210), "burst",  (110, 90, 70), (255, 170, 40), (255, 200, 60), (255, 255, 220), "twinkle"),
+    "singularity": ((170, 70, 255), (255, 255, 255), "void",   (30, 10, 50), (150, 60, 255), (230, 80, 255), (255, 220, 255), "comet"),
+    "sunburst":    ((200, 255, 100), (255, 255, 235), "sun",   (150, 120, 70), (230, 255, 120), (220, 255, 120), (255, 255, 240), "ember"),
+}
+
+
+def option_particles():
+    for aid, (fc, fh, fk, sc, sg, kc, kh, kk) in AMMO_FX.items():
+        particle(f"{aid}_flash", [_flash(64, fc, fh, fk, i, 5) for i in range(5)])
+        particle(f"{aid}_smoke", [_smoke(48, sc, sg, i, 8, density=0.9 if aid != "cryo" else 0.7) for i in range(8)])
+        particle(f"{aid}_spark", [_spark(32, kc, kh, kk, i, 4) for i in range(4)])
+
+    # ---- muzzle devices ----
+    # Tri-prong: teal three-way fork of hard light.
+    def prong(d, S, i):
+        c = (S / 2, S / 2)
+        for k in range(3):
+            a = k * 2 * math.pi / 3 + i * 0.3
+            e = (c[0] + math.cos(a) * S * 0.45, c[1] + math.sin(a) * S * 0.45)
+            d.line([c, e], fill=(80, 255, 220, 140), width=int(S * 0.07))
+            d.line([c, e], fill=(220, 255, 250, 255), width=int(S * 0.025))
+    particle("prong_arc", [_over(_aa(lambda d, S, i=i: prong(d, S, i), 32, blur=0.01), glow_frame(32, 0.12, 0.4, (60, 255, 210))) for i in range(4)])
+    # Shroud: deep indigo suppressed flame cone.
+    particle("shroud_flame", [ramp(np.clip(1.15 - radial(48, cy=34)[0] * 1.3 - (1 - np.linspace(0, 1, 48)[:, None]) * 0.5
+                                           + (periodic_noise(48, 48, 5, 9, 3) - 0.5) * 0.9 - i * 0.07, 0, 1),
+                                   [(0, (10, 0, 40, 0)), (0.3, (60, 30, 200, 150)), (0.65, (120, 110, 255, 230)), (1, (230, 235, 255, 255))])
+                              for i in range(6)])
+    particle("scatter_flash", [_flash(64, (150, 255, 60), (245, 255, 220), "dots", i, 4) for i in range(4)])
+    # Graviton ripple: thin lensing ring, violet edge with a dark inner band.
+    frames = []
+    for i in range(6):
+        r, _ = radial(64)
+        rr0 = 0.2 + 0.13 * i
+        edge = np.exp(-((r - rr0) / 0.025) ** 2)
+        inner = np.exp(-((r - rr0 + 0.06) / 0.04) ** 2) * 0.5
+        rgb = np.dstack([140 + 100 * edge, 90 + 60 * edge, 255 * np.ones_like(r)])
+        frames.append(np.dstack([rgb * (1 - inner[..., None] * 0.8), np.clip(edge + inner, 0, 1) * 220 * (1 - i / 7)]))
+    particle("graviton_ripple", frames)
+    # Ghost: pale translucent wisps.
+    particle("ghost_wisp", [_tint(_smoke(48, (230, 240, 255), None, i, 6, density=0.45, swirl=8.0), (220, 235, 255)) for i in range(6)])
+
+    # ---- modules ----
+    particle("capacitor_arc", [_over(_aa(lambda d, S, i=i: _bolt(d, S, (255, 250, 200, 255), 100 + i, 3, 0.045), 32, blur=0.01),
+                                     glow_frame(32, 0.1, 0.35, (255, 230, 80))) for i in range(4)])
+    particle("sentry_flash", [_flash(32, (255, 150, 40), (255, 250, 220), "petal", i, 3) for i in range(3)])
+    frames = []
+    for i in range(6):
+        r, th = radial(64)
+        rr0 = 0.15 + 0.15 * i
+        ring = np.exp(-((r - rr0) / 0.05) ** 2) * (0.7 + 0.3 * np.abs(np.cos(th * 6)))
+        rgb = np.dstack([150 + 100 * ring, 200 + 55 * ring, 255 * np.ones_like(r)])
+        frames.append(np.dstack([rgb, np.clip(ring, 0, 1) * 235 * (1 - i / 7)]))
+    particle("thruster_shock", frames)
+
+    def reticle(d, S, i):
+        c = S / 2
+        g = S * (0.3 - 0.04 * i)
+        col = (255, 60, 50, 255)
+        w = max(2, int(S * 0.03))
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                x0, y0 = c + sx * g, c + sy * g
+                d.line([(x0, y0), (x0 - sx * S * 0.12, y0)], fill=col, width=w)
+                d.line([(x0, y0), (x0, y0 - sy * S * 0.12)], fill=col, width=w)
+        d.line([(c - S * 0.08, c), (c + S * 0.08, c)], fill=(255, 220, 210, 255), width=w)
+        d.line([(c, c - S * 0.08), (c, c + S * 0.08)], fill=(255, 220, 210, 255), width=w)
+    particle("target_ping", [_over(_aa(lambda d, S, i=i: reticle(d, S, i), 64), glow_frame(64, 0.05, 0.2, (255, 60, 50))) for i in range(4)])
+
+    # ---- part drops ----
+    particle("drone_trail", [_spark(32, (255, 140, 60), (255, 245, 230), "streak", i, 4) for i in range(4)])
+    frames = []
+    for i in range(5):
+        r, _ = radial(32, cy=8)
+        yy = np.linspace(0, 1, 32)[:, None]
+        n2 = periodic_noise(32, 32, 4, 8, 2)
+        v = np.clip(1.15 - r * 1.1 - yy * 0.2 + (n2 - 0.5) * 0.4 - i * 0.12, 0, 1)
+        frames.append(ramp(v, [(0, (0, 30, 90, 0)), (0.35, (40, 140, 255, 170)), (0.7, (150, 220, 255, 235)), (1, (250, 255, 255, 255))]))
+    particle("drone_jet", frames)
+    particle("dock_spark", [glow_frame(16, 0.12 - i * 0.02, 0.35, (255, 220, 120), rays=4, ray_len=0.9, rot=i * 0.5) for i in range(4)])
+
 def particles():
     # Plasma spark: hot core with 4-point glare, shrinking.
     particle("plasma_spark", [glow_frame(16, 0.22 - i * 0.04, 0.55 - i * 0.08, (255, 50, 25),
@@ -553,6 +782,7 @@ def particles():
     particle("shock_dust", frames)
 
     loadout_particles()
+    option_particles()
 
     for name, tex in PARTICLES.items():
         p = A / f"particles/{name}.json"

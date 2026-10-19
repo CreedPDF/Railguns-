@@ -42,6 +42,31 @@ public final class ModParticles {
     public static final DefaultParticleType PLASMA_POOL = register("plasma_pool");
     public static final DefaultParticleType TRANSFER_MOTE = register("transfer_mote");
 
+    // ---- v3.1: every option gets its own effects ----
+    /** Per ammunition: impact / muzzle flash, smoke and sparks, keyed by Option ordinal. */
+    public static final java.util.Map<com.creedpdf.orbitalrailgun.loadout.Loadout.Option, DefaultParticleType> AMMO_FLASH = new java.util.EnumMap<>(com.creedpdf.orbitalrailgun.loadout.Loadout.Option.class);
+    public static final java.util.Map<com.creedpdf.orbitalrailgun.loadout.Loadout.Option, DefaultParticleType> AMMO_SMOKE = new java.util.EnumMap<>(com.creedpdf.orbitalrailgun.loadout.Loadout.Option.class);
+    public static final java.util.Map<com.creedpdf.orbitalrailgun.loadout.Loadout.Option, DefaultParticleType> AMMO_SPARK = new java.util.EnumMap<>(com.creedpdf.orbitalrailgun.loadout.Loadout.Option.class);
+    static {
+        for (var o : com.creedpdf.orbitalrailgun.loadout.Loadout.Option.of(com.creedpdf.orbitalrailgun.loadout.Loadout.Category.AMMO)) {
+            AMMO_FLASH.put(o, register(o.id + "_flash"));
+            AMMO_SMOKE.put(o, register(o.id + "_smoke"));
+            AMMO_SPARK.put(o, register(o.id + "_spark"));
+        }
+    }
+    public static final DefaultParticleType PRONG_ARC = register("prong_arc");
+    public static final DefaultParticleType SHROUD_FLAME = register("shroud_flame");
+    public static final DefaultParticleType SCATTER_FLASH = register("scatter_flash");
+    public static final DefaultParticleType GRAVITON_RIPPLE = register("graviton_ripple");
+    public static final DefaultParticleType GHOST_WISP = register("ghost_wisp");
+    public static final DefaultParticleType CAPACITOR_ARC = register("capacitor_arc");
+    public static final DefaultParticleType SENTRY_FLASH = register("sentry_flash");
+    public static final DefaultParticleType THRUSTER_SHOCK = register("thruster_shock");
+    public static final DefaultParticleType TARGET_PING = register("target_ping");
+    public static final DefaultParticleType DRONE_TRAIL = register("drone_trail");
+    public static final DefaultParticleType DRONE_JET = register("drone_jet");
+    public static final DefaultParticleType DOCK_SPARK = register("dock_spark");
+
     private static DefaultParticleType register(String name) {
         return Registry.register(Registries.PARTICLE_TYPE, RailgunMod.id(name), FabricParticleTypes.simple(true));
     }

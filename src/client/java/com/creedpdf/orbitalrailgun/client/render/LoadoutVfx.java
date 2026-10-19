@@ -35,12 +35,13 @@ public final class LoadoutVfx {
     // While firing
     // =========================================================================================
 
-    static void firing(VertexConsumerProvider cp, Matrix4f m, MatrixStack matrices, RailgunEntity rg, Loadout l, Beam b,
-                       Vector3f surface, float p, float time, Pal pal, float width, Vec3d origin, float tickDelta) {
+    static void firing(VertexConsumerProvider cp, Matrix4f m, MatrixStack matrices, net.minecraft.world.World world,
+                       net.minecraft.util.math.BlockPos targetPos, float firingTicks, Loadout l, Beam b,
+                       Vector3f surface, float p, float time, Pal pal, float width, Vec3d origin) {
         float sustain = p < 0.6f ? 1f : (float) Math.pow(1f - (p - 0.6f) / 0.4f, 1.6);
         Option mz = l.muzzle();
         if (mz == Option.SCATTER) {
-            for (Vec3d sat : LoadoutEffects.scatterPoints(rg.getWorld(), rg.getTarget())) {
+            for (Vec3d sat : LoadoutEffects.scatterPoints(world, targetPos)) {
                 Beam sb = new Beam(b.a, toLocal(sat, origin));
                 texTube(tex(cp, pal.core), m, sb, 0.45f * width, pal.c[0], pal.c[1], pal.c[2], 0.9f * sustain, 5f, time * 3f, 0f, 0.05f, time);
                 texTube(tex(cp, pal.plasma), m, sb, 1.0f * width, pal.p[0], pal.p[1], pal.p[2], 0.7f * sustain, 9f, time * 2f, 0f, 0.1f, time + 5);
@@ -72,7 +73,7 @@ public final class LoadoutVfx {
         }
 
         Option ammo = l.ammo();
-        if (ammo == Option.SINGULARITY) singularity(cp, m, matrices, surface, rg.getStateTicks() + tickDelta, time);
+        if (ammo == Option.SINGULARITY) singularity(cp, m, matrices, surface, firingTicks, time);
         else if (ammo == Option.SUNBURST) sunburst(cp, m, surface, p, time);
         else if (ammo == Option.ION) {
             Random r = Random.create((long) (time / 2) * 31L + 7L);
@@ -158,8 +159,9 @@ public final class LoadoutVfx {
         if (l.has(Option.TARGETING) && rg.hasTarget() && st != RailgunState.FIRING) {
             Vec3d origin = rg.getLerpedPos(tickDelta);
             Vec3d dir = rg.getAimDirection(tickDelta);
-            Vec3d side = new Vec3d(dir.z, 0, -dir.x).normalize().multiply(1.45);
-            Vec3d from = origin.add(0, RailgunConfig.PIVOT_Y - 0.25, 0).add(side).add(dir.multiply(4.5));
+            // designator sits on the barrel's left flank (model x -26, z -50 px)
+            Vec3d side = new Vec3d(-dir.z, 0, dir.x).normalize().multiply(1.62);
+            Vec3d from = origin.add(0, RailgunConfig.PIVOT_Y - 0.25, 0).add(side).add(dir.multiply(3.2));
             Vector3f a = toLocal(from, origin);
             Vector3f bpt = toLocal(Vec3d.ofCenter(rg.getTarget()), origin);
             Beam beam = new Beam(a, bpt);

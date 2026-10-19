@@ -2,6 +2,8 @@ package com.creedpdf.orbitalrailgun.entity;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.loadout.Loadout;
+import com.creedpdf.orbitalrailgun.loadout.PartDrop;
+import com.creedpdf.orbitalrailgun.loadout.AmmoFx;
 import com.creedpdf.orbitalrailgun.loadout.LoadoutEffects;
 import com.creedpdf.orbitalrailgun.util.LandingSurvey;
 import com.creedpdf.orbitalrailgun.registry.ModParticles;
@@ -87,9 +89,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
     /** Installed loadout (see {@link Loadout}). */
     private static final TrackedData<Integer> LOADOUT =
             DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.INTEGER);
-    /** A supply capsule is on its way with a new loadout: deployment waits for it. */
-    private static final TrackedData<Boolean> SUPPLY_INBOUND =
-            DataTracker.registerData(RailgunEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
     /** Pod-form hitbox: the armoured pillar (shell apothem 34 px) with the rail pointing up. */
     private static final EntityDimensions POD_DIMENSIONS = EntityDimensions.fixed(4.4f, 10.75f);
@@ -116,8 +115,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
     /** Plasma afterburn pool at the last impact. */
     private int afterburnTicks;
     private Vec3d afterburnPos = Vec3d.ZERO;
-    /** Safety net: clears SUPPLY_INBOUND if the capsule never arrives (e.g. after a reload). */
-    private int inboundTimeout;
 
     /** Turret aim in degrees. Yaw 0 = +Z (south), positive pitch = up. Computed on both sides. */
     private float aimYaw, aimPitch = 90f, prevAimYaw, prevAimPitch = 90f;
@@ -135,7 +132,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
         this.dataTracker.startTracking(HAS_TARGET, false);
         this.dataTracker.startTracking(OWNER, Optional.empty());
         this.dataTracker.startTracking(LOADOUT, 0);
-        this.dataTracker.startTracking(SUPPLY_INBOUND, false);
     }
 
     // =========================================================================================
@@ -171,12 +167,12 @@ public class RailgunEntity extends Entity implements GeoEntity {
             case COOLDOWN -> tickCooldown(t);
             case PACKING -> tickPacking(t);
             case LAUNCHING -> tickLaunching(t);
+            case ARMING -> tickArming(t);
         }
 
         ServerWorld sw = (ServerWorld) getWorld();
         if (state.isOperational()) LoadoutEffects.deployedTick(this, sw, this.age);
         if (afterburnTicks > 0) LoadoutEffects.afterburnTick(this, sw, afterburnPos, afterburnTicks--);
-        if (isSupplyInbound() && --inboundTimeout <= 0) dataTracker.set(SUPPLY_INBOUND, false);
     }
 
     /**
@@ -291,16 +287,59 @@ public class RailgunEntity extends Entity implements GeoEntity {
             }
         }
         if (t >= RailgunConfig.TRANSFORM_TICKS) {
-            if (getLoadout().has(Loadout.Option.SHIELD)) {
+            RailgunCollision.place(world, getBlockPos());
+            setState(PartDrop.armingTicks(getLoadout()) > 0 ? RailgunState.ARMING : RailgunState.IDLE);
+        }
+    }
+
+    /**
+     * Orbital part drops: each attachment is fired down from orbital storage, burns its retro
+     * thrusters, vectors in beside its mount, reaches out with docking arms and clamps on.
+     */
+    private void tickArming(int t) {
+        ServerWorld world = (ServerWorld) getWorld();
+        Loadout loadout = getLoadout();
+        Vec3d base = getPos();
+        float yaw = getAimYawRad(1f);
+        for (PartDrop.Entry e : PartDrop.schedule(loadout)) {
+            int lt = t - e.start();
+            if (lt == 0) {
+                Vec3d hi = PartDrop.world(base, e, yaw, e.ax() * PartDrop.HOVER, e.ay() * PartDrop.HOVER + 480, e.az() * PartDrop.HOVER);
+                world.playSound(null, hi.x, hi.y, hi.z, ModSounds.DRONE_DESCENT, SoundCategory.BLOCKS, 8f, 0.95f + 0.1f * random.nextFloat());
+            } else if (lt == PartDrop.DESCENT - 10) {
+                Vec3d hv = PartDrop.world(base, e, yaw, e.ax() * PartDrop.HOVER, e.ay() * PartDrop.HOVER + 60, e.az() * PartDrop.HOVER);
+                world.playSound(null, hv.x, hv.y, hv.z, ModSounds.DRONE_RETRO, SoundCategory.BLOCKS, 4f, 0.95f + 0.1f * random.nextFloat());
+            } else if (lt == PartDrop.HOVER_END - 6) {
+                Vec3d hv = PartDrop.world(base, e, yaw, e.ax() * PartDrop.HOVER, e.ay() * PartDrop.HOVER, e.az() * PartDrop.HOVER);
+                world.playSound(null, hv.x, hv.y, hv.z, ModSounds.DRONE_DOCK, SoundCategory.BLOCKS, 3f, 1f);
+            } else if (lt == PartDrop.APPROACH_END) {
+                Vec3d at = PartDrop.world(base, e, yaw, 0, 0, 0);
+                RailgunFx.burst(world, ModParticles.DOCK_SPARK, at, 22, 0.35, 0.35, 0.25);
+                RailgunFx.burst(world, ModParticles.DRONE_JET, at, 6, 0.3, 0.3, 0.02);
+            }
+        }
+        if (t >= PartDrop.armingTicks(loadout)) {
+            world.playSound(null, getX(), getY() + 4, getZ(), ModSounds.RAILGUN_ATTACH, SoundCategory.BLOCKS, 3f, 1f);
+            if (loadout.has(Loadout.Option.SHIELD)) {
                 world.playSound(null, getX(), getY() + 2, getZ(), ModSounds.signature(Loadout.Option.SHIELD), SoundCategory.BLOCKS, 5f, 1f);
             }
-            RailgunCollision.place(world, getBlockPos());
             setState(RailgunState.IDLE);
         }
     }
 
     private void tickPacking(int t) {
         ServerWorld world = (ServerWorld) getWorld();
+        float yaw = getAimYawRad(1f);
+        for (PartDrop.Entry e : PartDrop.schedule(getLoadout())) {
+            int lt = t - PartDrop.departStart(e);
+            if (lt == 0) {
+                Vec3d at = PartDrop.world(getPos(), e, yaw, 0, 0, 0);
+                RailgunFx.burst(world, ModParticles.DOCK_SPARK, at, 10, 0.3, 0.3, 0.2);
+            } else if (lt == 12) {
+                Vec3d hv = PartDrop.world(getPos(), e, yaw, e.ax() * PartDrop.HOVER, e.ay() * PartDrop.HOVER, e.az() * PartDrop.HOVER);
+                world.playSound(null, hv.x, hv.y, hv.z, ModSounds.DRONE_ASCEND, SoundCategory.BLOCKS, 5f, 0.95f + 0.1f * random.nextFloat());
+            }
+        }
         if (t == 0) {
             RailgunCollision.remove(world, getBlockPos());
             world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_PACK, SoundCategory.BLOCKS, 4.0f, 1.0f);
@@ -401,16 +440,16 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 double a = (i + (t == 16 ? 0.5 : 0)) * Math.PI * 2 / RailgunConfig.RING_BLASTS;
                 Vec3d p = impact.add(Math.cos(a) * rr, 0, Math.sin(a) * rr);
                 RailgunFx.detonate(world, this, p, RailgunConfig.RING_BLAST_POWER * l.ringBlastMul(), breaks);
-                RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, p.add(0, 1, 0), 18, 2.0, 1.5, 0.1);
-                RailgunFx.burst(world, ModParticles.EMBER, p.add(0, 1, 0), 14, 1.5, 1.0, 0.6);
+                RailgunFx.burst(world, AmmoFx.smoke(l), p.add(0, 1, 0), 18, 2.0, 1.5, 0.1);
+                RailgunFx.burst(world, AmmoFx.ember(l), p.add(0, 1, 0), 14, 1.5, 1.0, 0.6);
             }
-            ring(world, ModParticles.SHOCK_DUST, impact, rr, 48, 0.9);
+            ring(world, AmmoFx.dust(l), impact, rr, 48, 0.9);
         }
         if (t > 0 && t % 4 == 0 && t < RailgunConfig.FIRE_TICKS - 8) {
             // Sustained beam: keep the impact zone boiling.
             Vec3d impact = Vec3d.ofCenter(getTarget());
-            RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 25, 3.0, 1.0, 0.5);
-            RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 30, 2.0, 1.0, 0.7);
+            RailgunFx.burst(world, AmmoFx.ember(l), impact.add(0, 1, 0), 25, 3.0, 1.0, 0.5);
+            RailgunFx.burst(world, AmmoFx.spark(l), impact.add(0, 1, 0), 30, 2.0, 1.0, 0.7);
             damageAlongBeam(world, getMuzzlePos(1f), getBeamEnd(1f), 0.3f);
         }
 
@@ -458,6 +497,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
 
         Vec3d muzzle = getMuzzlePos(1f);
         Vec3d impact = Vec3d.ofCenter(targetPos);
+        com.creedpdf.orbitalrailgun.network.ModPackets.broadcastBeamShot(world, getId(), muzzle, targetPos, l.raw());
 
         damageAlongBeam(world, muzzle, impact, 1f);
         if (breaks) {
@@ -468,20 +508,20 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunFx.detonate(world, this, impact, RailgunConfig.IMPACT_EXPLOSION_POWER * l.blastMul(), breaks);
 
         // Impact
-        RailgunFx.burst(world, ModParticles.FLASH, impact.add(0, 2, 0), 8, 3.0, 2.0, 0);
-        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, impact, 260, 8.0, 5.0, 0.18);
+        RailgunFx.burst(world, AmmoFx.flash(l), impact.add(0, 2, 0), 8, 3.0, 2.0, 0);
+        RailgunFx.burst(world, AmmoFx.smoke(l), impact, 260, 8.0, 5.0, 0.18);
         RailgunFx.burst(world, ModParticles.DEBRIS, impact.add(0, 1, 0), breaks ? 300 : 40, 3.5, 2.0, 1.4);
-        RailgunFx.burst(world, ModParticles.EMBER, impact.add(0, 1, 0), 220, 4.0, 3.0, 1.2);
-        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, impact.add(0, 1, 0), 260, 3.0, 3.0, 1.8);
-        ring(world, ModParticles.SHOCK_DUST, impact, 3.0, 96, 1.7);
-        ring(world, ModParticles.SHOCK_DUST, impact, 6.0, 96, 1.2);
+        RailgunFx.burst(world, AmmoFx.ember(l), impact.add(0, 1, 0), 220, 4.0, 3.0, 1.2);
+        RailgunFx.burst(world, AmmoFx.spark(l), impact.add(0, 1, 0), 260, 3.0, 3.0, 1.8);
+        ring(world, AmmoFx.dust(l), impact, 3.0, 96, 1.7);
+        ring(world, AmmoFx.dust(l), impact, 6.0, 96, 1.2);
         // Muzzle blast + recoil dust around the fortress (the ghost baffle swallows the flash)
         if (!l.has(Loadout.Option.GHOST)) {
-            RailgunFx.burst(world, ModParticles.FLASH, muzzle, 4, 1.0, 1.0, 0);
-            RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 140, 3.5, 3.5, 0.35);
-            RailgunFx.burst(world, ModParticles.PLASMA_SPARK, muzzle, 160, 1.5, 1.5, 2.0);
+            RailgunFx.burst(world, AmmoFx.flash(l), muzzle, 4, 1.0, 1.0, 0);
+            RailgunFx.burst(world, AmmoFx.smoke(l), muzzle, 140, 3.5, 3.5, 0.35);
+            RailgunFx.burst(world, AmmoFx.spark(l), muzzle, 160, 1.5, 1.5, 2.0);
         } else {
-            RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, muzzle, 20, 1.0, 1.0, 0.05);
+            RailgunFx.burst(world, ModParticles.GHOST_WISP, muzzle, 40, 1.2, 1.2, 0.08);
         }
         RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 140, 8.0, 0.2, 0.45);
         ring(world, ModParticles.SHOCK_DUST, getPos().add(0, 0.3, 0), 6.0, 64, 0.9);
@@ -520,13 +560,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
         if (t % RailgunConfig.BORE_BLAST_EVERY == 0) {
             RailgunFx.detonate(world, this, tip, RailgunConfig.BORE_BLAST_POWER * (float) l.boreRadiusMul(), breaks);
-            RailgunFx.burst(world, ModParticles.FLASH, tip, 1, 0.5, 0.5, 0);
+            RailgunFx.burst(world, AmmoFx.flash(l), tip, 1, 0.5, 0.5, 0);
         }
-        RailgunFx.burst(world, ModParticles.PLASMA_SPARK, tip, 16, 1.5, 1.5, 0.8);
-        RailgunFx.burst(world, ModParticles.EMBER, tip, 10, 2.0, 2.0, 0.5);
+        RailgunFx.burst(world, AmmoFx.spark(l), tip, 16, 1.5, 1.5, 0.8);
+        RailgunFx.burst(world, AmmoFx.ember(l), tip, 10, 2.0, 2.0, 0.5);
         // Molten spray erupting back out of the bore mouth.
-        RailgunFx.burst(world, ModParticles.EMBER, target.add(0, 1, 0), 12, 1.5, 0.5, 0.9);
-        RailgunFx.burst(world, ModParticles.PLASMA_SMOKE, target.add(0, 1.5, 0), 6, 2.0, 1.0, 0.15);
+        RailgunFx.burst(world, AmmoFx.ember(l), target.add(0, 1, 0), 12, 1.5, 0.5, 0.9);
+        RailgunFx.burst(world, AmmoFx.smoke(l), target.add(0, 1.5, 0), 6, 2.0, 1.0, 0.15);
         return tip;
     }
 
@@ -625,6 +665,10 @@ public class RailgunEntity extends Entity implements GeoEntity {
                     world.addParticle(ModParticles.ENERGY_MOTE, p.x + (rand.nextDouble() - 0.5), p.y + 0.6,
                             p.z + 0.2, 0, 0.02, 0);
                 }
+            }
+            case ARMING, PACKING -> {
+                if (state == RailgunState.ARMING) armingParticles(world, rand, t);
+                else packingParticles(world, rand, t);
             }
             case TRANSFORMING -> {
                 if (t == RailgunConfig.CLAMP_SLAM_TICK) RailgunMod.client().shake(this, 1.0f);
@@ -734,6 +778,65 @@ public class RailgunEntity extends Entity implements GeoEntity {
         return ActionResult.CONSUME;
     }
 
+    /** Client: plasma trails, retro burns, vectoring jets and docking sparks of the part drops. */
+    private void armingParticles(World world, Random rand, int t) {
+        float yaw = getAimYawRad(1f);
+        for (PartDrop.Entry e : PartDrop.schedule(getLoadout())) {
+            int lt = t - e.start();
+            if (lt < 0 || lt > PartDrop.DOCK_END) continue;
+            PartDrop.Pose pose = PartDrop.arrive(e, lt);
+            Vec3d p = PartDrop.world(getPos(), e, yaw, pose.x(), pose.y(), pose.z());
+            if (lt < PartDrop.DESCENT) {
+                // Re-entry streak above the falling part; the retro burn lights for the last third.
+                float speed = PartDrop.DROP / 16f * 2.2f / PartDrop.DESCENT * (float) Math.pow(1 - lt / (float) PartDrop.DESCENT, 1.2);
+                for (int i = 0; i < 6; i++) {
+                    double up = rand.nextDouble() * speed * 0.6;
+                    world.addParticle(ModParticles.DRONE_TRAIL, p.x + (rand.nextDouble() - 0.5) * 0.4, p.y + 0.6 + up,
+                            p.z + (rand.nextDouble() - 0.5) * 0.4, 0, 0.05, 0);
+                }
+                if (lt > PartDrop.DESCENT - 12) {
+                    for (int i = 0; i < 6; i++) {
+                        world.addParticle(ModParticles.DRONE_JET, p.x + (rand.nextDouble() - 0.5) * 0.5, p.y - 0.4,
+                                p.z + (rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.1, -0.9 - rand.nextDouble() * 0.5,
+                                (rand.nextDouble() - 0.5) * 0.1);
+                    }
+                }
+            } else if (lt < PartDrop.APPROACH_END) {
+                // Hovering and vectoring: four gimballed jets fire against the approach direction
+                // and downward to hold altitude, flickering as the guidance corrects.
+                Vec3d a = PartDrop.world(Vec3d.ZERO, e, yaw, e.ax(), e.ay(), e.az()).subtract(PartDrop.world(Vec3d.ZERO, e, yaw, 0, 0, 0)).normalize();
+                for (int k = 0; k < 4; k++) {
+                    double ang = k * Math.PI / 2 + lt * 0.3;
+                    Vec3d off = new Vec3d(Math.cos(ang) * 0.45, 0, Math.sin(ang) * 0.45);
+                    Vec3d v = new Vec3d((rand.nextDouble() - 0.5) * 0.2, -0.45 - rand.nextDouble() * 0.2, (rand.nextDouble() - 0.5) * 0.2);
+                    if (lt >= PartDrop.HOVER_END) v = v.add(a.multiply(0.35));
+                    world.addParticle(ModParticles.DRONE_JET, p.x + off.x, p.y - 0.3, p.z + off.z, v.x, v.y, v.z);
+                }
+            } else if (lt == PartDrop.APPROACH_END) {
+                for (int i = 0; i < 24; i++) {
+                    world.addParticle(ModParticles.DOCK_SPARK, p.x, p.y, p.z, (rand.nextDouble() - 0.5) * 0.6,
+                            rand.nextDouble() * 0.5, (rand.nextDouble() - 0.5) * 0.6);
+                }
+            }
+        }
+    }
+
+    private void packingParticles(World world, Random rand, int t) {
+        float yaw = getAimYawRad(1f);
+        for (PartDrop.Entry e : PartDrop.schedule(getLoadout())) {
+            int lt = t - PartDrop.departStart(e);
+            if (lt < 6 || lt > PartDrop.UNDOCK_END) continue;
+            PartDrop.Pose pose = PartDrop.depart(e, lt);
+            Vec3d p = PartDrop.world(getPos(), e, yaw, pose.x(), pose.y(), pose.z());
+            for (int i = 0; i < (lt > 14 ? 8 : 3); i++) {
+                world.addParticle(ModParticles.DRONE_JET, p.x + (rand.nextDouble() - 0.5) * 0.5, p.y - 0.4,
+                        p.z + (rand.nextDouble() - 0.5) * 0.5, (rand.nextDouble() - 0.5) * 0.1, -1.0 - rand.nextDouble() * 0.6,
+                        (rand.nextDouble() - 0.5) * 0.1);
+            }
+            if (lt > 20) world.addParticle(ModParticles.DRONE_TRAIL, p.x, p.y - 1.5, p.z, 0, -0.1, 0);
+        }
+    }
+
     /** Panel actions sent from the zoomed-in panel UI (validated by ModPackets). */
     public enum PanelAction { DEPLOY, RETRACT, RETURN }
 
@@ -744,7 +847,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
         RailgunState state = getState();
         switch (action) {
             case DEPLOY -> {
-                if (state != RailgunState.POD || isSupplyInbound()) return false;
+                if (state != RailgunState.POD) return false;
                 world.playSound(null, p.x, p.y, p.z, ModSounds.RAILGUN_PANEL, SoundCategory.BLOCKS, 1.5f, 1.0f);
                 setState(RailgunState.PANEL_OPEN);
             }
@@ -859,6 +962,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
         dataTracker.set(HAS_TARGET, true);
         if (getLoadout().has(Loadout.Option.TARGETING) && getWorld() instanceof ServerWorld w) {
             w.playSound(null, getX(), getY() + 6, getZ(), ModSounds.signature(Loadout.Option.TARGETING), SoundCategory.BLOCKS, 3f, 1f);
+            Vec3d at = LoadoutEffects.surface(w, Vec3d.ofCenter(pos)).add(0, 0.6, 0);
+            RailgunFx.burst(w, ModParticles.TARGET_PING, at, 1, 0, 0, 0);
+            ring(w, ModParticles.TARGET_PING, at, 3.0, 8, 0.0);
         }
     }
 
@@ -959,7 +1065,11 @@ public class RailgunEntity extends Entity implements GeoEntity {
     @Override
     public Box getVisibilityBoundingBox() {
         double r = RailgunConfig.RENDER_REACH;
-        return getBoundingBox().expand(r, 8.0, r);
+        Box box = getBoundingBox().expand(r, 8.0, r);
+        RailgunState s = getState();
+        // Attachment parts fly in from ~150 blocks up (and leave the same way).
+        if (s == RailgunState.ARMING || s == RailgunState.PACKING) box = box.stretch(0, PartDrop.DROP / 16.0 + 8, 0);
+        return box;
     }
 
     /** The beam itself only exists while firing. */
@@ -1001,35 +1111,22 @@ public class RailgunEntity extends Entity implements GeoEntity {
     // ---- Loadout ----------------------------------------------------------------------------
 
     public Loadout getLoadout() { return Loadout.of(dataTracker.get(LOADOUT)); }
-    public boolean isSupplyInbound() { return dataTracker.get(SUPPLY_INBOUND); }
 
     /**
-     * Panel order: sends the loadout request to orbital storage. A supply capsule drops beside the
-     * pod and installs it. Only on a landed pod, one delivery at a time.
+     * Panel confirm: locks the loadout in. Nothing is delivered yet; the attachments drop from
+     * orbital storage and dock themselves once the railgun deploys (see {@link PartDrop}).
      */
-    public boolean orderLoadout(PlayerEntity player, int raw) {
+    public boolean configureLoadout(PlayerEntity player, int raw) {
         if (!(getWorld() instanceof ServerWorld world)) return false;
-        if (getState() != RailgunState.POD || isSupplyInbound()) return false;
+        if (getState() != RailgunState.POD) return false;
         if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 3.0) return false;
         Loadout want = Loadout.of(raw);
-        if (want.raw() != raw || want.equals(getLoadout())) return false;
-        if (com.creedpdf.orbitalrailgun.entity.SupplyCapsuleEntity.dispatch(world, this, raw) == null) return false;
-        dataTracker.set(SUPPLY_INBOUND, true);
-        inboundTimeout = 1200;
+        if (want.raw() != raw) return false;
+        dataTracker.set(LOADOUT, raw);
         Vec3d p = getPanelPos();
         world.playSound(null, p.x, p.y, p.z, ModSounds.UI_LOADOUT_ORDER, SoundCategory.BLOCKS, 1.5f, 1f);
+        RailgunFx.burst(world, ModParticles.TARGET_PING, p, 3, 0.2, 0.2, 0);
         return true;
-    }
-
-    /** Called by the supply capsule at the end of its transfer. */
-    public void receiveLoadout(int raw) {
-        dataTracker.set(LOADOUT, Loadout.of(raw).raw());
-        dataTracker.set(SUPPLY_INBOUND, false);
-        if (getWorld() instanceof ServerWorld world) {
-            world.playSound(null, getX(), getY() + 4, getZ(), ModSounds.RAILGUN_ATTACH, SoundCategory.BLOCKS, 3f, 1f);
-            RailgunFx.burst(world, ModParticles.TRANSFER_MOTE, getPos().add(0, 4, 0), 80, 1.5, 3.0, 0.2);
-            RailgunFx.burst(world, ModParticles.LENS_GLINT, getPos().add(0, 6, 0), 6, 1.0, 3.0, 0);
-        }
     }
 
     public void startAfterburn(Vec3d at) {

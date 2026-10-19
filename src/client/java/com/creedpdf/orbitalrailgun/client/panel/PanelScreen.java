@@ -38,7 +38,7 @@ import static com.creedpdf.orbitalrailgun.client.ui.UiKit.*;
  *   <li><b>STATUS</b>: state, live schematic, progress and the main action (DEPLOY, RETRACT +
  *       confirm, RETURN TO ORBIT).</li>
  *   <li><b>LOADOUT</b>: configure muzzle device, ammunition and up to four modules, then transmit
- *       the order to orbital storage; a supply capsule delivers it. Only on a landed pod.</li>
+ *       the loadout; the parts drop from orbital storage and dock on deployment. Only on a landed pod.</li>
  *   <li><b>SYSTEMS</b>: the firing solution the current loadout produces.</li>
  * </ul>
  */
@@ -127,7 +127,7 @@ public class PanelScreen extends Screen {
                 || mc.player.getEyePos().distanceTo(railgun.getPanelPos()) > RailgunConfig.PANEL_REACH + 3) {
             beginClose();
         }
-        if (page == Page.LOADOUT && !canConfigure() && !railgun.isSupplyInbound()) page = Page.STATUS;
+        if (page == Page.LOADOUT && !canConfigure() && railgun.getState() != RailgunState.ARMING) page = Page.STATUS;
     }
 
     private void beginClose() {
@@ -146,7 +146,7 @@ public class PanelScreen extends Screen {
     }
 
     private boolean canConfigure() {
-        return railgun.getState() == RailgunState.POD && !railgun.isSupplyInbound();
+        return railgun.getState() == RailgunState.POD;
     }
 
     // ---- Actions ---------------------------------------------------------------------------------
@@ -258,7 +258,7 @@ public class PanelScreen extends Screen {
         for (int i = 0; i < pages.length; i++) {
             Page p = pages[i];
             int x = 8, y = 32 + i * 30, w = 74, h = 24;
-            boolean en = p != Page.LOADOUT || canConfigure() || railgun.isSupplyInbound();
+            boolean en = p != Page.LOADOUT || canConfigure() || railgun.getState() == RailgunState.ARMING;
             boolean sel = page == p;
             boolean hov = en && mx >= x && mx < x + w && my >= y && my < y + h;
             chamfer(ctx, x, y, w, h, 6, sel ? 0xE0123A4A : hov ? 0xC0102430 : PANEL, sel ? CYAN : en ? CYAN_DIM : 0xFF2A333C);
@@ -292,9 +292,10 @@ public class PanelScreen extends Screen {
         Text title = Text.translatable(st.translationKey());
         spaced(ctx, textRenderer, title.getString(), x + 136, y + 12, stateColor(st, time), 1.5f, 2f, true);
         String[] lines = switch (st) {
-            case POD -> railgun.isSupplyInbound()
-                    ? new String[]{"Orbital storage payload inbound.", "Supply capsule landing beside the pod.", "Deployment locked until delivery."}
-                    : new String[]{"Pod landed and anchored.", "Configure attachments on LOADOUT,", "then deploy the emplacement."};
+            case POD -> railgun.getLoadout().isStandard()
+                    ? new String[]{"Pod landed and anchored.", "Confirm attachments on LOADOUT,", "then deploy the emplacement."}
+                    : new String[]{"Loadout confirmed with orbital storage.", "Parts launch and dock themselves", "as soon as the emplacement deploys."};
+            case ARMING -> new String[]{"Orbital storage drop in progress.", "Attachments vectoring in to dock.", "Stand clear of the hardpoints."};
             case PANEL_OPEN, TRANSFORMING -> new String[]{"Deployment sequence running.", "Stand clear of the clamps."};
             case IDLE -> new String[]{"Emplacement online.", "Fire control: ARES-9 uplink tablet."};
             case COOLDOWN -> new String[]{"Barrel cooling."};
@@ -309,16 +310,17 @@ public class PanelScreen extends Screen {
             case PANEL_OPEN -> 0.08f * railgun.getStateTicks() / RailgunConfig.PANEL_TICKS;
             case TRANSFORMING -> 0.08f + 0.92f * railgun.getStateTicks() / RailgunConfig.TRANSFORM_TICKS;
             case PACKING -> (float) railgun.getStateTicks() / RailgunConfig.PACK_TICKS;
+            case ARMING -> (float) railgun.getStateTicks() / Math.max(1, com.creedpdf.orbitalrailgun.loadout.PartDrop.armingTicks(railgun.getLoadout()));
             default -> -1f;
         };
         if (progress >= 0) {
             segBar(ctx, x + 136, y + 86, w - 150, 10, progress, 28, 0xFF1A8FB0, CYAN, 0xFF0C1A22);
             ctx.drawText(textRenderer, String.format(Locale.ROOT, "%3d%%", (int) (MathHelper.clamp(progress, 0, 1) * 100)), x + w - 34, y + 74, TEXT, false);
         }
-        if (railgun.isSupplyInbound()) {
+        if (st == RailgunState.ARMING) {
             float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.4f);
-            chamfer(ctx, x + 136, y + 84, w - 150, 16, 4, alpha(0xFF0F3A2E, 0.6f + 0.4f * pulse), 0xFF3CFFC8);
-            ctx.drawText(textRenderer, "ORBITAL STORAGE // CAPSULE DESCENDING", x + 142, y + 88, 0xFF8CFFE0, false);
+            chamfer(ctx, x + 136, y + 98, w - 150, 12, 4, alpha(0xFF0F3A2E, 0.6f + 0.4f * pulse), 0xFF3CFFC8);
+            ctx.drawText(textRenderer, "ORBITAL STORAGE // PARTS DOCKING", x + 142, y + 100, 0xFF8CFFE0, false);
         }
 
         // Main action
@@ -328,7 +330,7 @@ public class PanelScreen extends Screen {
         Runnable act = null;
         switch (st) {
             case POD -> {
-                if (!railgun.isSupplyInbound()) { label = "DEPLOY RAILGUN"; act = () -> send(RailgunEntity.PanelAction.DEPLOY); }
+                label = "DEPLOY RAILGUN"; act = () -> send(RailgunEntity.PanelAction.DEPLOY);
             }
             case IDLE, COOLDOWN -> {
                 if (armedTicks > 0) { label = "CONFIRM RETRACT"; act = () -> send(RailgunEntity.PanelAction.RETRACT); }
@@ -340,7 +342,7 @@ public class PanelScreen extends Screen {
         bigButton(ctx, bx, by, bw, bh, label, color, act, mx, my, time);
         ctx.drawText(textRenderer, "ESC  STEP BACK", 10, CH - 14, MUTED, false);
         if (st == RailgunState.POD && canConfigure()) {
-            ctx.drawText(textRenderer, "TIP  open LOADOUT to order attachments from orbital storage", 92, 214, 0xFF7FD8EE, false);
+            ctx.drawText(textRenderer, "TIP  confirm attachments on LOADOUT before deploying", 92, 214, 0xFF7FD8EE, false);
         }
     }
 
@@ -439,15 +441,15 @@ public class PanelScreen extends Screen {
         // Transmit / reset
         boolean changed = !draft.equals(railgun.getLoadout());
         int by = 222;
-        if (railgun.isSupplyInbound()) {
+        if (railgun.getState() == RailgunState.ARMING) {
             float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.4f);
             chamfer(ctx, x, by, 276, 26, 8, alpha(0xFF0F3A2E, 0.6f + 0.4f * pulse), 0xFF3CFFC8);
-            spaced(ctx, textRenderer, "PAYLOAD INBOUND", x + 46, by + 9, 0xFF8CFFE0, 2f, 1f, false);
+            spaced(ctx, textRenderer, "PARTS DOCKING", x + 60, by + 9, 0xFF8CFFE0, 2f, 1f, false);
         } else {
             Runnable act = editable && changed ? this::transmit : null;
             boolean hov = act != null && mx >= x && mx < x + 276 && my >= by && my < by + 26;
             chamfer(ctx, x, by, 276, 26, 8, act != null ? alpha(0xFF14A0C8, hov ? 0.6f : 0.3f) : 0x40202830, act != null ? CYAN : 0xFF2A333C);
-            String label = changed ? "TRANSMIT TO ORBITAL STORAGE" : "NO CHANGES";
+            String label = changed ? "CONFIRM LOADOUT" : "LOADOUT CONFIRMED";
             float tw = spacedWidth(textRenderer, label, 1.5f, 1f);
             spaced(ctx, textRenderer, label, x + (276 - tw) / 2f, by + 9, act != null ? 0xFFFFFFFF : 0xFF56626E, 1.5f, 1f, act != null);
             if (act != null) hits.add(new Hit(x, by, 276, 26, act, true));

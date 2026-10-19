@@ -26,6 +26,15 @@ public final class ClientPackets {
             BlockPos obstacle = buf.readBlockPos();
             client.execute(() -> TabletStatus.survey = new TabletStatus.Survey(ground, ok, reason, obstacle, System.currentTimeMillis()));
         });
+        ClientPlayNetworking.registerGlobalReceiver(ModPackets.BEAM_SHOT, (client, handler, buf, sender) -> {
+            int id = buf.readVarInt();
+            net.minecraft.util.math.Vec3d muzzle = new net.minecraft.util.math.Vec3d(buf.readDouble(), buf.readDouble(), buf.readDouble());
+            BlockPos target = buf.readBlockPos();
+            int loadout = buf.readVarInt();
+            client.execute(() -> {
+                if (client.world != null) com.creedpdf.orbitalrailgun.client.render.RemoteBeams.add(client.world, id, muzzle, target, loadout);
+            });
+        });
         ClientPlayNetworking.registerGlobalReceiver(ModPackets.TABLET_INFO, (client, handler, buf, sender) -> {
             TabletStatus status = TabletStatus.read(buf);
             client.execute(() -> TabletStatus.latest = status);

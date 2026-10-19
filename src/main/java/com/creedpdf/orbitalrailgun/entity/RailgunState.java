@@ -24,7 +24,9 @@ public enum RailgunState {
     COOLDOWN,
     PACKING,
     POD_READY,
-    LAUNCHING;
+    LAUNCHING,
+    /** After deploying: attachment parts drop from orbital storage, vector in and dock. */
+    ARMING;
 
     private static final RailgunState[] VALUES = values();
 

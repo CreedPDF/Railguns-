@@ -54,16 +54,31 @@ it. All of it is tunable in `RailgunConfig` (`BORE_*`, `PATH_RADIUS`, `*_POWER`,
 
 ## Loadouts and orbital storage
 Before deploying, open the pod's console and switch to **LOADOUT**. Pick one muzzle device, one
-ammunition type and up to four support modules (23 options), then **TRANSMIT TO ORBITAL STORAGE**:
-a supply capsule re-enters beside the pod, lands on its retro thrusters, opens and streams the
-attachments into the pod, then returns to orbit. Attachments unfold onto the emplacement during
-deployment and fold away first when packing.
+ammunition type and up to four support modules (23 options), then **CONFIRM LOADOUT**.
+When the emplacement deploys it enters **ARMING**: every attachment is fired down from orbital
+storage on its own. Each part streaks in from ~150 blocks up, lights its retro thrusters,
+vectors into a hover point beside its hardpoint (turning itself vertical or horizontal to match),
+extends four docking arms, slides in, clamps on and folds the arms away. When the railgun packs
+up, the parts undock and boost back to orbit.
 
 | Muzzle | Ammunition | Modules |
 |---|---|---|
 | Lancer Lens Array, Tri-Prong Compensator, Plasma Shroud, Scatter Choke, Graviton Coil, Ghost Baffle | Tungsten Penetrator, Thermite Incendiary, Cryo-Stasis Slug, Ion Disruptor, Cluster Payload, Singularity Charge, Sunburst Warhead | Capacitor Bank, Cryo Coolant Loop, Overclock Coils, Targeting Array, Aegis Shield Emitters, Sentry Turrets, Vector Thrusters, Seismic Anchors, Autoloader Drum, Plasma Afterburn |
 
-Every option has its own Blender-built model, beam/particle effects and synthesized sounds.
+Every option has its own Blender-built model, beam/particle effects and synthesized sounds: each
+ammunition has its own flash, smoke and spark sprites, and every muzzle device and module has its
+own particles, so no two options share an effect.
+
+## Range
+Targets up to **2000 blocks** away. Every shot is broadcast to the whole dimension and the beam
+is drawn in its own world-render pass with fog lifted and the far plane pushed out while it is
+live, so you see it from anywhere, even when the railgun itself is far beyond render distance.
+
+## Textures
+The railgun atlas is painted at 3 texels per model pixel in a clean, smooth style (flat panels,
+soft top light, crisp bevels, thin panel grooves, decals and glowing light strips) with gutters
+around every face, and is sampled with linear filtering (`railgun.png.mcmeta`), so it reads as
+smooth surfaces rather than pixel art.
 
 ## Landing rules
 Before a pod is released, an orbital site survey checks the landing zone (a disc of 8 blocks,
@@ -128,6 +143,7 @@ server; state, charge and target are `TrackedData`, so no extra sync packets are
 | C2S | `tablet_abort` | – | Cancel charge. |
 | S2C | `drop_countdown` | BlockPos, ticks | HUD countdown + uplink sound. |
 | S2C | `tablet_info` | status snapshot | What the tablet displays. |
+| S2C | `beam_shot` | entity id, muzzle, target, loadout | Sent to every player in the dimension on each shot: draws the beam at any distance. |
 
 Tablet commands resolve the sender's railgun by owner UUID, so nobody can command someone else's. The tablet panel is a plain entity interaction.
 

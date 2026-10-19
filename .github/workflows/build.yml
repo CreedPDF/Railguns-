@@ -54,7 +54,9 @@ jobs:
 
       # Hard gate: never ship textures GeckoLib will crash on.
       - name: Validate textures
-        run: python3 tools/validate_assets.py
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow numpy || python3 -m pip install --quiet pillow numpy || true
+          python3 tools/validate_assets.py
 
       - name: Copy preview renders into the repo
         run: |

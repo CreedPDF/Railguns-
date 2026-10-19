@@ -38,6 +38,23 @@ public final class RailgunParticles {
     static final Style PLASMA_POOL = new Style(24, 44, 0.8f, 2.0f, 1.6f, -0.03f, 0.9f, false, true, true, true, 0.9f, 0f, 0.05f);
     static final Style TRANSFER_MOTE = new Style(14, 22, 0.3f, 0.6f, 0.4f, 0f, 1.0f, false, true, true, true, 0.6f, 1f, 0.1f);
 
+    // v3.1 per-option effects
+    static final Style AMMO_FLASH = new Style(5, 9, 8f, 14f, 1.7f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+    static final Style AMMO_SMOKE = new Style(50, 100, 2.0f, 4.2f, 2.2f, -0.02f, 0.94f, false, false, true, false, 0.85f, 0f, 0.03f);
+    static final Style AMMO_SPARK = new Style(12, 26, 0.25f, 0.55f, 0.4f, 0.4f, 0.96f, true, true, true, false, 1f, 0.8f, 0.15f);
+    static final Style PRONG_ARC = new Style(3, 6, 0.8f, 1.4f, 1.1f, 0f, 0.8f, false, true, true, true, 1f, 0.2f, 0.3f);
+    static final Style SHROUD_FLAME = new Style(10, 18, 0.9f, 1.8f, 1.8f, -0.02f, 0.9f, false, true, true, false, 1f, 0f, 0.08f);
+    static final Style SCATTER_FLASH = new Style(5, 8, 3f, 5f, 1.5f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+    static final Style GRAVITON_RIPPLE = new Style(14, 22, 2.5f, 4.0f, 1.8f, 0f, 0.95f, false, true, true, false, 0.9f, 0f, 0f);
+    static final Style GHOST_WISP = new Style(30, 60, 0.8f, 1.6f, 2.0f, -0.01f, 0.92f, false, false, true, false, 0.5f, 0f, 0.04f);
+    static final Style CAPACITOR_ARC = new Style(3, 6, 0.6f, 1.2f, 1.1f, 0f, 0.8f, false, true, true, true, 1f, 0.2f, 0f);
+    static final Style SENTRY_FLASH = new Style(2, 4, 0.6f, 1.0f, 1.2f, 0f, 1.0f, false, true, true, false, 1f, 0f, 0f);
+    static final Style THRUSTER_SHOCK = new Style(10, 16, 2.0f, 3.5f, 2.2f, 0f, 0.92f, false, true, true, false, 1f, 0f, 0f);
+    static final Style TARGET_PING = new Style(30, 40, 1.4f, 1.8f, 1.0f, 0f, 1.0f, false, true, true, true, 1f, 0f, 0f);
+    static final Style DRONE_TRAIL = new Style(10, 18, 0.5f, 0.9f, 1.4f, 0f, 0.9f, false, true, true, false, 1f, 0f, 0f);
+    static final Style DRONE_JET = new Style(5, 9, 0.35f, 0.7f, 1.6f, 0f, 0.9f, false, true, true, false, 1f, 0f, 0.1f);
+    static final Style DOCK_SPARK = new Style(8, 16, 0.12f, 0.25f, 0.5f, 0.5f, 0.95f, true, true, true, true, 1f, 0.7f, 0f);
+
     public static void register() {
         var reg = ParticleFactoryRegistry.getInstance();
         reg.register(ModParticles.PLASMA_SPARK, sprites -> factory(sprites, PLASMA_SPARK));
@@ -65,6 +82,21 @@ public final class RailgunParticles {
         reg.register(ModParticles.SHELL_CASING, sprites -> factory(sprites, SHELL_CASING));
         reg.register(ModParticles.PLASMA_POOL, sprites -> factory(sprites, PLASMA_POOL));
         reg.register(ModParticles.TRANSFER_MOTE, sprites -> factory(sprites, TRANSFER_MOTE));
+        ModParticles.AMMO_FLASH.values().forEach(t -> reg.register(t, sprites -> factory(sprites, AMMO_FLASH)));
+        ModParticles.AMMO_SMOKE.values().forEach(t -> reg.register(t, sprites -> factory(sprites, AMMO_SMOKE)));
+        ModParticles.AMMO_SPARK.values().forEach(t -> reg.register(t, sprites -> factory(sprites, AMMO_SPARK)));
+        reg.register(ModParticles.PRONG_ARC, sprites -> factory(sprites, PRONG_ARC));
+        reg.register(ModParticles.SHROUD_FLAME, sprites -> factory(sprites, SHROUD_FLAME));
+        reg.register(ModParticles.SCATTER_FLASH, sprites -> factory(sprites, SCATTER_FLASH));
+        reg.register(ModParticles.GRAVITON_RIPPLE, sprites -> factory(sprites, GRAVITON_RIPPLE));
+        reg.register(ModParticles.GHOST_WISP, sprites -> factory(sprites, GHOST_WISP));
+        reg.register(ModParticles.CAPACITOR_ARC, sprites -> factory(sprites, CAPACITOR_ARC));
+        reg.register(ModParticles.SENTRY_FLASH, sprites -> factory(sprites, SENTRY_FLASH));
+        reg.register(ModParticles.THRUSTER_SHOCK, sprites -> factory(sprites, THRUSTER_SHOCK));
+        reg.register(ModParticles.TARGET_PING, sprites -> factory(sprites, TARGET_PING));
+        reg.register(ModParticles.DRONE_TRAIL, sprites -> factory(sprites, DRONE_TRAIL));
+        reg.register(ModParticles.DRONE_JET, sprites -> factory(sprites, DRONE_JET));
+        reg.register(ModParticles.DOCK_SPARK, sprites -> factory(sprites, DOCK_SPARK));
     }
 
     private static ParticleFactory<DefaultParticleType> factory(

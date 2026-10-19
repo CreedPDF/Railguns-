@@ -62,17 +62,6 @@ public final class RailgunMod implements ModInitializer {
                     .fireImmune()
                     .build());
 
-    /** Orbital storage supply capsule that delivers loadout attachments to a pod. */
-    public static final EntityType<com.creedpdf.orbitalrailgun.entity.SupplyCapsuleEntity> SUPPLY_CAPSULE = Registry.register(
-            Registries.ENTITY_TYPE,
-            id("supply_capsule"),
-            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.SupplyCapsuleEntity>create(SpawnGroup.MISC,
-                            com.creedpdf.orbitalrailgun.entity.SupplyCapsuleEntity::new)
-                    .dimensions(EntityDimensions.fixed(1.8f, 3.8f))
-                    .trackRangeChunks(12)
-                    .trackedUpdateRate(1)
-                    .fireImmune()
-                    .build());
 
     /** Invisible collision for the deployed railgun (see RailgunColliderBlock). No item. */
     public static final Block RAILGUN_COLLIDER = Registry.register(

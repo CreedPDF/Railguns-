@@ -3,6 +3,7 @@ package com.creedpdf.orbitalrailgun.client.render;
 import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.entity.RailgunEntity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
+import com.creedpdf.orbitalrailgun.loadout.PartDrop;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -65,7 +66,7 @@ public final class RailgunAnimator {
             case PANEL_OPEN -> { name = "animation.railgun.panel_open"; time = t; }
             case TRANSFORMING -> { name = "animation.railgun.deploy"; time = t; }
             case PACKING -> { name = "animation.railgun.pack"; time = t; }
-            case IDLE, COOLDOWN -> { name = "animation.railgun.idle"; time = age; }
+            case IDLE, COOLDOWN, ARMING -> { name = "animation.railgun.idle"; time = age; }
             case CHARGING -> { name = "animation.railgun.charge"; time = age; }
             case FIRING -> {
                 Anim fire = anims.get("animation.railgun.fire");
@@ -110,68 +111,68 @@ public final class RailgunAnimator {
 
     // ---- Loadout attachments ---------------------------------------------------------------
 
-    /** Per railgun: the loadout last seen and when each option appeared (entity age, ticks). */
-    private static final java.util.Map<Integer, int[]> INSTALL = new java.util.HashMap<>();
-    private static final int OPTIONS = com.creedpdf.orbitalrailgun.loadout.Loadout.Option.values().length;
-
     /**
-     * Shows the bones of installed options (bone names start with "opt_<id>"), hides the rest,
-     * scales newly delivered attachments in, and aims the sentry turret heads.
+     * Shows the bones of installed options (bone names start with "opt_<id>") and flies them in:
+     * every part is launched from orbital storage once the railgun has deployed, vectors in and
+     * docks with its arms (see {@link PartDrop}). Packing up sends them back the same way.
      */
     private static void applyLoadout(RailgunEntity e, AnimationProcessor<RailgunEntity> processor, float partialTick) {
         com.creedpdf.orbitalrailgun.loadout.Loadout l = e.getLoadout();
-        int[] rec = INSTALL.computeIfAbsent(e.getId(), k -> {
-            int[] r = new int[OPTIONS + 1];
-            r[OPTIONS] = l.raw();
-            java.util.Arrays.fill(r, 0, OPTIONS, -10000);
-            return r;
-        });
-        if (rec[OPTIONS] != l.raw()) {
-            com.creedpdf.orbitalrailgun.loadout.Loadout old = com.creedpdf.orbitalrailgun.loadout.Loadout.of(rec[OPTIONS]);
-            for (var o : com.creedpdf.orbitalrailgun.loadout.Loadout.Option.values()) {
-                if (l.has(o) && !old.has(o)) rec[o.ordinal()] = e.age;
-            }
-            rec[OPTIONS] = l.raw();
+        RailgunState state = e.getState();
+        float t = e.getStateTicks() + partialTick;
+        Map<String, PartDrop.Pose> poses = new HashMap<>();
+        for (PartDrop.Entry en : PartDrop.schedule(l)) {
+            PartDrop.Pose pose = switch (state) {
+                case IDLE, CHARGING, FIRING, COOLDOWN -> PartDrop.Pose.DOCKED;
+                case ARMING -> PartDrop.arrive(en, t - en.start());
+                case PACKING -> PartDrop.depart(en, t - PartDrop.departStart(en));
+                default -> PartDrop.Pose.HIDDEN;
+            };
+            poses.put(en.bone(), pose);
+            // the entry may name a group bone; also index it by option id for single-bone options
         }
-        if (INSTALL.size() > 64) INSTALL.keySet().removeIf(id -> e.getWorld().getEntityById(id) == null);
-
-        float mount = mountFactor(e, partialTick, false), mountMuzzle = mountFactor(e, partialTick, true);
         for (CoreGeoBone bone : processor.getRegisteredBones()) {
             String name = bone.getName();
             if (!name.startsWith("opt_")) continue;
             int cut = name.indexOf("__");
             String id = cut < 0 ? name.substring(4) : name.substring(4, cut);
             var opt = OPTION_BY_ID.get(id);
-            float f = opt == null || !l.has(opt) ? 0f : opt.category == com.creedpdf.orbitalrailgun.loadout.Loadout.Category.MUZZLE ? mountMuzzle : mount;
-            if (f > 0f) {
-                // freshly delivered while deployed: grow in as well
-                f = Math.min(f, Math.min(1f, (e.age - rec[opt.ordinal()] + partialTick) / 16f));
+            boolean installed = opt != null && l.has(opt);
+            if (name.endsWith("__arms")) {
+                PartDrop.Pose parent = poses.get(name.substring(0, name.length() - 6));
+                float a = installed && parent != null && parent.visible() ? parent.arms() : 0f;
+                boolean on = a > 0.01f;
+                bone.setHidden(!on);
+                bone.setChildrenHidden(!on);
+                float sc = on ? (float) Easing.apply("easeoutback", a) : 0.01f;
+                bone.setScaleX(sc);
+                bone.setScaleY(sc);
+                bone.setScaleZ(sc);
+                continue;
             }
-            boolean on = f > 0.001f;
+            PartDrop.Pose pose = poses.get(name);
+            if (pose == null) {
+                // sub-bones (sentry heads) follow their parent; anything else just shows when installed
+                boolean on = installed && state != RailgunState.POD && !state.isPodForm();
+                if (name.endsWith("_head")) on = installed;
+                bone.setHidden(!on);
+                bone.setChildrenHidden(!on);
+                continue;
+            }
+            boolean on = installed && pose.visible();
             bone.setHidden(!on);
             bone.setChildrenHidden(!on);
-            if (!on || name.endsWith("_head")) continue;
-            float sc = (float) Easing.apply("easeoutback", f);
-            bone.setScaleX(sc);
-            bone.setScaleY(sc);
-            bone.setScaleZ(sc);
+            bone.setPosX(pose.x());
+            bone.setPosY(pose.y());
+            bone.setPosZ(pose.z());
+            bone.setRotX(pose.rotX());
+            bone.setRotY(pose.rotY());
+            bone.setRotZ(pose.rotZ());
+            bone.setScaleX(1f);
+            bone.setScaleY(1f);
+            bone.setScaleZ(1f);
         }
         if (l.has(com.creedpdf.orbitalrailgun.loadout.Loadout.Option.SENTRY)) aimSentries(e, processor, partialTick);
-    }
-
-    /**
-     * Attachments are stored inside the pod and mounted during deployment: they unfold once the
-     * turret is up (muzzle devices once the barrel has telescoped out) and fold away first when
-     * packing up.
-     */
-    private static float mountFactor(RailgunEntity e, float pt, boolean muzzle) {
-        float t = e.getStateTicks() + pt;
-        return switch (e.getState()) {
-            case IDLE, CHARGING, FIRING, COOLDOWN -> 1f;
-            case TRANSFORMING -> Math.max(0f, Math.min(1f, (t - (muzzle ? 226f : 166f)) / 16f));
-            case PACKING -> muzzle ? Math.max(0f, 1f - t / 14f) : Math.max(0f, Math.min(1f, (74f - t) / 16f));
-            default -> 0f;
-        };
     }
 
     private static final java.util.Map<String, com.creedpdf.orbitalrailgun.loadout.Loadout.Option> OPTION_BY_ID = new HashMap<>();

@@ -60,6 +60,7 @@ public final class ModPackets {
     public static final Identifier PANEL_LOADOUT = RailgunMod.id("panel_loadout");
     public static final Identifier SURVEY = RailgunMod.id("survey");
     public static final Identifier SURVEY_RESULT = RailgunMod.id("survey_result");
+    public static final Identifier BEAM_SHOT = RailgunMod.id("beam_shot");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -95,7 +96,7 @@ public final class ModPackets {
             int raw = buf.readVarInt();
             server.execute(() -> {
                 if (!(player.getWorld().getEntityById(entityId) instanceof RailgunEntity railgun) || !railgun.isAlive()) return;
-                if (!railgun.orderLoadout(player, raw)) deny(player, "loadout");
+                if (!railgun.configureLoadout(player, raw)) deny(player, "loadout");
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(SURVEY, (server, player, handler, buf, sender) -> {
@@ -177,6 +178,21 @@ public final class ModPackets {
 
     // ---- S2C senders ------------------------------------------------------------------------
 
+    /** Every shot goes to everyone in the dimension, so the beam renders at any distance. */
+    public static void broadcastBeamShot(net.minecraft.server.world.ServerWorld world, int entityId,
+                                         net.minecraft.util.math.Vec3d muzzle, BlockPos target, int loadout) {
+        for (ServerPlayerEntity player : world.getPlayers()) {
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeVarInt(entityId);
+            buf.writeDouble(muzzle.x);
+            buf.writeDouble(muzzle.y);
+            buf.writeDouble(muzzle.z);
+            buf.writeBlockPos(target);
+            buf.writeVarInt(loadout);
+            ServerPlayNetworking.send(player, BEAM_SHOT, buf);
+        }
+    }
+
     public static void sendDropCountdown(ServerPlayerEntity player, BlockPos landing, int ticks) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeBlockPos(landing);
@@ -205,7 +221,7 @@ public final class ModPackets {
             buf.writeBoolean(railgun.getWorld() == player.getWorld());
             buf.writeVarInt(railgun.getStateTicks());
             buf.writeVarInt(railgun.getLoadout().raw());
-            buf.writeBoolean(railgun.isSupplyInbound());
+            buf.writeBoolean(railgun.getState() == com.creedpdf.orbitalrailgun.entity.RailgunState.ARMING);
         }
         ServerPlayNetworking.send(player, TABLET_INFO, buf);
     }

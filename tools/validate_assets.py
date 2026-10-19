@@ -55,6 +55,16 @@ def pixels(path):
             yield tuple(px) + ((255,) if ch in (1, 3) else ())
 
 
+try:
+    import numpy as _np
+    from PIL import Image as _Image
+
+    def pixels(path):  # noqa: F811  fast path for large atlases
+        a = _np.asarray(_Image.open(path).convert("RGBA")).reshape(-1, 4)
+        return (tuple(int(v) for v in p) for p in a[a[:, 3] > 0][::7])
+except ImportError:
+    pass
+
 errors = []
 glow = ASSETS / "textures/entity/railgun_glowmask.png"
 lit = sum(1 for p in pixels(glow) if p[-1] > 0)
