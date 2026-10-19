@@ -135,7 +135,7 @@ public final class PlanetBlastFx {
             out[1] = i * (0.45f + 0.5f * white);
             out[2] = i * (0.12f + 0.8f * white);
             out[3] = i;
-        });
+        }, true);
         if (heat > 0.6f) {
             float a = (heat - 0.6f) * 0.5f * alpha;
             VertexConsumer g = cp.getBuffer(BeamRenderLayers.GLOW);

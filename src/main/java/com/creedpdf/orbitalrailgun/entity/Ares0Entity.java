@@ -369,7 +369,7 @@ public class Ares0Entity extends Entity implements GeoEntity {
 
     @Override
     public boolean isCollidable() {
-        return getState() != State.FALLING && getState() != State.LEAVING;
+        return false;
     }
 
     @Override

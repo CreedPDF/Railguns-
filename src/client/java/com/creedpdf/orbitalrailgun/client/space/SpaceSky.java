@@ -51,6 +51,27 @@ public final class SpaceSky {
      */
     public static void render(Matrix4f m, Vec3d viewPos, Quaternionf toLocal, float time, float pt, float starAlpha, float bodyAlpha,
                               Body exclude, float sunScale) {
+        render(m, viewPos, toLocal, time, pt, starAlpha, bodyAlpha, exclude, sunScale, 0);
+    }
+
+    /**
+     * Instead of clearing the depth buffer between layers (which would break Immersive Portals'
+     * portal rendering, where this sky can be drawn inside another world's frame), every layer is
+     * squeezed into its own thin slice at the far end of the depth range: nearer layers get
+     * nearer slices, so they always cover farther ones, and the world drawn afterwards (at
+     * normal depths) covers all of it.
+     */
+    public static void slot(int i) {
+        GL11.glDepthRange(1.0 - (i + 1) * 2e-7, 1.0 - i * 2e-7);
+    }
+
+    public static void resetDepth() {
+        GL11.glDepthRange(0.0, 1.0);
+    }
+
+    public static void render(Matrix4f m, Vec3d viewPos, Quaternionf toLocal, float time, float pt, float starAlpha, float bodyAlpha,
+                              Body exclude, float sunScale, int slotBase) {
+        int slot = slotBase;
         float fogStart = RenderSystem.getShaderFogStart(), fogEnd = RenderSystem.getShaderFogEnd();
         RenderSystem.setShaderFogStart(Float.MAX_VALUE * 0.5f);
         RenderSystem.setShaderFogEnd(Float.MAX_VALUE);
@@ -62,13 +83,15 @@ public final class SpaceSky {
             BodyDraw.sphere(vc, m, new Vector3f(), 50f, sky, 32, 64, (n, out) -> {
                 out[0] = starAlpha; out[1] = starAlpha; out[2] = starAlpha; out[3] = 1f;
             });
+            slot(slot);
             BUF.draw();
-            RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
         }
+        slot++;
 
         // ---- the sun
         Vector3f sun = toLocal.transform(new Vector3f(SUN_DIR));
         drawSun(m, sun, sunScale, starAlpha);
+        slot(slot++);
         BUF.draw();
 
         // ---- bodies, far to near
@@ -88,14 +111,15 @@ public final class SpaceSky {
             if (ang * extent < 0.0006f) {
                 // too small to resolve: a point of light
                 starPoint(m, c, r, b, sun, bodyAlpha);
+                slot(slot++);
                 BUF.draw();
                 continue;
             }
             int seg = ang > 0.25f ? 192 : ang > 0.04f ? 96 : 48;
             Vector3f impact = toLocal.transform(PlanetBlastFx.impactDir(b));
             BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, bodyAlpha, seg, impact);
+            slot(slot++);
             BUF.draw();
-            RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
         }
 
         // ---- ARES-0's beam crossing space, from Earth to its target
@@ -107,11 +131,12 @@ public final class SpaceSky {
             Vec3d to = b.center.subtract(dir.multiply(b.radius * 0.98));
             beam(m, project(from, viewPos, toLocal), project(to, viewPos, toLocal), e, bodyAlpha);
         }
+        slot(slot);
         BUF.draw();
+        resetDepth();
 
         RenderSystem.setShaderFogStart(fogStart);
         RenderSystem.setShaderFogEnd(fogEnd);
-        RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
     }
 
     private static Vector3f project(Vec3d p, Vec3d view, Quaternionf toLocal) {

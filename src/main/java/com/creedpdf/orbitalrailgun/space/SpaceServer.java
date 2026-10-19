@@ -75,7 +75,7 @@ public final class SpaceServer {
         if (airless) {
             for (Entity e : world.iterateEntities()) {
                 if (e instanceof PlayerEntity) continue;
-                if (space && !e.hasNoGravity() && !(e instanceof RiftPortal)) e.setNoGravity(true);
+                if (space && !e.hasNoGravity() && !(e instanceof qouteall.imm_ptl.core.portal.Portal)) e.setNoGravity(true);
                 if (e instanceof LivingEntity le && le.isAlive() && now % 10 == 0 && !EvaSuit.full(le)) {
                     le.damage(vacuum(world), 4f);
                     le.setFrozenTicks(Math.min(le.getFrozenTicks() + 40, 300));

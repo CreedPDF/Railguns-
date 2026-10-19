@@ -76,19 +76,23 @@ public final class PlanetSky {
                 if (doom > 0) dome(m, sun, 0f, doom, 0f, 0f, 0f, 0f, 0f, 0f, false);
             }
         }
+        SpaceSky.slot(0);
         BUF.draw();
-        RenderSystem.setShaderFogStart(fs);
-        RenderSystem.setShaderFogEnd(fe);
         if (b == Body.VENUS) {
             // only a diffuse bright patch where the sun is
             VertexConsumer g = BUF.getBuffer(BeamRenderLayers.GLOW);
-            PlanetBlastFx.glowBall(g, m, new Vector3f(sun).mul(40f), 9f, 1f, 0.92f, 0.7f, 0.35f * day);
+            PlanetBlastFx.glowBall(g, m, new Vector3f(sun).mul(30f), 9f, 1f, 0.92f, 0.7f, 0.35f * day);
+            SpaceSky.slot(1);
             BUF.draw();
-            RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
+            SpaceSky.resetDepth();
+            RenderSystem.setShaderFogStart(fs);
+            RenderSystem.setShaderFogEnd(fe);
             return;
         }
-        RenderSystem.clear(GL11.GL_DEPTH_BUFFER_BIT, MinecraftClient.IS_SYSTEM_MAC);
-        SpaceSky.render(m, viewPos, toLocal, time, pt, stars > 0.995f && doom == 0 ? 1f : stars * 0.999f, bodies, b, sunScale);
+        SpaceSky.resetDepth();
+        RenderSystem.setShaderFogStart(fs);
+        RenderSystem.setShaderFogEnd(fe);
+        SpaceSky.render(m, viewPos, toLocal, time, pt, stars > 0.995f && doom == 0 ? 1f : stars * 0.999f, bodies, b, sunScale, 1);
     }
 
     /** Gradient sky dome (horizon -> zenith), blue-ish glow around the sun on Mars, red glare when the planet is dying. */

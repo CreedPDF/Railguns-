@@ -96,12 +96,13 @@ public final class BodyDraw {
         int lon = segments, lat = Math.max(8, segments / 2);
         boolean solid = alpha >= 0.999f;
         float ambient = b == Body.VENUS ? 0.06f : 0.025f;
+        if (b == Body.SATURN) rings(cp, m, c, rr, q, l, alpha, false);
 
         VertexConsumer vc = cp.getBuffer(solid ? BeamRenderLayers.solid(albedo(b)) : BeamRenderLayers.translucent(albedo(b)));
         sphere(vc, m, c, rr, q, lat, lon, (n, out) -> {
             float k = lit(n, l, ambient);
             out[0] = k * (1f + 0.12f * warm(n, l)); out[1] = k * (1f + 0.04f * warm(n, l)); out[2] = k; out[3] = alpha;
-        });
+        }, true);
 
         if (b == Body.EARTH) {
             // city lights on the night side
@@ -109,28 +110,28 @@ public final class BodyDraw {
             sphere(night, m, c, rr * 1.0005f, q, lat, lon, (n, out) -> {
                 float d = 1f - PlanetDrawMath.smooth(-0.25f, 0.08f, n.dot(l));
                 out[0] = d * alpha; out[1] = d * 0.85f * alpha; out[2] = d * 0.6f * alpha; out[3] = alpha;
-            });
+            }, true);
             // clouds drift faster than the ground
             VertexConsumer clouds = cp.getBuffer(BeamRenderLayers.translucent(EARTH_CLOUDS));
             Quaternionf cq = new Quaternionf(q).rotateY(time * 0.00012f);
             sphere(clouds, m, c, rr * 1.006f, cq, lat, lon, (n, out) -> {
                 float k = lit(n, l, 0.01f);
                 out[0] = k; out[1] = k; out[2] = k * 1.03f; out[3] = 0.95f * alpha;
-            });
+            }, true);
         } else if (b == Body.VENUS) {
             VertexConsumer clouds = cp.getBuffer(BeamRenderLayers.translucent(VENUS_CLOUDS));
             Quaternionf cq = new Quaternionf(q).rotateY(time * 0.0004f);
             sphere(clouds, m, c, rr * 1.004f, cq, lat, lon, (n, out) -> {
                 float k = lit(n, l, 0.04f);
                 out[0] = k; out[1] = k * 0.96f; out[2] = k * 0.85f; out[3] = 0.85f * alpha;
-            });
+            }, true);
         }
 
         if (heat > 0f && impact != null) PlanetBlastFx.cracks(cp, m, c, rr, q, impact, heat, lat, lon, alpha);
 
         float[] atmo = atmosphere(b);
         if (atmo != null) limb(cp, m, c, rr * (b == Body.EARTH ? 1.018f : 1.03f), l, atmo, alpha, lat, lon);
-        if (b == Body.SATURN) rings(cp, m, c, rr, q, l, alpha);
+        if (b == Body.SATURN) rings(cp, m, c, rr, q, l, alpha, true);
     }
 
     static float lit(Vector3f n, Vector3f l, float ambient) {
@@ -165,15 +166,20 @@ public final class BodyDraw {
         }
     }
 
-    static void rings(VertexConsumerProvider cp, Matrix4f m, Vector3f c, float r, Quaternionf q, Vector3f l, float alpha) {
+    /** @param front draw only the half nearer the camera than the planet's centre (else the far half). */
+    static void rings(VertexConsumerProvider cp, Matrix4f m, Vector3f c, float r, Quaternionf q, Vector3f l, float alpha, boolean front) {
         VertexConsumer vc = cp.getBuffer(BeamRenderLayers.translucent(SATURN_RINGS));
         Vector3f n = q.transform(new Vector3f(0, 1, 0));
         Vector3f a = q.transform(new Vector3f(1, 0, 0)), bb = q.transform(new Vector3f(0, 0, 1));
         float inner = r * 1.24f, outer = r * 2.3f;
         int seg = 160;
         float litFace = 0.35f + 0.65f * Math.abs(n.dot(l));
+        float cDist = c.length();
         for (int k = 0; k < seg; k++) {
             float t0 = k / (float) seg * MathHelper.TAU, t1 = (k + 1) / (float) seg * MathHelper.TAU;
+            float tm = (t0 + t1) * 0.5f, rm = (inner + outer) * 0.5f;
+            Vector3f mid = new Vector3f(a).mul(MathHelper.cos(tm) * rm).add(new Vector3f(bb).mul(MathHelper.sin(tm) * rm)).add(c);
+            if ((mid.length() < cDist) != front) continue;
             for (int side = 0; side < 2; side++) {
                 float[] th = side == 0 ? new float[]{t0, t1} : new float[]{t1, t0};
                 ringVert(vc, m, c, a, bb, inner, th[0], 0f, litFace, l, r, alpha);
@@ -201,11 +207,26 @@ public final class BodyDraw {
 
     /** A UV sphere (equirectangular texture), vertex colour from {@code shade} per unit normal. */
     public static void sphere(VertexConsumer vc, Matrix4f m, Vector3f c, float r, Quaternionf spin, int lat, int lon, Shade shade) {
+        sphere(vc, m, c, r, spin, lat, lon, shade, false);
+    }
+
+    /**
+     * @param cull skip quads facing away from the camera (the camera is the origin of sky space), so a
+     *             sphere never needs the depth buffer to hide its own far side
+     */
+    public static void sphere(VertexConsumer vc, Matrix4f m, Vector3f c, float r, Quaternionf spin, int lat, int lon, Shade shade, boolean cull) {
         float[] col = new float[4];
+        Vector3f tmp = new Vector3f();
         for (int i = 0; i < lat; i++) {
             float v0 = i / (float) lat, v1 = (i + 1) / (float) lat;
             for (int j = 0; j < lon; j++) {
                 float u0 = j / (float) lon, u1 = (j + 1) / (float) lon;
+                if (cull) {
+                    Vector3f n = spin.transform(PlanetDrawMath.unit((u0 + u1) * 0.5f, (v0 + v1) * 0.5f));
+                    tmp.set(n).mul(r).add(c);
+                    // keep a sliver past the limb so the edge never shows gaps
+                    if (n.dot(tmp) > 0.12f * tmp.length()) continue;
+                }
                 vert(vc, m, c, r, spin, u0, v0, shade, col);
                 vert(vc, m, c, r, spin, u1, v0, shade, col);
                 vert(vc, m, c, r, spin, u1, v1, shade, col);

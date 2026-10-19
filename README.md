@@ -11,6 +11,7 @@ is made by this repo's own tools (Blender, numpy, synthesized audio). No vanilla
 | Fabric Loader | ≥ 0.15 |
 | Fabric API | 0.92.x+1.20.1 |
 | GeckoLib | 4.2 – 4.4.x (Fabric, 1.20.1) |
+| Immersive Portals | 3.3.9 for 1.20.1 (Fabric) — required since 4.0 |
 
 Three small client mixins (two-handed tablet in first and third person, camera fly-in to the control panel); no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
 layers, so it works alongside Sodium.
@@ -81,25 +82,73 @@ around every face, and is sampled with linear filtering (`railgun.png.mcmeta`), 
 smooth surfaces rather than pixel art.
 
 ## Rift
-Press **RIFT** on the tablet while the railgun is idle. A crown of six emitter petals and a
-spinning halo blooms open around the muzzle, the rail swings straight up, and a thick violet
-beam punches **120 blocks** into the sky and rips it open. The rift is a real 3D opening: a
-jagged, shredded rim of violet light with lightning crawling over it and energy tendrils from
-the beam clawing it wider, and behind it a volumetric throat that twists up some 80 blocks into
-another dimension, walled with streaming nebula and lit by a blazing star at its far end. Lit,
-fully 3D planets hang inside it (a ringed gas giant, an ocean world with its moon, a lava world).
-No orbit lines, no holograms.
+Press **RIFT** on the tablet while the railgun is idle. A crown of six emitter petals blooms
+around the muzzle and the rail swings straight up while it charges: every red part of ARES-9,
+paint and lights, slowly turns dark purple, the colour running down from the tip of the rail to
+the ground. Then a thick violet beam punches **120 blocks** into the sky and rips it open.
 
-The rift stays open for about a minute. Hostile mobs within 34 blocks are lifted, spun up and
-swallowed, and rift lightning lashes the ground.
+The rift is a **real see-through portal into space** (Immersive Portals). Look up through the
+torn, crackling rim and you see actual space: stars, the Milky Way, the sun, the planets. Stand in
+the beam at the railgun and it carries you up and straight through, **no loading screen**: you
+are simply floating in space, high above Earth, and looking back down through the hole you can
+see your world and the railgun below.
 
-**It's enterable.** Stand in the beam at the railgun and the beam lifts you up into the rift
-(sneak to resist). You come out in **the Rift**, a dimension of deep space: a nebula sky, a
-star and huge planets overhead, drifting asteroids of blackstone, amethyst and crying obsidian,
-low gravity. You arrive on an asteroid island with a return pad. Stand on the pad's column of
-light for two seconds to go back to where you came from (falling into the void also sends you
-home). When the rift collapses, it slams shut with a thunderclap and a shockwave across the sky.
-One rift per minute.
+The rift stays open for **two minutes**. Warnings go out to everyone in space at 60, 30 and 10
+seconds. When it closes, the railgun stops firing, the hole slams shut and anyone still up there
+is **stranded in space**. The only way home is to fly back down into Earth's atmosphere.
+
+## Space
+A realistic solar system in its own dimension: black sky, sharp stars, the Milky Way, a white
+sun, and every body as a lit 3D sphere at its true direction and size. Earth fills the sky below
+you, with oceans, continents, polar ice, moving clouds and city lights on the night side. The
+Moon, Mars, Venus, Jupiter (with Europa) and ringed Saturn are all out there to fly to.
+* Zero gravity. Everything keeps its momentum.
+* Vacuum. Without a complete EVA suit you freeze and suffocate in seconds.
+* Fly into a planet's atmosphere and you come down to its surface with no loading screen, the
+  visor wrapped in re-entry fire. Fly into Earth's and you come out high above your own world,
+  above the spot you entered over.
+* Jupiter and Saturn have no surface: their atmospheres hurl you back out.
+
+## ARES EVA suit
+Four pieces (helmet, suit + jetpack, leggings, boots), a 3D armour model built in Blender. You
+need **all four** to survive anywhere off Earth. The boots absorb any fall.
+* **Jetpack in space:** full 3D flight with inertia. W/S along your view, A/D strafe, Space up,
+  Shift down, Sprint for the main engines (up to 160 m/s). Let go and the stabilisers slowly
+  stop you; Space + Shift brakes hard.
+* **Jetpack in gravity:** hold Space in the air to fly, Sprint to go faster, Shift to hover down.
+  Earth's thrusters can't climb past about Y 450: the rift is the only way to space.
+* Visor HUD: seal status, speed, nearest body and distance, gravity.
+
+Recipes: helmet (iron, tinted glass, netherite, redstone lamp); suit (iron, fire charges,
+netherite, elytra); leggings (iron, netherite, white wool); boots (iron, netherite, slime blocks).
+
+## Planets
+| | Gravity | Surface |
+|---|---|---|
+| The Moon | 0.17 g | grey regolith, bright highlands, dark basalt maria, deep basins. Earth hangs huge in a black sky. |
+| Mars | 0.38 g | rust-red dunes and plains, terracotta canyon walls, basalt fields, a butterscotch sky with a small, blue-haloed sun. |
+| Venus | 0.90 g | black basalt, volcanic peaks, sulphur crusts and seas of lava under an endless yellow overcast. |
+| Europa | 0.13 g | a shell of snow and ice cut by rust-brown fractures, with Jupiter filling a third of the sky. |
+
+Where you stand on a planet decides where the sun and the other bodies are, so walking far
+enough brings night. Climb above Y 420 with the jetpack and you are back in space above that spot.
+
+## ARES-0
+Switch the tablet's drop page to **ARES-0** and call it down like ARES-9. A planet killer: a
+graphite and white foundation that plants six stabiliser legs, twin armoured towers and a
+**31-block tri-rail accelerator** with nine spinning capacitor rings. Use it to open its console,
+pick a planet that is above the horizon, and fire. It charges for nine seconds, then a beam
+climbs from your world into the sky and into the planet:
+1. the beam strikes, a glowing wound opens and fractures race across the crust until the whole
+   planet glows from within;
+2. the core collapses, the planet shrinks and dims;
+3. it detonates: a flash you see from Earth, about 140 tumbling fragments with molten faces
+   cooling from white to red to black, a plasma shell, a shockwave ring racing outward, a
+   spreading dust cloud;
+4. a slowly drifting debris field is left where the planet was, forever. Players standing on it
+   are thrown clear into space a moment before it goes.
+
+The Moon disappears from the night sky once it is destroyed. Earth can't be targeted.
 
 ## Scan mode
 Press **SCAN** on the tablet while the railgun is idle. A sensor mast telescopes up out of the
