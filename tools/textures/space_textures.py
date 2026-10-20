@@ -11,6 +11,7 @@ Realistic space textures for ARES-9 / ARES-0 v4 (procedural; run locally, PNGs a
   textures/space/jupiter.png        belts and zones, festoons, the Great Red Spot, white ovals
   textures/space/saturn.png         saturn_rings.png (radial profile with the Cassini division)
   textures/space/planet_cracks.png  glowing fracture network (blast)    plasma.png  dust.png
+  textures/space/fire_cloud.png smoke.png streak.png flare_streak.png  (v4.0.4 blast)
   textures/space/white.png, moon_gone.png
 """
 import math
@@ -269,7 +270,7 @@ def earth():
 
 
 def moon():
-    W, H = 2048, 1024
+    W, H = 4096, 2048
     lat, lon = latlon(H, W)
     hgt = noise(H, W, 6, 41, 6) * 0.3
     rays = np.zeros((H, W), np.float32)
@@ -287,7 +288,7 @@ def moon():
 
 
 def mars():
-    W, H = 2048, 1024
+    W, H = 4096, 2048
     lat, lon = latlon(H, W)
     alat = np.abs(lat)
     hgt = warped(H, W, 5, 51, 0.25, 7) * 0.5
@@ -336,7 +337,7 @@ def europa():
 
 
 def jupiter():
-    W, H = 2048, 1024
+    W, H = 4096, 2048
     lat, lon = latlon(H, W)
     turb = warped(H, W, 12, 91, 0.06, 6) - 0.5
     shear = noise(H, W, 3, 92, 4) - 0.5
@@ -411,13 +412,55 @@ def blast():
     save(np.full((S, S, 3), 255.0), "dust", alpha=puff * 255)
 
 
+def blast_v2():
+    """Fire cloud, smoke puff, ejecta streak and anamorphic flare for the v4.0.4 planet death."""
+    S = 256
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    dx, dy = (xx - S / 2) / (S / 2), (yy - S / 2) / (S / 2)
+    rr = np.sqrt(dx ** 2 + dy ** 2)
+    ang = np.arctan2(dy, dx)
+    for name, seed, lumpy in (("fire_cloud", 141, 0.45), ("smoke", 151, 0.6)):
+        n = warped(S, S, 5, seed, 0.35, 6)
+        lobes = 0.5 + 0.5 * np.sin(ang * 7 + n * 6) * 0.5 + 0.25 * np.sin(ang * 3 + 1.3)
+        edge = 1 - rr * (1 + lumpy * (n - 0.5) + 0.18 * (lobes - 0.5))
+        shape = np.clip(edge * 2.2, 0, 1) ** 1.3 * np.clip((1 - rr) * 4, 0, 1)
+        detail = warped(S, S, 14, seed + 1, 0.25, 5)
+        bright = np.clip(0.35 + 0.55 * n + 0.35 * (detail - 0.5), 0, 1)
+        if name == "fire_cloud":
+            core = np.clip(1 - rr * 1.6, 0, 1) ** 2
+            bright = np.clip(bright + core * 0.6, 0, 1)
+            a = shape * (0.55 + 0.45 * detail)
+        else:
+            # billowy, self-shadowed: lit from the top-left
+            bright = np.clip(0.45 + 0.5 * n - 0.25 * (dx + dy) * 0.5, 0, 1)
+            a = shape * (0.7 + 0.3 * detail)
+        save(np.stack([bright * 255] * 3, -1), name, alpha=a * 255)
+    # streak: U along the trail (0 tail -> 1 head), V across
+    W, H = 256, 32
+    u = np.linspace(0, 1, W)[None, :]
+    v = np.linspace(-1, 1, H)[:, None]
+    taper = 0.25 + 0.75 * u
+    across = np.exp(-(v / (0.45 * taper)) ** 2)
+    along = u ** 1.6 + 0.9 * np.exp(-((u - 0.94) / 0.05) ** 2)
+    a = np.clip(across * along, 0, 1)
+    save(np.full((H, W, 3), 255.0), "streak", alpha=a * 255)
+    # anamorphic flare: long horizontal line, soft vertical falloff
+    W, H = 1024, 64
+    u = np.linspace(-1, 1, W)[None, :]
+    v = np.linspace(-1, 1, H)[:, None]
+    line = np.exp(-(v / 0.08) ** 2) * (1 - np.abs(u)) ** 1.5
+    halo = np.exp(-(v / 0.4) ** 2) * np.exp(-(u / 0.25) ** 2) * 0.6
+    a = np.clip(line + halo, 0, 1)
+    save(np.full((H, W, 3), 255.0), "flare_streak", alpha=a * 255)
+
+
 def misc():
     save(np.full((16, 16, 3), 255.0), "white")
     save(np.zeros((32, 32, 3)), "moon_gone", alpha=np.zeros((32, 32)))
 
 
 JOBS = {"space_sky": space_sky, "sun": sun, "earth": earth, "moon": moon, "mars": mars, "venus": venus,
-        "europa": europa, "jupiter": jupiter, "saturn": saturn, "blast": blast, "misc": misc}
+        "europa": europa, "jupiter": jupiter, "saturn": saturn, "blast": blast, "blast_v2": blast_v2, "misc": misc}
 
 if __name__ == "__main__":
     for name in (sys.argv[1:] or JOBS):

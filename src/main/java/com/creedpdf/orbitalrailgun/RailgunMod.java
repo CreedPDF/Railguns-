@@ -75,6 +75,18 @@ public final class RailgunMod implements ModInitializer {
                     .fireImmune()
                     .build());
 
+    /** A burning piece of a destroyed planet falling to Earth. */
+    public static final EntityType<com.creedpdf.orbitalrailgun.entity.MeteorEntity> METEOR = Registry.register(
+            Registries.ENTITY_TYPE,
+            id("meteor"),
+            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.MeteorEntity>create(SpawnGroup.MISC, com.creedpdf.orbitalrailgun.entity.MeteorEntity::new)
+                    .dimensions(EntityDimensions.fixed(1.5f, 1.5f))
+                    .trackRangeChunks(20)
+                    .trackedUpdateRate(1)
+                    .forceTrackedVelocityUpdates(true)
+                    .fireImmune()
+                    .build());
+
     /** The see-through rift opening (Immersive Portals portal). */
     public static final EntityType<com.creedpdf.orbitalrailgun.space.RiftPortal> RIFT_PORTAL = Registry.register(
             Registries.ENTITY_TYPE, id("rift_portal"), com.creedpdf.orbitalrailgun.space.RiftPortal.TYPE);

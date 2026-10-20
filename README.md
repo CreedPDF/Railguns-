@@ -87,8 +87,9 @@ around the muzzle and the rail swings straight up while it charges: every red pa
 paint and lights, slowly turns dark purple, the colour running down from the tip of the rail to
 the ground. Then a thick violet beam punches **120 blocks** into the sky and rips it open.
 
-The rift is a **real see-through portal into space** (Immersive Portals). Look up through the
-torn, crackling rim and you see actual space: stars, the Milky Way, the sun, the planets. Stand in
+The rift is a **real see-through portal into space** (Immersive Portals), shaped like an actual
+tear: a long, jagged, bent gash about **50 blocks across** with pointed ends, its rim spiked and
+crawling with arcs. Look up through it and you see actual space: stars, the Milky Way, the sun, the planets. Stand in
 the beam at the railgun and it carries you up and straight through, **no loading screen**: you
 are simply floating in space, high above Earth, and looking back down through the hole you can
 see your world and the railgun below.
@@ -102,6 +103,8 @@ A realistic solar system in its own dimension: black sky, sharp stars, the Milky
 sun, and every body as a lit 3D sphere at its true direction and size. Earth fills the sky below
 you, with oceans, continents, polar ice, moving clouds and city lights on the night side. The
 Moon, Mars, Venus, Jupiter (with Europa) and ringed Saturn are all out there to fly to.
+* Entering space puts **DEEP SPACE** across the top of your screen with a line drawing out under
+  it; landing on a planet shows its name and gravity the same way.
 * Zero gravity. Everything keeps its momentum.
 * Vacuum. Without a complete EVA suit you freeze and suffocate in seconds.
 * Fly into a planet's atmosphere and you come down to its surface with no loading screen, the
@@ -135,18 +138,28 @@ enough brings night. Climb above Y 420 with the jetpack and you are back in spac
 
 ## ARES-0
 Switch the tablet's drop page to **ARES-0** and call it down like ARES-9. A planet killer: a
-graphite and white foundation that plants six stabiliser legs, twin armoured towers and a
-**31-block tri-rail accelerator** with nine spinning capacitor rings. Use it to open its console,
-pick a planet that is above the horizon, and fire. It charges for nine seconds, then a beam
-climbs from your world into the sky and into the planet:
+black and molten-orange war machine: clawed pylons, taloned legs, horned towers with slit eyes,
+and a **31-block tri-rail accelerator** bristling with serrated fins, toothed capacitor rings and
+a three-fanged halo. Every light, arc and the beam itself burn orange. Use it to open its console,
+pick a planet that is above the horizon, and fire. It charges for nine seconds, then an orange
+beam climbs out of your world, through the atmosphere and off into space all the way to the
+planet:
 1. the beam strikes, a glowing wound opens and fractures race across the crust until the whole
-   planet glows from within;
+   planet glows from within, lava jets erupting from the cracks;
 2. the core collapses, the planet shrinks and dims;
-3. it detonates: a flash you see from Earth, about 140 tumbling fragments with molten faces
-   cooling from white to red to black, a plasma shell, a shockwave ring racing outward, a
-   spreading dust cloud;
-4. a slowly drifting debris field is left where the planet was, forever. Players standing on it
-   are thrown clear into space a moment before it goes.
+3. it detonates: a blinding flash with an anamorphic lens streak, ~420 tumbling fragments with
+   molten faces and glowing trails, a roiling fireball of hundreds of cloud sprites cooling from
+   blue-white through yellow and orange to red and then into dark, sun-lit smoke, thousands of
+   velocity-stretched ejecta streaks, plasma shells and shockwave rings;
+4. what is left is a smouldering cinder inside a debris disk that flattens and shears into rings
+   over time. Players standing on it are thrown clear into space a moment before it goes.
+
+The kill is announced across the top of everyone's screen (**JUPITER HAS BEEN DECIMATED**, **THE
+MOON HAS BEEN ERADICATED**...). A few seconds later **pieces of the planet start falling to
+Earth**: for about five minutes burning fragments streak across the whole sky, and around every
+player in the overworld real ones come screaming down, blast craters and leave heaps of that
+planet's rock (Martian red rock, lunar basalt, Venusian blackstone and magma, Europan ice,
+gas-giant core metal).
 
 The Moon disappears from the night sky once it is destroyed. Earth can't be targeted.
 

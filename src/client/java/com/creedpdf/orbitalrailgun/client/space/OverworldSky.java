@@ -9,6 +9,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.DimensionEffects;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
@@ -58,14 +59,18 @@ public final class OverworldSky {
             if (!(e instanceof Ares0Entity ares) || !ares.isBeamActive()) continue;
             Vec3d dir = ares.targetDirection(pt);
             if (dir == null) continue;
-            Vec3d near = ares.getMuzzlePos(pt).add(dir.multiply(260)).subtract(cam);
+            Vec3d near = ares.getMuzzlePos(pt).add(dir.multiply(220)).subtract(cam);
             Vector3f a = new Vector3f((float) near.x, (float) near.y, (float) near.z).normalize().mul(DIST * 0.97f);
             Vector3f b = new Vector3f((float) dir.x, (float) dir.y, (float) dir.z).mul(DIST * 0.97f);
             BeamRenderer.Beam bm = new BeamRenderer.Beam(a, b);
             float flick = 0.85f + 0.15f * MathHelper.sin(time * 4.1f);
-            BeamRenderer.glowTube(BeamRenderer.glow(BUF), world, bm, 1.6f, 0.35f, 0.5f, 1f, 0.3f * flick, time);
-            BeamRenderer.glowTube(BeamRenderer.glow(BUF), world, bm, 0.45f, 0.9f, 0.95f, 1f, 0.95f * flick, time);
+            // the column of fire climbing out through the atmosphere, all the way to its target
+            BeamRenderer.glowTube(BeamRenderer.glow(BUF), world, bm, 3.2f, 1f, 0.3f, 0.05f, 0.18f * flick, time);
+            BeamRenderer.glowTube(BeamRenderer.glow(BUF), world, bm, 1.5f, 1f, 0.5f, 0.12f, 0.45f * flick, time);
+            BeamRenderer.glowTube(BeamRenderer.glow(BUF), world, bm, 0.5f, 1f, 0.92f, 0.8f, 0.95f * flick, time);
+            PlanetBlastFx.glowBall(BeamRenderer.glow(BUF), world, b, 2.2f, 1f, 0.6f, 0.2f, 0.7f * flick);
         }
+        meteorShower(world, time, pt);
         BUF.draw();
 
         matrices.push();
@@ -90,12 +95,68 @@ public final class OverworldSky {
             if (alpha < 0.02f) continue;
             if (e >= Blast.DETONATE + Blast.DEBRIS_END && b != Body.MOON) alpha *= 0.7f;
             Vector3f impact = new Vector3f(c).negate().normalize();
-            BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, Math.min(alpha, 0.998f), 48, impact);
+            BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, Math.min(alpha, 0.998f), 96, impact);
             BUF.draw();
         }
         matrices.pop();
         RenderSystem.setShaderFogStart(fs);
         RenderSystem.setShaderFogEnd(fe);
+    }
+
+    /**
+     * After a planet dies its debris streaks across the whole sky for a while: dozens of burning
+     * fragments at a time, a few big fireballs with glowing heads among them.
+     */
+    private static void meteorShower(Matrix4f m, float time, float pt) {
+        float intensity = 0f;
+        for (Body b : Body.ALL) {
+            float e = ClientPlanets.elapsed(b, pt);
+            if (e < 0) continue;
+            float since = e - Blast.DETONATE - com.creedpdf.orbitalrailgun.space.MeteorShower.ARRIVE + 120;
+            float dur = com.creedpdf.orbitalrailgun.space.MeteorShower.DURATION + 1200;
+            if (since < 0 || since > dur) continue;
+            intensity = Math.max(intensity, Math.min(1f, since / 200f) * (1f - since / dur) * (b.gasGiant() ? 1f : 0.8f));
+        }
+        if (intensity <= 0) return;
+        int slots = (int) (90 * intensity) + 6;
+        net.minecraft.util.math.random.Random rand = net.minecraft.util.math.random.Random.create();
+        float[] col = new float[3];
+        for (int i = 0; i < slots; i++) {
+            rand.setSeed(i * 0x9E3779B97F4A7C15L + 77);
+            float period = 30f + rand.nextFloat() * 90f;
+            float phase = rand.nextFloat() * period;
+            int cycle = (int) Math.floor((time + phase) / period);
+            float u = ((time + phase) % period) / period;
+            rand.setSeed(i * 0x9E3779B97F4A7C15L + cycle * 0xC2B2AE3D27D4EB4FL);
+            float dur = 0.25f + rand.nextFloat() * 0.45f;
+            if (u > dur) continue;
+            float k = u / dur;
+            float az = rand.nextFloat() * MathHelper.TAU;
+            float el = 0.35f + rand.nextFloat() * 1.0f;
+            Vector3f start = new Vector3f(MathHelper.cos(az) * MathHelper.cos(el), MathHelper.sin(el), MathHelper.sin(az) * MathHelper.cos(el));
+            float travelAz = az + (rand.nextFloat() - 0.5f) * 1.2f;
+            Vector3f travel = new Vector3f(MathHelper.cos(travelAz) * 0.5f, -1f, MathHelper.sin(travelAz) * 0.5f).normalize();
+            travel.sub(new Vector3f(start).mul(travel.dot(start))).normalize();
+            float sweep = 0.35f + rand.nextFloat() * 0.5f;
+            boolean big = rand.nextFloat() < 0.12f;
+            Vector3f head = new Vector3f(start).add(new Vector3f(travel).mul(sweep * k)).normalize();
+            if (head.y < -0.02f) continue;
+            float tl = (big ? 0.22f : 0.12f) * Math.min(1f, k * 4f);
+            Vector3f tailDir = new Vector3f(start).add(new Vector3f(travel).mul(sweep * k - tl)).normalize();
+            Vector3f h = new Vector3f(head).mul(DIST * 0.9f), t = new Vector3f(tailDir).mul(DIST * 0.9f);
+            Vector3f d = new Vector3f(h).sub(t);
+            float len = d.length();
+            if (len < 1e-3f) continue;
+            d.div(len);
+            float a = MathHelper.sin(k * MathHelper.PI) * intensity * (big ? 1f : 0.75f);
+            PlanetBlastFx.blackbodyPublic(big ? 0.85f : 0.62f + 0.2f * rand.nextFloat(), col);
+            VertexConsumer vc = BUF.getBuffer(com.creedpdf.orbitalrailgun.client.render.BeamRenderLayers.textured(PlanetBlastFx.STREAK));
+            PlanetBlastFx.streak(vc, m, t, d, len, big ? 0.55f : 0.22f, col[0], col[1], col[2], a);
+            if (big) {
+                PlanetBlastFx.streak(vc, m, new Vector3f(t).add(new Vector3f(d).mul(len * 0.5f)), d, len * 0.5f, 0.2f, 1f, 0.95f, 0.85f, a);
+                PlanetBlastFx.glowBall(BeamRenderer.glow(BUF), m, h, 0.7f, 1f, 0.7f, 0.35f, a * 0.8f);
+            }
+        }
     }
 
     /** Body direction in vanilla's sky frame (sun at +Y). */

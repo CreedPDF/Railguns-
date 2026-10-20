@@ -128,13 +128,8 @@ public final class SpaceClient {
             any = true;
             Vec3d o = portal.getOriginPos();
             Vector3f c = new Vector3f((float) (o.x - cam.x), (float) (o.y - cam.y), (float) (o.z - cam.z));
-            float R = (float) portal.width / 2f;
-            RiftFx.rimAt(BUF, m, c, R, time, 0f, e.getId());
-            // the railgun's beam punches on through, fading into space
-            BeamRenderer.Beam b = new BeamRenderer.Beam(new Vector3f(c).add(0, -1f, 0), new Vector3f(c).add(0, 60f, 0));
-            BeamRenderer.glowTube(BeamRenderer.glow(BUF), m, b, 3.2f, 0.5f, 0.2f, 0.95f, 0.12f, time);
-            BeamRenderer.texTube(BeamRenderer.tex(BUF, BeamRenderLayers.TINT_PLASMA), m, b, 1.4f, 0.7f, 0.45f, 1f, 0.45f, 10f, time * 2f, 0f, 0.05f, time);
-            BeamRenderer.texTube(BeamRenderer.tex(BUF, BeamRenderLayers.TINT_CORE), m, b, 0.6f, 1f, 0.95f, 1f, 0.6f, 5f, time * 3f, 0f, 0.02f, time);
+            Vector3f[] outline = outline(portal, cam);
+            if (outline != null) RiftFx.rimAt(BUF, m, c, outline, time, 0f, e.getId());
         }
         if (!any) return;
         float fs = RenderSystem.getShaderFogStart(), fe = RenderSystem.getShaderFogEnd();
@@ -143,6 +138,36 @@ public final class SpaceClient {
         BUF.draw();
         RenderSystem.setShaderFogStart(fs);
         RenderSystem.setShaderFogEnd(fe);
+    }
+
+    /** The tear's outline from the portal's own shape (triangle fan around the centre). */
+    private static Vector3f[] outline(RiftPortal p, Vec3d cam) {
+        qouteall.imm_ptl.core.portal.GeometryPortalShape shape = p.specialShape;
+        if (shape == null || shape.triangles == null || shape.triangles.isEmpty()) return null;
+        java.util.List<double[]> raw = new java.util.ArrayList<>();
+        for (qouteall.imm_ptl.core.portal.GeometryPortalShape.TriangleInPlane t : shape.triangles) {
+            double[][] v = {{t.x1, t.y1}, {t.x2, t.y2}, {t.x3, t.y3}};
+            for (double[] q : v) if (Math.abs(q[0]) + Math.abs(q[1]) > 1e-6) raw.add(q);
+        }
+        raw.sort(java.util.Comparator.comparingDouble(q -> Math.atan2(q[1], q[0])));
+        java.util.List<double[]> pts = new java.util.ArrayList<>();
+        for (double[] q : raw) {
+            if (!pts.isEmpty()) {
+                double[] l = pts.get(pts.size() - 1);
+                if (Math.abs(l[0] - q[0]) + Math.abs(l[1] - q[1]) < 1e-5) continue;
+            }
+            pts.add(q);
+        }
+        Vec3d o = p.getOriginPos();
+        double hw = p.width / 2, hh = p.height / 2;
+        Vector3f[] out = new Vector3f[pts.size()];
+        for (int i = 0; i < out.length; i++) {
+            double x = pts.get(i)[0], y = pts.get(i)[1];
+            if (shape.normalized) { x *= hw; y *= hh; }
+            Vec3d w = o.add(p.axisW.multiply(x)).add(p.axisH.multiply(y));
+            out[i] = new Vector3f((float) (w.x - cam.x), (float) (w.y - cam.y), (float) (w.z - cam.z));
+        }
+        return out;
     }
 
     // ---- gravity, ambience, doomed-planet quakes -------------------------------------------------
@@ -154,6 +179,7 @@ public final class SpaceClient {
             ambient = null;
             return;
         }
+        Banner.tick(w);
         Jetpack.tick(client, p, w);
         ReentryFx.tick(client, p);
         blastSounds(p, w);
@@ -204,6 +230,10 @@ public final class SpaceClient {
             float last = LAST[b.ordinal()];
             LAST[b.ordinal()] = e;
             if (e < 0 || last < 0 && e > 40) continue;
+            if (last < Blast.DETONATE && e >= Blast.DETONATE && !(w.getRegistryKey() == World.OVERWORLD
+                    ? com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(w, b) : SpaceDims.isAirless(w))) {
+                Banner.show(b.displayName() + " HAS BEEN " + Banner.verb(b), null, 0xFFFF9A50);
+            }
             boolean visible = w.getRegistryKey() == World.OVERWORLD ? com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(w, b)
                     : SpaceDims.isAirless(w);
             if (!visible) continue;
@@ -211,6 +241,7 @@ public final class SpaceClient {
             if (last < Blast.CRACK_END - 30 && e >= Blast.CRACK_END - 30) p.playSound(ModSounds.PLANET_COLLAPSE, 2f, 0.9f);
             if (last < Blast.DETONATE && e >= Blast.DETONATE) {
                 p.playSound(ModSounds.PLANET_EXPLODE, 3f, 0.85f);
+                Banner.show(b.displayName() + " HAS BEEN " + Banner.verb(b), null, 0xFFFF9A50);
                 RailgunHud.shake(SpaceDims.isAirless(w) ? 2.4f : 1.2f);
             }
         }

@@ -84,6 +84,8 @@ public final class ModSounds {
     public static final SoundEvent PLANET_COLLAPSE = register("planet.collapse");
     public static final SoundEvent PLANET_EXPLODE = register("planet.explode");
     public static final SoundEvent RIFT_PORTAL = register("rift.portal");
+    public static final SoundEvent METEOR_FALL = register("meteor.fall");
+    public static final SoundEvent METEOR_IMPACT = register("meteor.impact");
 
 
     /** Muzzle firing signature, ammunition fire sound, or the module's own sound. */

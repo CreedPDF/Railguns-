@@ -156,5 +156,8 @@
   "subtitles.orbital_railgun.planet.crack": "The ground splits",
   "subtitles.orbital_railgun.planet.collapse": "A planet's core collapses",
   "subtitles.orbital_railgun.planet.explode": "A planet explodes",
-  "subtitles.orbital_railgun.rift.portal": "The rift opens into space"
+  "subtitles.orbital_railgun.rift.portal": "The rift opens into space",
+  "subtitles.orbital_railgun.meteor.fall": "Planetary debris screams down",
+  "subtitles.orbital_railgun.meteor.impact": "Planetary debris impacts",
+  "entity.orbital_railgun.meteor": "Planetary Debris"
 }

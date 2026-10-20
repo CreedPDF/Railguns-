@@ -15,6 +15,8 @@ public class RiftPortal extends Portal {
     public static final EntityType<RiftPortal> TYPE = Portal.createPortalEntityType(RiftPortal::new);
 
     public long expireAt = Long.MAX_VALUE;
+    /** Full size, so the collapse can scale the tear down (not saved: collapse is short-lived). */
+    public double baseWidth, baseHeight;
 
     public RiftPortal(EntityType<?> type, World world) {
         super(type, world);

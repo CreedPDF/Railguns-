@@ -1062,6 +1062,34 @@ def planet_explode():
     return room(mband_sat(x, (3.4, 2.2, 1.5)), 5.0, 0.6)
 
 
+def meteor_fall():
+    """A burning chunk of a dead planet screaming down through the atmosphere."""
+    d = 6.0
+    x = canvas(d)
+    t = t_axis(5.5)
+    roar = sweep(white(5.5), "bandpass", 500, 2600) * (0.2 + 0.8 * (t / 5.5) ** 1.5) * 0.8
+    place(x, roar, 0.0)
+    place(x, filt(brown(5.5), "lowpass", 220) * (0.3 + 0.7 * (t / 5.5)) * 1.2, 0.0)
+    whistle = osc(glide(2400, 700, 5.5, 1.4), 5.5) * (t / 5.5) ** 2 * 0.12
+    place(x, whistle, 0.0)
+    place(x, crackle(5.5, 60, 0.002, 2000, (t / 5.5)) * 0.5, 0.0)
+    return room(sat(x, 2.0), 2.6, 0.35)
+
+
+def meteor_impact():
+    """The chunk hits: a crushing thump, rock shattering, debris raining back down."""
+    d = 7.0
+    x = canvas(d)
+    place(x, kick(70, 18, 4.0, 1.4, 1.0) * 2.0, 0.0)
+    place(x, sweep(white(0.4), "highpass", 9000, 600) * env(0.4, 0.001, 0.05, 0.5, 0.3) * 1.2, 0.0)
+    place(x, filt(brown(6.0), "lowpass", 180) * decay(6.0, 2.2) * 1.5, 0.01)
+    place(x, filt(white(5.0), "bandpass", [200, 2400]) * decay(5.0, 1.5) * 0.7, 0.03)
+    place(x, crackle(6.0, 90, 0.002, 1200, decay(6.0, 2.0)) * 0.8, 0.15)
+    for k in range(10):
+        place(x, kick(160 + 20 * k, 60, 0.3, 0.08, 0.6) * (0.25 - k * 0.02), 0.6 + k * 0.33)
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 3.8, 0.5)
+
+
 def rift_portal():
     """The hole in the sky clears into real space: a deep inhale and a glassy ring."""
     d = 5.0
@@ -1519,6 +1547,8 @@ LOADOUT_SOUNDS = {
     "planet_crack": planet_crack,
     "planet_collapse": planet_collapse,
     "planet_explode": planet_explode,
+    "meteor_fall": meteor_fall,
+    "meteor_impact": meteor_impact,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1532,7 +1562,7 @@ LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_th
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_", "space_", "jetpack_", "suit_", "ares0_", "planet_"):
+    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_", "space_", "jetpack_", "suit_", "ares0_", "planet_", "meteor_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1590,7 +1620,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_", "ares0_fire", "planet_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster", "ares0_")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_", "ares0_fire", "planet_", "meteor_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster", "ares0_")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 
