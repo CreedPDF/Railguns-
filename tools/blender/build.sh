@@ -5,13 +5,16 @@
 set -uo pipefail
 BLENDER="${1:-${BLENDER:-blender}}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+EXTRA=""
 for attempt in 1 2 3 4; do
   "$BLENDER" -b --factory-startup --python-exit-code 1 \
     -P "$ROOT/tools/blender/build_models.py" -- \
     --assets "$ROOT/src/main/resources/assets/orbital_railgun" \
     --out "$ROOT/build/blender" \
-    --collision "$ROOT/src/main/resources/orbital_railgun_collision.json"
+    --collision "$ROOT/src/main/resources/orbital_railgun_collision.json" $EXTRA
   code=$?
+  # The crashes happen in Cycles' preview renders; retries skip them (committed icons/renders are kept).
+  EXTRA="--no-render"
   if [ $code -eq 0 ]; then exit 0; fi
   if [ $code -ne 139 ] && [ $code -ne 134 ]; then exit $code; fi
   echo "Blender crashed (exit $code), retrying ($attempt/4)..."

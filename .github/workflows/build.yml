@@ -61,7 +61,7 @@ jobs:
       - name: Copy preview renders into the repo
         run: |
           mkdir -p docs/renders
-          cp build/blender/*.png docs/renders/
+          cp build/blender/*.png docs/renders/ 2>/dev/null || true
 
       - name: Upload Blender renders and .blend
         uses: actions/upload-artifact@v4
