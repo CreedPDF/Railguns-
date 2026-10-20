@@ -894,6 +894,185 @@ def rift_lift():
     return room(x, 2.0, 0.4)
 
 
+# ============================================================================== v4: space, EVA, ARES-0
+
+
+def space_reentry():
+    """Atmospheric entry: a roaring plasma sheath, buffeting, sub-bass rumble."""
+    d = 5.0
+    x = canvas(d)
+    t = t_axis(4.6)
+    roar = sweep(brown(4.6) * 0.6 + white(4.6) * 0.4, "bandpass", 300, 1400) * env(4.6, 0.2, 0.4, 0.8, 1.8)
+    buffet = 0.75 + 0.25 * np.sin(2 * np.pi * (3 + 4 * np.sin(t * 1.7)) * t)
+    place(x, roar * buffet * 0.9, 0.0)
+    place(x, filt(brown(4.6), "lowpass", 90) * env(4.6, 0.3, 0.3, 0.9, 1.6) * 1.2, 0.0)
+    place(x, crackle(4.6, 90, 0.0015, 2500, env(4.6, 0.3, 0.2, 0.8, 1.5)) * 0.35, 0.0)
+    return room(mband_sat(x, (2.4, 1.6, 1.2)), 2.0, 0.3)
+
+
+def space_ambient():
+    """Inside the helmet: life-support hum, a slow fan, and quiet breathing."""
+    d = 12.0
+    t = t_axis(d)
+    hum = (osc(60, d) * 0.12 + osc(120, d) * 0.05 + osc(180, d, "tri") * 0.02)
+    fan = filt(white(d), "bandpass", [400, 1800]) * 0.05 * (0.9 + 0.1 * np.sin(2 * np.pi * t / d * 3))
+    breath = np.zeros_like(t)
+    for k in range(3):
+        st = k * 4.0
+        a = np.clip((t - st) / 1.4, 0, 1) * np.clip((st + 2.8 - t) / 1.4, 0, 1)
+        breath += a ** 2
+    br = filt(white(d), "bandpass", [500, 2600]) * breath * 0.08
+    return make_loop(hum + fan + br, 1.0)
+
+
+def jetpack_thrust():
+    """Jetpack thrust loop: a tight hiss-roar with a low thrum."""
+    d = 3.0
+    t = t_axis(d)
+    roar = filt(white(d), "bandpass", [250, 3500]) * 0.5
+    thrum = filt(brown(d), "lowpass", 160) * 0.7 * (0.85 + 0.15 * np.sin(2 * np.pi * 9 * t))
+    whine = osc(880 + 20 * np.sin(2 * np.pi * 0.7 * t), d, "sine") * 0.02
+    return make_loop(mband_sat(roar + thrum + whine, (2.0, 1.4, 1.1)), 0.3)
+
+
+def jetpack_boost():
+    """Main engines kick in: a whoosh and a punch."""
+    d = 1.6
+    x = canvas(d)
+    place(x, sweep(white(1.2), "bandpass", 400, 4000) * env(1.2, 0.02, 0.2, 0.6, 0.8) * 0.8, 0.0)
+    place(x, kick(90, 40, 0.6, 0.25, 0.3) * 0.8, 0.0)
+    return room(x, 1.2, 0.25)
+
+
+def jetpack_ignite():
+    """Igniter tick + pop."""
+    d = 0.8
+    x = canvas(d)
+    for k in range(3):
+        place(x, sweep(white(0.02), "highpass", 5000, 3000) * 0.6, k * 0.04)
+    place(x, filt(white(0.4), "bandpass", [300, 2500]) * decay(0.4, 0.12) * 0.9, 0.12)
+    place(x, kick(120, 50, 0.3, 0.1, 0.4) * 0.6, 0.12)
+    return room(x, 0.8, 0.2)
+
+
+def suit_alarm():
+    """Suit warning: two-tone chirps."""
+    d = 1.1
+    x = canvas(d)
+    for k, f in enumerate((1320, 990, 1320, 990)):
+        place(x, osc(f, 0.11, "tri") * env(0.11, 0.005, 0.02, 0.8, 0.04) * 0.4, k * 0.14)
+    return room(x, 0.6, 0.15)
+
+
+def suit_seal():
+    """Helmet locks: a clunk and a pressurising hiss."""
+    d = 1.6
+    x = canvas(d)
+    place(x, clank(0.8, 220, 0.25), 0.0)
+    place(x, sweep(white(1.2), "bandpass", 6000, 2500) * env(1.2, 0.05, 0.2, 0.5, 0.8) * 0.35, 0.08)
+    return room(x, 0.8, 0.2)
+
+
+def ares0_deploy():
+    """ARES-0 unfolding: huge hydraulics, six legs slamming down, a deep power-up."""
+    d = 7.0
+    x = canvas(d)
+    place(x, hydraulic(2.5, 2600, 0.8), 0.2)
+    place(x, servo(2.2, 60, 140, 9, 0.9), 0.4)
+    for k in range(6):
+        place(x, clank(1.0, 120 - k * 6, 0.5) * 1.1, 2.6 + k * 0.08)
+    place(x, kick(70, 24, 2.0, 0.8, 0.8) * 1.3, 2.62)
+    place(x, power_hum(3.5, 41, 0.6) * env(3.5, 1.2, 0.3, 0.8, 1.4), 3.2)
+    return room(mband_sat(x, (2.4, 1.5, 1.2)), 2.6, 0.35)
+
+
+def ares0_charge():
+    """ARES-0 charging: a planet-sized hum climbing for nine seconds, choirs and arcs."""
+    d = 9.5
+    x = canvas(d)
+    t = t_axis(9.0)
+    drone = unison(glide(28, 110, 9.0, 1.6), 9.0, 7, 0.01, "saw")
+    drone = sweep(drone, "lowpass", 120, 2400) * (t / 9.0) ** 1.4 * 0.5
+    place(x, drone, 0.0)
+    sub = osc(glide(22, 55, 9.0, 1.5), 9.0) * (0.3 + 0.7 * (t / 9.0)) * 0.6
+    place(x, sub, 0.0)
+    choir = sum(unison(glide(f, f * 1.5, 9.0, 1.3), 9.0, 3, 0.004, "tri") for f in (220, 277.2, 329.6, 440)) / 4
+    place(x, filt(choir, "lowpass", 3000) * (t / 9.0) ** 2.2 * 0.18, 0.0)
+    place(x, crackle(9.0, 70, 0.0012, 3000) * (t / 9.0) ** 3 * 0.5, 0.0)
+    return room(mband_sat(x, (2.2, 1.5, 1.2)), 3.0, 0.4)
+
+
+def ares0_fire():
+    """The planet-killer fires: a world-shaking crack, a roaring column of light, a long rolling echo."""
+    d = 10.0
+    x = canvas(d)
+    place(x, sweep(white(0.4), "highpass", 12000, 1500) * env(0.4, 0.001, 0.05, 0.6, 0.3) * 1.2, 0.0)
+    place(x, kick(50, 16, 4.5, 1.6, 1.0) * 1.8, 0.0)
+    place(x, filt(brown(8.0), "lowpass", 180) * decay(8.0, 3.0) * 1.4, 0.02)
+    beam = sweep(white(7.0) * 0.5 + brown(7.0) * 0.5, "bandpass", 2400, 500) * env(7.0, 0.05, 0.5, 0.75, 3.5)
+    place(x, beam * 0.8, 0.05)
+    tone = unison(55, 7.0, 6, 0.01, "saw")
+    place(x, filt(tone, "lowpass", 700) * env(7.0, 0.1, 0.5, 0.7, 3.0) * 0.4, 0.1)
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 4.0, 0.55)
+
+
+def ares0_beam():
+    """Sustained beam roar (loop)."""
+    d = 4.0
+    t = t_axis(d)
+    roar = filt(white(d) * 0.5 + brown(d) * 0.5, "bandpass", [200, 2200]) * 0.6
+    tone = unison(55, d, 5, 0.008, "saw")
+    tone = filt(tone, "lowpass", 600) * 0.25 * (0.9 + 0.1 * np.sin(2 * np.pi * 2 / d * t))
+    return make_loop(mband_sat(roar + tone, (2.4, 1.5, 1.2)), 0.4)
+
+
+def planet_crack():
+    """A world breaking: a low splintering groan and deep thuds."""
+    d = 5.0
+    x = canvas(d)
+    place(x, crackle(3.5, 40, 0.004, 400, decay(3.5, 1.4)) * 1.4, 0.0)
+    place(x, filt(brown(4.5), "lowpass", 120) * env(4.5, 0.3, 0.6, 0.6, 2.4) * 1.3, 0.0)
+    for k in range(4):
+        place(x, kick(45, 18, 1.4, 0.6, 0.2) * (0.9 - k * 0.15), 0.4 + k * 0.7)
+    return room(mband_sat(x, (2.8, 1.6, 1.1)), 3.4, 0.45)
+
+
+def planet_collapse():
+    """The core implodes: everything is sucked inward, a rising inhale."""
+    d = 4.5
+    x = canvas(d)
+    n = int(3.0 * SR)
+    inhale = sweep(white(3.0), "bandpass", 200, 6000) * np.linspace(0, 1, n) ** 2.5 * 0.9
+    place(x, inhale, 0.0)
+    place(x, osc(glide(30, 160, 3.0, 2.0), 3.0, "saw") * np.linspace(0, 1, n) ** 2 * 0.25, 0.0)
+    return room(x, 2.4, 0.35)
+
+
+def planet_explode():
+    """A planet detonating: the biggest sound in the mod."""
+    d = 14.0
+    x = canvas(d)
+    place(x, sweep(white(0.6), "highpass", 12000, 800) * env(0.6, 0.001, 0.08, 0.6, 0.5) * 1.4, 0.0)
+    place(x, kick(40, 12, 7.0, 2.6, 1.0) * 2.2, 0.0)
+    place(x, filt(brown(12.0), "lowpass", 140) * decay(12.0, 5.0) * 1.8, 0.02)
+    place(x, filt(white(10.0), "bandpass", [150, 1800]) * decay(10.0, 3.2) * 0.9, 0.05)
+    place(x, crackle(10.0, 120, 0.002, 1500, decay(10.0, 3.0)) * 0.7, 0.2)
+    for k in range(6):
+        place(x, kick(55, 20, 2.0, 0.8, 0.3) * (0.7 - k * 0.09), 1.2 + k * 1.1)
+    return room(mband_sat(x, (3.4, 2.2, 1.5)), 5.0, 0.6)
+
+
+def rift_portal():
+    """The hole in the sky clears into real space: a deep inhale and a glassy ring."""
+    d = 5.0
+    x = canvas(d)
+    place(x, sweep(white(2.0), "bandpass", 300, 5000) * env(2.0, 0.6, 0.2, 0.6, 1.0) * 0.6, 0.0)
+    ring = sum(osc(f, 4.0) for f in (523.3, 784.0, 1046.5, 1568.0)) / 4
+    place(x, ring * decay(4.0, 1.6) * 0.22, 0.9)
+    place(x, kick(60, 25, 2.0, 0.7, 0.3) * 0.9, 0.9)
+    return room(x, 3.2, 0.5)
+
+
 def scan_charge():
     """Scan array spinning up: a rising sonar sweep, a hum climbing in pitch, glassy shimmer."""
     d = 1.7
@@ -1325,6 +1504,21 @@ LOADOUT_SOUNDS = {
     "rift_enter": rift_enter,
     "rift_ambient": rift_ambient,
     "rift_lift": rift_lift,
+    "rift_portal": rift_portal,
+    "space_reentry": space_reentry,
+    "space_ambient": space_ambient,
+    "jetpack_thrust": jetpack_thrust,
+    "jetpack_boost": jetpack_boost,
+    "jetpack_ignite": jetpack_ignite,
+    "suit_alarm": suit_alarm,
+    "suit_seal": suit_seal,
+    "ares0_deploy": ares0_deploy,
+    "ares0_charge": ares0_charge,
+    "ares0_fire": ares0_fire,
+    "ares0_beam": ares0_beam,
+    "planet_crack": planet_crack,
+    "planet_collapse": planet_collapse,
+    "planet_explode": planet_explode,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1338,7 +1532,7 @@ LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_th
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_"):
+    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_", "space_", "jetpack_", "suit_", "ares0_", "planet_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1370,7 +1564,7 @@ SOUNDS = {
     "ui_tablet_close": ui_tablet_close,
 }
 SOUNDS.update(LOADOUT_SOUNDS)
-LOOPS = {"railgun_charge_loop", "railgun_reentry", "rift_loop", "rift_ambient"}
+LOOPS = {"railgun_charge_loop", "railgun_reentry", "rift_loop", "rift_ambient", "space_ambient", "jetpack_thrust", "ares0_beam"}
 
 # sound event id -> (file, extra properties)
 EVENTS = {
@@ -1396,7 +1590,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_", "ares0_fire", "planet_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster", "ares0_")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 

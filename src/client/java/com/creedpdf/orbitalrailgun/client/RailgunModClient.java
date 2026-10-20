@@ -30,22 +30,38 @@ public final class RailgunModClient implements ClientModInitializer {
         RailgunMod.setClientBridge(new Bridge());
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
+        EntityRendererRegistry.register(RailgunMod.ARES0, com.creedpdf.orbitalrailgun.client.ares0.Ares0Renderer::new);
+        registerPortalRenderer();
+        com.creedpdf.orbitalrailgun.client.ares0.Ares0Fx.register();
+        com.creedpdf.orbitalrailgun.client.space.SpaceClient.register();
+        HudRenderCallback.EVENT.register(com.creedpdf.orbitalrailgun.client.space.SpaceHud::render);
         RailgunParticles.register();
         ClientPackets.registerReceivers();
         com.creedpdf.orbitalrailgun.client.render.RemoteBeams.register();
         com.creedpdf.orbitalrailgun.client.render.ScanFx.register();
         com.creedpdf.orbitalrailgun.client.render.RiftFx.register();
-        com.creedpdf.orbitalrailgun.client.render.RiftDimensionClient.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);
 
         ItemTooltipCallback.EVENT.register((stack, context, lines) -> {
+            if (stack.getItem() instanceof com.creedpdf.orbitalrailgun.item.EvaSuitItem eva) {
+                lines.add(Text.translatable("item.orbital_railgun.eva.tooltip").formatted(Formatting.GRAY));
+                if (eva.getType() == net.minecraft.item.ArmorItem.Type.CHESTPLATE) {
+                    lines.add(Text.translatable("item.orbital_railgun.eva_chestplate.tooltip").formatted(Formatting.AQUA));
+                }
+            }
             if (stack.isOf(RailgunMod.RAILGUN_REMOTE)) {
                 lines.add(Text.translatable("item.orbital_railgun.railgun_remote.tooltip.1").formatted(Formatting.GRAY));
                 lines.add(Text.translatable("item.orbital_railgun.railgun_remote.tooltip.2").formatted(Formatting.DARK_RED));
             }
         });
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void registerPortalRenderer() {
+        EntityRendererRegistry.register(RailgunMod.RIFT_PORTAL,
+                (net.minecraft.client.render.entity.EntityRendererFactory) qouteall.imm_ptl.core.render.PortalEntityRenderer::new);
     }
 
     /** Real client-side implementation of the hooks common code calls into. */
@@ -68,6 +84,25 @@ public final class RailgunModClient implements ClientModInitializer {
             if (client.player == null) return;
             double dist = client.player.distanceTo(railgun);
             RailgunHud.shake((float) (strength * Math.max(0.0, 1.0 - dist / 64.0)));
+        }
+
+        @Override
+        public Object evaRenderProvider() {
+            return com.creedpdf.orbitalrailgun.client.render.EvaSuitRenderer.provider();
+        }
+
+        @Override
+        public void shakeAt(net.minecraft.util.math.Vec3d pos, float strength, double range) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.player == null) return;
+            double d = client.player.getPos().distanceTo(pos);
+            RailgunHud.shake((float) (strength * Math.max(0.0, 1.0 - d / range)));
+        }
+
+        @Override
+        public void openAres0(com.creedpdf.orbitalrailgun.entity.Ares0Entity ares) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.currentScreen == null) client.setScreen(new com.creedpdf.orbitalrailgun.client.ares0.Ares0Screen(ares));
         }
 
         @Override

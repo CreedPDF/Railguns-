@@ -74,9 +74,24 @@ public final class ClientPackets {
     }
 
     public static void sendDeployRequest(BlockPos target) {
+        sendDeployRequest(target, 0);
+    }
+
+    /** kind 0 = ARES-9, 1 = ARES-0. */
+    public static void sendDeployRequest(BlockPos target, int kind) {
         PacketByteBuf buf = PacketByteBufs.create();
         buf.writeBlockPos(target);
+        buf.writeByte(kind);
         ClientPlayNetworking.send(ModPackets.REQUEST_DEPLOY, buf);
+    }
+
+    /** ARES-0 console: 0 select, 1 fire, 2 return to orbit. */
+    public static void sendAres0(int entityId, int action, int body) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(entityId);
+        buf.writeVarInt(action);
+        buf.writeVarInt(body);
+        ClientPlayNetworking.send(ModPackets.ARES0_ACTION, buf);
     }
 
     public static void sendTarget(BlockPos target) {

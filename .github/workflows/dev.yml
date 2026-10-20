@@ -1,0 +1,108 @@
+name: Dev check
+
+# Fast iteration on dev-* branches: compile the mod and build the Blender models in parallel.
+on:
+  push:
+    branches: ['dev-**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  compile:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile
+        run: |
+          chmod +x ./gradlew
+          set -o pipefail
+          ./gradlew build --stacktrace 2>&1 | tee gradle-build.log
+      - name: Report build errors
+        if: failure()
+        run: |
+          python3 - <<'PY'
+          import re
+          lines = open("gradle-build.log", encoding="utf-8", errors="replace").read().splitlines()
+          keep = []
+          for i, l in enumerate(lines):
+              if re.search(r"error:|What went wrong|Could not|> .*[Ee]xception|FAILED", l):
+                  keep.extend(lines[i:i + 3])
+          msg = "\n".join(dict.fromkeys(keep))[:60000] or "\n".join(lines[-80:])
+          msg = msg.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+          print(f"::error title=Gradle build errors::{msg}")
+          PY
+      - name: Upload jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-jar
+          path: build/libs/*.jar
+
+  blender:
+    runs-on: ubuntu-24.04
+    env:
+      BLENDER_VERSION: '4.2.0'
+      BLENDER_SERIES: '4.2'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Blender
+        id: cache-blender
+        uses: actions/cache@v4
+        with:
+          path: ~/blender
+          key: blender-${{ env.BLENDER_VERSION }}-linux-x64
+      - name: Download Blender
+        if: steps.cache-blender.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/blender
+          curl -sSL "https://download.blender.org/release/Blender${BLENDER_SERIES}/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
+            | tar -xJ -C ~/blender --strip-components=1
+      - name: Install Blender runtime libraries
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libxkbcommon0 libsm6 > /dev/null
+      - name: Build models in Blender
+        id: blender
+        run: |
+          set -o pipefail
+          tools/blender/build.sh ~/blender/blender 2>&1 | tee blender.log
+      - name: Report Blender errors
+        if: failure() && steps.blender.outcome == 'failure'
+        run: |
+          msg=$(grep -v "Synchronizing object\|Fra:" blender.log | tail -n 60 | sed -e 's/%/%25/g' | sed -e ':a;N;$!ba;s/\n/%0A/g')
+          echo "::error title=Blender build errors::$msg"
+      - name: Validate textures
+        run: |
+          python3 -m pip install --quiet --break-system-packages pillow numpy || true
+          python3 tools/validate_assets.py
+      - name: Commit renders + generated assets to the dev branch
+        if: success()
+        run: |
+          mkdir -p docs/renders
+          cp build/blender/*.png docs/renders/ || true
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add src/main/resources/assets/orbital_railgun docs/renders src/main/resources/orbital_railgun_collision.json
+          if git diff --cached --quiet; then echo "unchanged"; else
+            git commit -m "Dev: Blender renders and assets [skip ci]"
+            git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" || true
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Upload Blender output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-output
+          path: |
+            build/blender/*.png
+            src/main/resources/assets/orbital_railgun/geo/
+            src/main/resources/assets/orbital_railgun/textures/entity/
+            src/main/resources/assets/orbital_railgun/textures/item/
+            src/main/resources/assets/orbital_railgun/textures/armor/
+            src/main/resources/assets/orbital_railgun/models/

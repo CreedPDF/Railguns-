@@ -20,13 +20,18 @@ import java.util.UUID;
 public final class DeploymentScheduler {
     private DeploymentScheduler() {}
 
-    private record PendingDrop(RegistryKey<World> world, BlockPos landing, UUID owner, int releaseAtTick) {}
+    private record PendingDrop(RegistryKey<World> world, BlockPos landing, UUID owner, int releaseAtTick, int kind) {}
 
     private static final List<PendingDrop> PENDING = new ArrayList<>();
     private static int serverTicks;
 
     public static void schedule(ServerWorld world, BlockPos landing, UUID owner, int delayTicks) {
-        PENDING.add(new PendingDrop(world.getRegistryKey(), landing.toImmutable(), owner, serverTicks + delayTicks));
+        schedule(world, landing, owner, delayTicks, 0);
+    }
+
+    /** kind 0 = ARES-9 railgun pod, 1 = ARES-0 planet killer. */
+    public static void schedule(ServerWorld world, BlockPos landing, UUID owner, int delayTicks, int kind) {
+        PENDING.add(new PendingDrop(world.getRegistryKey(), landing.toImmutable(), owner, serverTicks + delayTicks, kind));
     }
 
     public static boolean hasPending(UUID owner) {
@@ -67,6 +72,18 @@ public final class DeploymentScheduler {
         }
 
         double spawnY = Math.max(landing.getY() + 20, Math.min(landing.getY() + RailgunConfig.DROP_HEIGHT, world.getTopY() - 10));
+        if (drop.kind == 1) {
+            com.creedpdf.orbitalrailgun.entity.Ares0Entity ares = RailgunMod.ARES0.create(world);
+            if (ares == null) return;
+            ares.refreshPositionAndAngles(landing.getX() + 0.5, spawnY + 60, landing.getZ() + 0.5, 0f, 0f);
+            ares.setOwnerUuid(drop.owner);
+            ares.setLandY(landing.getY());
+            ares.setVelocity(0, -RailgunConfig.DROP_START_SPEED, 0);
+            world.spawnEntity(ares);
+            world.playSound(null, landing.getX(), landing.getY() + 40, landing.getZ(),
+                    com.creedpdf.orbitalrailgun.registry.ModSounds.RAILGUN_REENTRY, net.minecraft.sound.SoundCategory.BLOCKS, 16f, 0.6f);
+            return;
+        }
         RailgunEntity railgun = RailgunMod.RAILGUN.create(world);
         if (railgun == null) return;
 

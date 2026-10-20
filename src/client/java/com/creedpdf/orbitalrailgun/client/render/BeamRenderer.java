@@ -267,11 +267,11 @@ public final class BeamRenderer {
      * requesting a different RenderLayer finishes the previous layer's buffer, so a consumer
      * must never be reused after another layer has been requested.
      */
-    static VertexConsumer tex(VertexConsumerProvider cp, Identifier texture) {
+    public static VertexConsumer tex(VertexConsumerProvider cp, Identifier texture) {
         return cp.getBuffer(BeamRenderLayers.textured(texture));
     }
 
-    static VertexConsumer glow(VertexConsumerProvider cp) {
+    public static VertexConsumer glow(VertexConsumerProvider cp) {
         return cp.getBuffer(BeamRenderLayers.GLOW);
     }
 
@@ -280,11 +280,11 @@ public final class BeamRenderer {
     // =========================================================================================
 
     /** Beam frame: endpoints, unit direction and two perpendicular unit vectors. */
-    static final class Beam {
+    public static final class Beam {
         final Vector3f a, b, dir, u = new Vector3f(), v = new Vector3f();
         final float length;
 
-        Beam(Vector3f a, Vector3f b) {
+        public Beam(Vector3f a, Vector3f b) {
             this.a = a;
             this.b = b;
             Vector3f d = new Vector3f(b).sub(a);
@@ -309,7 +309,7 @@ public final class BeamRenderer {
      * Textured tube. U wraps once around the circumference (+ uOffset, which twists the pattern),
      * V = distance / vScale - vScroll, so the texture streams along the beam.
      */
-    static void texTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
+    public static void texTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
                                 float alpha, float vScale, float vScroll, float uOffset, float wobble, float time) {
         if (alpha <= 0.003f || radius <= 0f) return;
         int segs = segments(bm.length);
@@ -338,7 +338,7 @@ public final class BeamRenderer {
     }
 
     /** Untextured glow tube (soft bloom shells). */
-    static void glowTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
+    public static void glowTube(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float r, float g, float b,
                                  float alpha, float time) {
         if (alpha <= 0.003f || radius <= 0f) return;
         int segs = Math.max(2, segments(bm.length) / 2);
@@ -365,7 +365,7 @@ public final class BeamRenderer {
      * cylinder of radius {@code radius}: at angle theta(d) = d * twist + spin + k*120deg, the
      * ribbon spans +/- width/2 along the circle's tangent.
      */
-    static void helix(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float width, float twist, float spin,
+    public static void helix(VertexConsumer vc, Matrix4f m, Beam bm, float radius, float width, float twist, float spin,
                               float r, float g, float b, float alpha, float time) {
         if (alpha <= 0.003f) return;
         int segs = Math.min(MAX_SEGMENTS * 2, Math.max(8, (int) (bm.length / 1.2f)));
@@ -398,7 +398,7 @@ public final class BeamRenderer {
     }
 
     /** Textured flat annulus: U around (+ uOffset rotates it), V from inner (0) to outer (1) edge. */
-    static void texRing(VertexConsumer vc, Matrix4f m, Vector3f c, Vector3f normal, float inner, float outer,
+    public static void texRing(VertexConsumer vc, Matrix4f m, Vector3f c, Vector3f normal, float inner, float outer,
                                 float r, float g, float b, float alpha, float uOffset) {
         if (alpha <= 0.003f || outer <= 0f) return;
         Vector3f n = new Vector3f(normal).normalize();
@@ -417,7 +417,7 @@ public final class BeamRenderer {
     }
 
     /** Textured UV sphere (U = longitude, V = latitude), offsets animate the plasma. */
-    static void texSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b,
+    public static void texSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b,
                                   float alpha, float uOffset, float vOffset) {
         if (alpha <= 0.003f || radius <= 0f) return;
         final int lat = 10, lon = 18;
@@ -436,7 +436,7 @@ public final class BeamRenderer {
     }
 
     /** Untextured glow sphere. */
-    static void glowSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b, float alpha) {
+    public static void glowSphere(VertexConsumer vc, Matrix4f m, Vector3f c, float radius, float r, float g, float b, float alpha) {
         if (alpha <= 0.003f || radius <= 0f) return;
         final int lat = 8, lon = 14;
         for (int i = 0; i < lat; i++) {
@@ -469,7 +469,7 @@ public final class BeamRenderer {
      * interior points are displaced randomly perpendicular to it; each segment is drawn as two
      * crossed thin quads so it reads from any angle.
      */
-    static void arc(VertexConsumer vc, Matrix4f m, Vector3f start, Vector3f end, Random rand, float thickness,
+    public static void arc(VertexConsumer vc, Matrix4f m, Vector3f start, Vector3f end, Random rand, float thickness,
                             float r, float g, float b, float alpha) {
         final int n = 9;
         Vector3f d = new Vector3f(end).sub(start);
@@ -512,7 +512,7 @@ public final class BeamRenderer {
                 .color(r, g, b, a).texture(tu, tv).light(LIGHT).normal(0, 1, 0).next();
     }
 
-    static void texVertRaw(VertexConsumer vc, Matrix4f m, Vector3f p, float r, float g, float b, float a, float tu, float tv) {
+    public static void texVertRaw(VertexConsumer vc, Matrix4f m, Vector3f p, float r, float g, float b, float a, float tu, float tv) {
         vc.vertex(m, p.x, p.y, p.z).color(r, g, b, a).texture(tu, tv).light(LIGHT).normal(0, 1, 0).next();
     }
 
@@ -524,7 +524,7 @@ public final class BeamRenderer {
                 center.z + (u.z * cos + v.z * sin) * radius).color(r, g, b, a).next();
     }
 
-    static void quad(VertexConsumer vc, Matrix4f m, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3,
+    public static void quad(VertexConsumer vc, Matrix4f m, Vector3f p0, Vector3f p1, Vector3f p2, Vector3f p3,
                              float r, float g, float b, float a) {
         vc.vertex(m, p0.x, p0.y, p0.z).color(r, g, b, a).next();
         vc.vertex(m, p1.x, p1.y, p1.z).color(r, g, b, a).next();
@@ -533,7 +533,7 @@ public final class BeamRenderer {
     }
 
     /** Builds two unit vectors perpendicular to {@code dir} and to each other. */
-    static void basis(Vector3f dir, Vector3f u, Vector3f v) {
+    public static void basis(Vector3f dir, Vector3f u, Vector3f v) {
         Vector3f helper = Math.abs(dir.y) < 0.99f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0);
         dir.cross(helper, u).normalize();
         dir.cross(u, v).normalize();

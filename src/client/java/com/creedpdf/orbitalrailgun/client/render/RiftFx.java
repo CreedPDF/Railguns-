@@ -24,9 +24,8 @@ import java.util.List;
 
 /**
  * The rift, high above the emplacement: a torn, jagged opening whose rim is shredded into spikes
- * of violet light, and behind it a real volumetric throat that twists up into the dimension
- * beyond, walled with swirling nebula and ending at a blazing star. Fully 3D, lit planets hang
- * inside the throat. The railgun's beam holds it open, with energy tendrils clawing at the rim.
+ * of violet light. The opening is a real see-through portal into space (Immersive Portals). The
+ * railgun's beam holds it open, with energy tendrils clawing at the rim.
  */
 public final class RiftFx {
     private RiftFx() {}
@@ -46,6 +45,10 @@ public final class RiftFx {
 
     private static final List<Bolt> BOLTS = new ArrayList<>();
     private static final VertexConsumerProvider.Immediate BUFFER = VertexConsumerProvider.immediate(new BufferBuilder(1 << 22));
+
+    public static void rimAt(VertexConsumerProvider buf, Matrix4f m, Vector3f c, float R, float time, float collapse, int id) {
+        rim(buf, m, c, R, time, collapse, id);
+    }
 
     public static void register() {
         WorldRenderEvents.AFTER_TRANSLUCENT.register(RiftFx::render);
@@ -139,10 +142,8 @@ public final class RiftFx {
             BeamRenderer.texRing(BeamRenderer.tex(BUFFER, BeamRenderLayers.TINT_SHOCKWAVE), m, c, up, w, w + 9f, 0.7f, 0.45f, 1f, 0.9f * (1 - f), time * 0.02f);
         }
 
-        if (R > 0.1f) {
-            throat(m, c, R, open, time, collapse);
-            rim(m, c, R, time, collapse, rg.getId());
-        }
+        // the opening itself is an Immersive Portals portal into real space; we draw the torn rim around it
+        if (R > 0.1f) rim(BUFFER, m, c, R, time, collapse, rg.getId());
 
         // ---- slam shut ----
         if (t >= RailgunEntity.RIFT_SNAP && t < RailgunEntity.RIFT_SNAP + 40) {
@@ -168,84 +169,8 @@ public final class RiftFx {
                 + 0.035f * MathHelper.sin(17 * th + time * 0.09f) + 0.02f * MathHelper.sin(29 * th - time * 0.15f);
     }
 
-    private static void throat(Matrix4f m, Vector3f c, float R, float open, float time, float collapse) {
-        int rings = 18, seg = 64;
-        float depth = DEPTH * Math.max(0.15f, open);
-        VertexConsumer wall = BUFFER.getBuffer(BeamRenderLayers.solid(WALL));
-        Vector3f[][] pts = new Vector3f[rings + 1][seg + 1];
-        float[] hs = new float[rings + 1];
-        for (int i = 0; i <= rings; i++) {
-            float f = i / (float) rings;
-            float h = f * f * depth + f * 1.5f;
-            hs[i] = h;
-            float twist = h * 0.02f + time * 0.004f;
-            float pr = R * profile(h / Math.max(0.15f, open));
-            for (int j = 0; j <= seg; j++) {
-                float th = j / (float) seg * MathHelper.TAU;
-                float rr = pr * edge(th, h, time);
-                pts[i][j] = new Vector3f(c.x + MathHelper.cos(th + twist) * rr, c.y + h, c.z + MathHelper.sin(th + twist) * rr);
-            }
-        }
-        for (int i = 0; i < rings; i++) {
-            float f0 = i / (float) rings, f1 = (i + 1) / (float) rings;
-            float k0 = shade(f0, collapse), k1 = shade(f1, collapse);
-            for (int j = 0; j < seg; j++) {
-                float u0 = j / (float) seg * 4f, u1 = (j + 1) / (float) seg * 4f;
-                float v0 = hs[i] / 20f - time * 0.006f, v1 = hs[i + 1] / 20f - time * 0.006f;
-                for (int side = 0; side < 2; side++) {
-                    Vector3f a = pts[i][j], b = pts[i][j + 1], cc = pts[i + 1][j + 1], d = pts[i + 1][j];
-                    if (side == 1) { Vector3f tmp = b; b = a; a = tmp; tmp = cc; cc = d; d = tmp; }
-                    float ua = side == 0 ? u0 : u1, ub = side == 0 ? u1 : u0;
-                    BeamRenderer.texVertRaw(wall, m, a, k0 * 0.85f, k0 * 0.75f, k0, 1f, ua, v0);
-                    BeamRenderer.texVertRaw(wall, m, b, k0 * 0.85f, k0 * 0.75f, k0, 1f, ub, v0);
-                    BeamRenderer.texVertRaw(wall, m, cc, k1 * 0.85f, k1 * 0.75f, k1, 1f, ub, v1);
-                    BeamRenderer.texVertRaw(wall, m, d, k1 * 0.85f, k1 * 0.75f, k1, 1f, ua, v1);
-                }
-            }
-        }
-        // far end: deep space cap and the star that lights everything inside
-        Vector3f top = new Vector3f(c).add(0, hs[rings], 0);
-        VertexConsumer cap = BUFFER.getBuffer(BeamRenderLayers.solid(SPACE));
-        for (int j = 0; j < seg; j++) {
-            Vector3f a = pts[rings][j], b = pts[rings][j + 1];
-            for (int side = 0; side < 2; side++) {
-                Vector3f[] q = side == 0 ? new Vector3f[]{top, a, b, b} : new Vector3f[]{b, b, a, top};
-                for (Vector3f v : q) {
-                    BeamRenderer.texVertRaw(cap, m, v, 1f, 1f, 1f, 1f, 0.5f + (v.x - top.x) / (R * 1.6f), 0.5f + (v.z - top.z) / (R * 1.6f));
-                }
-            }
-        }
-        Vector3f star = new Vector3f(top).add(0, -3f, 0);
-        float sr = R * 0.16f * (1f + collapse);
-        BeamRenderer.glowSphere(BeamRenderer.glow(BUFFER), m, star, sr * 0.85f, 1f, 0.98f, 0.92f, 1f);
-        BeamRenderer.texSphere(BeamRenderer.tex(BUFFER, SUN), m, star, sr, 0.95f, 0.85f, 1f, 1f, time * 0.002f, time * 0.001f);
-        BeamRenderer.glowSphere(BeamRenderer.glow(BUFFER), m, star, sr * 2.2f, 0.75f, 0.7f, 1f, 0.35f);
-        BeamRenderer.glowSphere(BeamRenderer.glow(BUFFER), m, star, sr * 5f, 0.55f, 0.45f, 1f, 0.12f);
-
-        // planets, hanging at different depths in the throat
-        if (open > 0.6f) {
-            float sc = R / (float) RailgunEntity.RIFT_RADIUS;
-            Quaternionf s1 = new Quaternionf().rotationY(time * 0.003f), s2 = new Quaternionf().rotationZ(0.25f).rotateY(time * 0.006f);
-            Vector3f gasC = new Vector3f(c).add(-0.42f * R, 34f * sc, 0.12f * R);
-            PlanetDraw.planet(BUFFER, m, P_GAS, gasC, 7.5f * sc, s1, new Vector3f(star).sub(gasC), 0.06f, new float[]{1f, 0.8f, 0.55f}, 0.8f);
-            PlanetDraw.rings(BUFFER, m, RINGS, gasC, new Vector3f(0.3f, 1f, 0.25f), 10f * sc, 17f * sc, new Vector3f(star).sub(gasC), 7.5f * sc);
-            Vector3f oceanC = new Vector3f(c).add(0.45f * R, 18f * sc, -0.2f * R);
-            PlanetDraw.planet(BUFFER, m, P_OCEAN, oceanC, 4.2f * sc, s2, new Vector3f(star).sub(oceanC), 0.05f, new float[]{0.4f, 0.65f, 1f}, 1.2f);
-            Vector3f moonC = new Vector3f(oceanC).add(6f * sc * MathHelper.cos(time * 0.01f), 1f * sc, 6f * sc * MathHelper.sin(time * 0.01f));
-            PlanetDraw.planet(BUFFER, m, P_ICE, moonC, 1.1f * sc, s1, new Vector3f(star).sub(moonC), 0.05f, null, 0f);
-            Vector3f lavaC = new Vector3f(c).add(0.12f * R, 52f * sc, -0.34f * R);
-            PlanetDraw.planet(BUFFER, m, P_LAVA, lavaC, 2.6f * sc, s2, new Vector3f(star).sub(lavaC), 0.18f, new float[]{1f, 0.45f, 0.2f}, 0.7f);
-        }
-    }
-
-    private static float shade(float f, float collapse) {
-        // brighter right at the torn edge and again near the star, dark in between
-        float k = 0.55f + 0.45f * (float) Math.exp(-f * 9f) + 0.35f * f * f;
-        return Math.min(1f, k * (1f + collapse * 0.8f));
-    }
-
-    private static void rim(Matrix4f m, Vector3f c, float R, float time, float collapse, int id) {
-        VertexConsumer g = BeamRenderer.glow(BUFFER);
+    private static void rim(VertexConsumerProvider cp, Matrix4f m, Vector3f c, float R, float time, float collapse, int id) {
+        VertexConsumer g = BeamRenderer.glow(cp);
         int seg = 96;
         float bright = 1f + collapse * 1.4f;
         float[] rr = new float[seg + 1];

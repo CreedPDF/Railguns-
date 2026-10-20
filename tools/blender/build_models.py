@@ -1061,6 +1061,214 @@ def build_remote(offset):
 
 
 # =============================================================================================
+# ARES-0: the planet killer
+# =============================================================================================
+
+A0_PITCH_Y = 104.0      # px: pitch pivot (6.5 blocks)
+A0_MUZZLE = -496.0      # px: muzzle along -Z (31 blocks)
+A0_RINGS = 9
+
+
+def build_ares0(offset):
+    """
+    ARES-0. A graphite-and-white octagonal foundation with four reactor pods; six stabiliser
+    legs on radial mounts (each modelled pointing north and swung into place at runtime); a
+    turntable carrying twin armoured yoke towers, a sensor mast with a spinning dish; and between
+    the towers a 31-block tri-rail accelerator: three rails around a glowing core rod, nine
+    spinning capacitor rings, a flared emitter and a three-prong halo at the muzzle.
+    """
+    bones = {}
+
+    def bone(name, parent, pivot):
+        p = bones.get(parent)
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None, offset=offset if p is None else Vector((0, 0, 0)))
+
+    Y = A0_PITCH_Y
+    bone("a0_root", None, [0, 0, 0])
+    bone("base", "a0_root", [0, 0, 0])
+    for i in range(6):
+        bone(f"mount_{i}", "base", [0, 18, 0])
+        bone(f"leg_{i}", f"mount_{i}", [0, 22, -60])
+    bone("yaw", "a0_root", [0, 30, 0])
+    bone("mast", "yaw", [0, 30, 0])
+    bone("a0_dish", "mast", [-20, 140, 36])
+    bone("pitch", "yaw", [0, Y, 0])
+    zs = [-30 - k * 54 for k in range(A0_RINGS)]
+    for k, z in enumerate(zs):
+        bone(f"ring_{k}", "pitch", [0, Y, z])
+    bone("halo", "pitch", [0, Y, A0_MUZZLE - 6])
+    B = bones
+
+    # ---- foundation ---------------------------------------------------------------------------
+    b = B["base"]
+    octagon("a0_foot", b, "dark", 0, 156, 6)
+    octagon("a0_haz", b, "hazard", 6, 150, 2)
+    octagon("a0_body", b, "hull", 8, 140, 18)
+    octagon("a0_band", b, "cyan", 15, 141, 1.2)
+    octagon("a0_cap", b, "steel", 26, 128, 4)
+    for sx in (-1, 1):
+        for sz in (-1, 1):
+            cx, cz = sx * 46, sz * 46
+            box(b, "dark", [cx - 12, 8, cz - 12], [24, 30, 24])
+            box(b, "white", [cx - 12.5, 22, cz - 12.5], [25, 10, 25])
+            box(b, "cyan", [cx - 10, 33, cz - 12.6], [20, 1.2, 0.4])
+            box(b, "cyan", [cx - 10, 33, cz + 12.2], [20, 1.2, 0.4])
+            box(b, "vent", [cx - 9, 38, cz - 9], [18, 1, 18])
+            box(b, "amber", [cx - 1, 38.5, cz - 1], [2, 1.5, 2])
+    # ---- legs (modelled pointing north; the runtime/animation swings each mount) ---------------
+    for i in range(6):
+        L = B[f"leg_{i}"]
+        box(L, "steel", [-5, 14, -110], [10, 10, 52])          # strut
+        box(L, "white", [-6, 23, -104], [12, 3.5, 42])         # armour cover
+        box(L, "hazard", [-6.2, 23.2, -66], [12.4, 3.4, 3])
+        box(L, "chrome", [-3, 6, -96], [6, 8, 32])             # hydraulic ram
+        box(L, "dark", [-7, 4, -118], [14, 22, 14])            # knee
+        box(L, "steel", [-12, 0, -140], [24, 6, 34])           # foot
+        box(L, "hazard", [-11, 6, -138], [22, 1, 4])
+        box(L, "cyan", [-8, 6, -126], [16, 0.8, 1.2])
+        box(L, "dark", [-4, 0, -146], [8, 4, 6])               # toe spike
+    # ---- turret: turntable + yoke towers -------------------------------------------------------
+    yw = B["yaw"]
+    octagon("a0_turn", yw, "dark", 30, 104, 8)
+    octagon("a0_turnband", yw, "cyan", 34, 105, 1)
+    box(yw, "steel", [-30, 38, -22], [60, 20, 44])
+    for sx in (-1, 1):
+        x0 = 30 if sx > 0 else -46
+        box(yw, "hull", [x0, 38, -22], [16, 82, 44])                       # tower
+        box(yw, "white", [x0 + (14 if sx > 0 else -1.5), 50, -18], [3.5, 62, 36])  # outer armour
+        box(yw, "cyan", [x0 + (17.5 if sx > 0 else -2), 56, -1], [0.6, 50, 2])
+        box(yw, "dark", [x0 - 1, 120, -24], [18, 6, 48])                   # cap
+        box(yw, "chrome", [(24 if sx > 0 else -32), Y - 12, -12], [8, 24, 24])  # trunnion bearing
+        box(yw, "vent", [x0 + 2, 40, 22.2], [12, 70, 1])
+        box(yw, "amber", [x0 + 6, 126, -2], [4, 2, 4])
+    # ---- sensor mast + dish --------------------------------------------------------------------
+    m = B["mast"]
+    box(m, "steel", [-22, 38, 34], [4, 100, 4])
+    box(m, "dark", [-25, 136, 31], [10, 4, 10])
+    d = B["a0_dish"]
+    box(d, "chrome", [-30, 140, 30], [20, 2, 12])
+    box(d, "white", [-27, 142, 33], [14, 2, 6])
+    box(d, "amber", [-21, 144, 35], [2, 3, 2])
+    # ---- accelerator ---------------------------------------------------------------------------
+    pt = B["pitch"]
+    octagon_z("a0_breech", pt, "hull", 0, Y, 10, 70, 56)
+    octagon_z("a0_breech_cap", pt, "dark", 0, Y, 70, 78, 46)
+    for i, z in enumerate((18, 32, 46, 60)):
+        octagon_z(f"a0_breech_fin{i}", pt, "steel", 0, Y, z, z + 3, 62)
+    box(pt, "dark", [-14, Y + 24, 10], [28, 12, 50])
+    box(pt, "cyan", [-10, Y + 36, 16], [20, 0.6, 38])
+    box(pt, "amber", [-12, Y + 36, 62], [3, 2, 3])
+    for ang in (90, 210, 330):
+        a = math.radians(ang)
+        rx, ry = 20 * math.cos(a), Y + 20 * math.sin(a)
+        box(pt, "steel", [rx - 5, ry - 5, A0_MUZZLE], [10, 10, 10 - A0_MUZZLE])
+        gx, gy = rx * 0.66, Y + (ry - Y) * 0.66
+        box(pt, "cyan", [gx - 1, gy - 1, A0_MUZZLE + 6], [2, 2, -A0_MUZZLE - 6 - 4])
+        for k in range(8):
+            z0 = -44 - k * 56
+            box(pt, "white", [rx - 6, ry - 6, z0 - 30], [12, 12, 30])
+    box(pt, "cyan", [-1.5, Y - 1.5, A0_MUZZLE + 10], [3, 3, -A0_MUZZLE - 10 - 20])
+    for sx in (-1, 1):
+        box(pt, "vent", [(26 if sx > 0 else -30), Y - 8, -210], [4, 16, 150])
+    octagon_z("a0_muzzle", pt, "dark", 0, Y, A0_MUZZLE - 10, A0_MUZZLE + 6, 66)
+    octagon_z("a0_emitter", pt, "cyan", 0, Y, A0_MUZZLE - 11, A0_MUZZLE - 10, 34)
+    for k, z in enumerate(zs):
+        rb = B[f"ring_{k}"]
+        ring_z(rb, "dark", 0, Y, z - 3, z + 3, 28, 4)
+        ring_z(rb, "cyan", 0, Y, z - 1, z + 1, 25, 2)
+    h = B["halo"]
+    hz = A0_MUZZLE - 6
+    ring_z(h, "white", 0, Y, hz - 16, hz - 12, 40, 3)
+    for ang in (90, 210, 330):
+        a = math.radians(ang)
+        box(h, "steel", [40 * math.cos(a) - 2, Y + 40 * math.sin(a) - 2, hz - 40], [4, 4, 26])
+        box(h, "cyan", [40 * math.cos(a) - 1, Y + 40 * math.sin(a) - 1, hz - 42], [2, 2, 2])
+    return bones
+
+
+# =============================================================================================
+# ARES EVA suit (GeckoLib armour)
+# =============================================================================================
+
+
+def build_suit(offset):
+    """
+    The ARES EVA suit on the standard GeckoLib armour skeleton (armorHead/Body/arms/legs/boots,
+    vanilla pivots). A domed helmet with a dark visor, gold frame and HUD strip; a pressurised
+    torso with a chest control panel; a two-nozzle jetpack on the back; shoulder pads, elbow
+    rings, gloves with wrist displays; knee pads; heavy magnetic boots with sole lights.
+    """
+    bones = {}
+    piv = {"armorHead": [0, 24, 0], "armorBody": [0, 24, 0], "armorRightArm": [-5, 22, 0], "armorLeftArm": [5, 22, 0],
+           "armorRightLeg": [-1.9, 12, 0], "armorLeftLeg": [1.9, 12, 0], "armorRightBoot": [-1.9, 12, 0], "armorLeftBoot": [1.9, 12, 0]}
+    root = make_bone("suit_root", None, [0, 0, 0], None, offset=offset)
+    for n, p in piv.items():
+        bones[n] = make_bone(n, root, p, [0, 0, 0])
+    H = bones["armorHead"]
+    box(H, "white", [-5, 23.4, -5], [10, 10.4, 10])
+    box(H, "white", [-4.4, 33.8, -4.4], [8.8, 0.8, 8.8])
+    box(H, "glass", [-4.2, 25.6, -5.35], [8.4, 6.6, 0.45])
+    box(H, "brass", [-4.7, 32.2, -5.45], [9.4, 0.7, 0.5])
+    box(H, "brass", [-4.7, 25.0, -5.45], [9.4, 0.6, 0.5])
+    box(H, "brass", [-4.7, 25.6, -5.45], [0.5, 6.6, 0.5], mirror=("x",))
+    box(H, "cyan", [-3.2, 31.4, -5.42], [6.4, 0.3, 0.1])
+    box(H, "steel", [-3, 23.4, -5.5], [6, 1.6, 0.6])
+    box(H, "steel", [-1, 33.9, -4.2], [2, 0.9, 8.4])
+    box(H, "cyan", [-5.3, 28.6, -2.2], [0.35, 1.2, 1.6], mirror=("x",))
+    box(H, "steel", [4.1, 33.8, 1.0], [0.6, 4.2, 0.6])
+    box(H, "amber", [4.05, 38.0, 0.95], [0.7, 0.6, 0.7])
+    box(H, "dark", [-2, 26, 5], [4, 4, 0.6])
+    Bd = bones["armorBody"]
+    box(Bd, "white", [-4.6, 11.6, -2.7], [9.2, 12.8, 5.4])
+    box(Bd, "steel", [-4.8, 23.4, -3.0], [9.6, 1.2, 6.0])
+    box(Bd, "steel", [-4.8, 11.4, -2.9], [9.6, 1.4, 5.8])
+    box(Bd, "dark", [-2.6, 15.6, -3.3], [5.2, 5.2, 0.6])
+    for x, k in ((-1.8, "cyan"), (-0.4, "amber"), (1.0, "cyan")):
+        box(Bd, k, [x, 19.4, -3.4], [0.8, 0.6, 0.1])
+    box(Bd, "cyan", [-2.0, 16.4, -3.4], [4.0, 0.3, 0.1])
+    box(Bd, "brass", [-4.65, 17.8, -2.8], [0.3, 2.4, 5.6], mirror=("x",))
+    # jetpack
+    box(Bd, "dark", [-4.0, 12.6, 2.7], [8.0, 10.6, 2.8])
+    box(Bd, "steel", [-3.6, 21.6, 5.4], [7.2, 1.6, 0.8])
+    for sx in (-1, 1):
+        cx = sx * 2.7
+        octagon(f"jet_tank{sx}", Bd, "white", 10.4, 3.4, 12.2, center_xz=(cx, 6.6))
+        octagon(f"jet_nozzle{sx}", Bd, "dark", 8.6, 3.9, 1.8, center_xz=(cx, 6.6))
+        octagon(f"jet_glow{sx}", Bd, "orange", 8.3, 2.6, 0.3, center_xz=(cx, 6.6))
+        box(Bd, "steel", [cx - 0.3, 14, 8.2], [0.6, 7, 1.2])
+    box(Bd, "amber", [-0.5, 22.0, 5.45], [1, 0.6, 0.6])
+    for side, n in ((-1, "armorRightArm"), (1, "armorLeftArm")):
+        Ar = bones[n]
+        x0 = -8.6 if side < 0 else 3.6
+        box(Ar, "white", [x0, 12.4, -2.6], [5, 12, 5.2])
+        box(Ar, "white", [x0 - 0.4, 20.6, -3.0], [5.8, 4.4, 6.0])
+        box(Ar, "brass", [x0 - 0.45, 21.4, -3.05], [5.9, 0.5, 6.1])
+        box(Ar, "steel", [x0 - 0.2, 16.0, -2.8], [5.4, 1.4, 5.6])
+        box(Ar, "dark", [x0 - 0.15, 10.8, -2.75], [5.3, 2.6, 5.5])
+        wx = x0 - 0.3 if side < 0 else x0 + 5.0
+        box(Ar, "cyan", [wx, 13.8, -1.0], [0.3, 1.6, 2.0])
+    for side, n, bn in ((-1, "armorRightLeg", "armorRightBoot"), (1, "armorLeftLeg", "armorLeftBoot")):
+        Lg = bones[n]
+        x0 = -4.4 if side < 0 else -0.3
+        box(Lg, "white", [x0, 3.2, -2.5], [4.7, 9.2, 5.0])
+        box(Lg, "steel", [x0 + 0.4, 6.0, -2.95], [3.9, 2.6, 0.5])
+        box(Lg, "dark", [x0 + (-0.25 if side < 0 else 4.6), 7.5, -1.2], [0.4, 2.6, 2.4])
+        Bt = bones[bn]
+        box(Bt, "dark", [x0 - 0.2, -0.25, -3.2], [5.1, 3.6, 6.0])
+        box(Bt, "steel", [x0 - 0.3, -0.35, -3.6], [5.3, 1.0, 6.6])
+        box(Bt, "white", [x0, 3.3, -2.8], [4.7, 0.6, 5.4])
+        box(Bt, "cyan", [x0 + 0.6, 0.15, -3.62], [3.5, 0.3, 0.1])
+    return bones
+
+
+def export_empty_animation(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump({"format_version": "1.8.0", "animations": {}}, f)
+
+
+
+# =============================================================================================
 # Extraction: evaluated modelling objects -> list of boxes
 # =============================================================================================
 
@@ -2122,8 +2330,38 @@ def main():
     print(f"[remote] {len(rm_boxes)} elements, {rm_tex}px atlas")
 
 
+
+    # ---------------- ARES-0 ----------------
+    a0_off = Vector((-200, 0, 0))
+    a0_bones = build_ares0(a0_off)
+    a0_boxes = extract_boxes(a0_bones, offset=a0_off)
+    a0_tex = pack_faces(a0_boxes, texels_per_px=2, start_size=1024, pad=2)
+    a0_bake = build_bake_objects(a0_boxes, a0_bones, a0_tex, kinds, offset=a0_off)
+    a0_atlas, a0_glow = bake(a0_bake, a0_boxes, kinds, a0_tex, "ares0", tpp=2, pad=2)
+    save_png(a0_atlas, os.path.join(assets, "textures/entity/ares0.png"))
+    save_png(a0_glow, os.path.join(assets, "textures/entity/ares0_glowmask.png"))
+    with open(os.path.join(assets, "textures/entity/ares0.png.mcmeta"), "w") as f:
+        f.write('{"texture": {"blur": true, "clamp": false}}')
+    export_geo(a0_bones, a0_boxes, a0_tex, os.path.join(assets, "geo/ares0.geo.json"), identifier="geometry.ares0", bounds=(64, 48, 10))
+    export_empty_animation(os.path.join(assets, "animations/ares0.animation.json"))
+    print(f"[ares0] {len(a0_boxes)} cubes, {a0_tex}px atlas")
+
+    # ---------------- EVA suit ----------------
+    su_off = Vector((0, 200, 0))
+    su_bones = build_suit(su_off)
+    su_boxes = extract_boxes(su_bones, offset=su_off)
+    su_tex = pack_faces(su_boxes, texels_per_px=16, start_size=256, pad=2)
+    su_bake = build_bake_objects(su_boxes, su_bones, su_tex, kinds, offset=su_off)
+    su_atlas, su_glow = bake(su_bake, su_boxes, kinds, su_tex, "eva_suit", tpp=16, pad=2)
+    save_png(su_atlas, os.path.join(assets, "textures/armor/eva_suit.png"))
+    save_png(su_glow, os.path.join(assets, "textures/armor/eva_suit_glowmask.png"))
+    export_geo(su_bones, su_boxes, su_tex, os.path.join(assets, "geo/eva_suit.geo.json"), identifier="geometry.eva_suit", bounds=(3, 3, 1))
+    export_empty_animation(os.path.join(assets, "animations/eva_suit.animation.json"))
+    print(f"[eva_suit] {len(su_boxes)} cubes, {su_tex}px atlas")
+
     # ---------------- Preview materials + renders ----------------
-    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm")):
+    for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm"),
+                                    (a0_bake, a0_atlas, a0_glow, "a0"), (su_bake, su_atlas, su_glow, "su")):
         mat = preview_material(f"preview_{name}", atlas, glow)
         for o in objs:
             o.data.materials.clear()
@@ -2134,6 +2372,8 @@ def main():
     if not args.no_render:
         cam, target, ground = setup_camera_and_lights()
         set_visible(rm_bake, False)
+        set_visible(a0_bake, False)
+        set_visible(su_bake, False)
         render_option_icons(rg_bake, rg_bones, cam, target, ground, assets)
         # Preview renders show one sample loadout (in game only installed parts are shown).
         sample = ("opt_shroud", "opt_sunburst", "opt_capacitor", "opt_shield__a", "opt_shield__b",
@@ -2183,6 +2423,58 @@ def main():
         render(os.path.join(out, "railgun_part_docking.png"), cam, target, (8.0, 27.0, 10.5), (0.0, 21.5, 7.4), 900, lens=40)
         reset_pose(rg_bones)
 
+
+        # ---- ARES-0 previews
+        set_visible(rg_bake, False)
+        set_visible(a0_bake, True)
+        for i in range(6):
+            a0_bones[f"mount_{i}"].rotation_euler = (0, 0, math.radians(i * 60))
+        ground.location = (-200, 0, -0.01)
+        ground.scale = (2, 2, 1)
+        a0_bones["pitch"].rotation_euler = (math.radians(38), 0, 0)
+        a0_bones["yaw"].rotation_euler = (0, 0, math.radians(-30))
+        render(os.path.join(out, "ares0_deployed.png"), cam, target, (-200 + 46, 50, 24), (-200, 8, 10), 1200, lens=24)
+        a0_bones["pitch"].rotation_euler = (math.radians(70), 0, 0)
+        render(os.path.join(out, "ares0_aim.png"), cam, target, (-200 - 34, 30, 6), (-200, 4, 16), 1100, lens=22)
+        for i in range(6):
+            a0_bones[f"leg_{i}"].rotation_euler = (math.radians(100), 0, 0)
+        a0_bones["pitch"].rotation_euler = (math.radians(90), 0, 0)
+        a0_bones["mast"].location = Vector(a0_bones["mast"]["rest_location"]) + mc_to_b([0, -30, 0])
+        render(os.path.join(out, "ares0_folded.png"), cam, target, (-200 + 24, 26, 16), (-200, 0, 14), 1000, lens=30)
+        for i in range(6):
+            a0_bones[f"leg_{i}"].rotation_euler = (0, 0, 0)
+        a0_bones["mast"].location = Vector(a0_bones["mast"]["rest_location"])
+        ground.scale = (1, 1, 1)
+        set_visible(a0_bake, False)
+        # ---- EVA suit previews + item icons
+        set_visible(su_bake, True)
+        ground.location = (0, 200, -0.01)
+        render(os.path.join(out, "eva_suit_front.png"), cam, target, (1.6, 200 + 3.4, 1.6), (0, 200, 1.1), 900, lens=50)
+        render(os.path.join(out, "eva_suit_back.png"), cam, target, (-1.8, 200 - 3.2, 1.8), (0, 200, 1.1), 900, lens=50)
+        scene = bpy.context.scene
+        scene.render.film_transparent = True
+        scene.render.image_settings.color_mode = "RGBA"
+        ground.hide_render = True
+        groups = {"eva_helmet": ["armorHead"], "eva_chestplate": ["armorBody", "armorRightArm", "armorLeftArm"],
+                  "eva_leggings": ["armorRightLeg", "armorLeftLeg"], "eva_boots": ["armorRightBoot", "armorLeftBoot"]}
+        by_bone = {o.name[len("bake_"):]: o for o in su_bake}
+        for item, names in groups.items():
+            set_visible(su_bake, False)
+            objs = [by_bone[n] for n in names if n in by_bone]
+            set_visible(objs, True)
+            pts = [o.matrix_world @ Vector(c) for o in objs for c in o.bound_box]
+            lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+            hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+            c = (lo + hi) / 2
+            ext = max((hi - lo).length, 0.3)
+            dvec = Vector((0.75, 1.35, 0.55)).normalized() * ext * 1.65
+            render(os.path.join(assets, f"textures/item/{item}.png"), cam, target, tuple(c + dvec), tuple(c), 64, samples=24, lens=50)
+        scene.render.film_transparent = False
+        scene.render.image_settings.color_mode = "RGB"
+        ground.hide_render = False
+        set_visible(su_bake, False)
+        ground.location = (0, 0, 0)
+        set_visible(rg_bake, True)
         set_visible(rg_bake, False)
         set_visible(rm_bake, True)
         ground.location = (120, 0, -0.01)
@@ -2193,7 +2485,7 @@ def main():
 
     # ---------------- Save the editable .blend ----------------
     os.makedirs(out, exist_ok=True)
-    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow):
+    for img in (rg_atlas, rg_glow, rm_atlas, rm_glow, a0_atlas, a0_glow, su_atlas, su_glow):
         try:
             img.pack()
         except RuntimeError:

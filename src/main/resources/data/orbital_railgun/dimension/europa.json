@@ -1,0 +1,11 @@
+{
+  "type": "orbital_railgun:europa",
+  "generator": {
+    "type": "minecraft:noise",
+    "settings": "orbital_railgun:europa",
+    "biome_source": {
+      "type": "minecraft:fixed",
+      "biome": "orbital_railgun:europa_surface"
+    }
+  }
+}

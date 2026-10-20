@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.creedpdf.orbitalrailgun.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "EntityVoidMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

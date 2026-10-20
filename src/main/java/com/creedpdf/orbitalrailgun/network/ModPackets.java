@@ -65,11 +65,19 @@ public final class ModPackets {
     public static final Identifier SCAN_RESULT = RailgunMod.id("scan_result");
     public static final Identifier TABLET_RIFT = RailgunMod.id("tablet_rift");
     public static final Identifier RIFT_BOLT = RailgunMod.id("rift_bolt");
+    public static final Identifier ARES0_ACTION = RailgunMod.id("ares0_action");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
             BlockPos target = buf.readBlockPos();
-            server.execute(() -> handleDeployRequest(player, target));
+            int kind = buf.isReadable() ? buf.readByte() : 0;
+            server.execute(() -> handleDeployRequest(player, target, kind));
+        });
+        ServerPlayNetworking.registerGlobalReceiver(ARES0_ACTION, (server, player, handler, buf, sender) -> {
+            int entityId = buf.readVarInt();
+            int action = buf.readVarInt();
+            int body = buf.readVarInt();
+            server.execute(() -> handleAres0(player, entityId, action, body));
         });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_STATUS, (server, player, handler, buf, sender) ->
                 server.execute(() -> sendTabletInfo(player)));
@@ -148,13 +156,43 @@ public final class ModPackets {
 
     // ---- Handlers ---------------------------------------------------------------------------
 
+    /** ARES-0 console: 0 = select target, 1 = fire, 2 = return to orbit. */
+    private static void handleAres0(ServerPlayerEntity player, int entityId, int action, int bodyIdx) {
+        if (!(player.getWorld().getEntityById(entityId) instanceof com.creedpdf.orbitalrailgun.entity.Ares0Entity ares) || !ares.isAlive()) return;
+        if (player.squaredDistanceTo(ares) > 96 * 96) return;
+        if (ares.getOwnerUuid() != null && !ares.getOwnerUuid().equals(player.getUuid()) && !player.isCreative()) {
+            deny(player, "not_owner");
+            return;
+        }
+        com.creedpdf.orbitalrailgun.space.Body body = bodyIdx >= 0 && bodyIdx < com.creedpdf.orbitalrailgun.space.Body.ALL.length
+                ? com.creedpdf.orbitalrailgun.space.Body.ALL[bodyIdx] : null;
+        switch (action) {
+            case 0 -> { if (body != null) ares.select(body); }
+            case 1 -> {
+                if (body == null) return;
+                if (!ares.tryFire(player, body)) {
+                    deny(player, com.creedpdf.orbitalrailgun.space.PlanetState.get(player.getServer()).doomed(body) ? "ares0_gone"
+                            : !com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(ares.getWorld(), body) ? "ares0_horizon" : "busy");
+                }
+            }
+            case 2 -> ares.beginLeave();
+            default -> {}
+        }
+    }
+
     private static void handleDeployRequest(ServerPlayerEntity player, BlockPos target) {
+        handleDeployRequest(player, target, 0);
+    }
+
+    private static void handleDeployRequest(ServerPlayerEntity player, BlockPos target, int kind) {
         ServerWorld world = (ServerWorld) player.getWorld();
 
         if (!player.getMainHandStack().isOf(RailgunMod.RAILGUN_REMOTE)) return;
         if (player.getItemCooldownManager().isCoolingDown(RailgunMod.RAILGUN_REMOTE)) { deny(player, "cooldown"); return; }
         if (DeploymentScheduler.hasPending(player.getUuid())) { deny(player, "pending"); return; }
-        if (owned(player) != null) { deny(player, "already_deployed"); return; }
+        if (kind == 1) {
+            if (!com.creedpdf.orbitalrailgun.entity.Ares0Entity.owned(player.getServer(), player.getUuid()).isEmpty()) { deny(player, "already_deployed"); return; }
+        } else if (owned(player) != null) { deny(player, "already_deployed"); return; }
 
         double maxRange = RailgunConfig.MAX_FIRE_RANGE + 4.0;
         if (player.getEyePos().squaredDistanceTo(Vec3d.ofCenter(target)) > maxRange * maxRange) { deny(player, "out_of_range"); return; }
@@ -166,7 +204,7 @@ public final class ModPackets {
         LandingSurvey.Result survey = LandingSurvey.survey(world, target);
         if (!survey.ok()) { deny(player, survey.reason()); return; }
 
-        DeploymentScheduler.schedule(world, landing, player.getUuid(), RailgunConfig.DROP_COUNTDOWN_TICKS);
+        DeploymentScheduler.schedule(world, landing, player.getUuid(), RailgunConfig.DROP_COUNTDOWN_TICKS, kind);
         player.getItemCooldownManager().set(RailgunMod.RAILGUN_REMOTE, RailgunConfig.REMOTE_COOLDOWN_TICKS);
         sendDropCountdown(player, landing, RailgunConfig.DROP_COUNTDOWN_TICKS);
     }

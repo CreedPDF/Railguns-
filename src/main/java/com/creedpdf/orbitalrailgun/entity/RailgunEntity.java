@@ -304,7 +304,9 @@ public class RailgunEntity extends Entity implements GeoEntity {
     // ---- Rift ---------------------------------------------------------------------------------------
 
     /** Timeline (ticks): crown unfolds + rail swings up, beam, tear, open (vortex), collapse, snap, fold. */
-    public static final int RIFT_FIRE = 44, RIFT_OPEN = 60, RIFT_OPENED = 130, RIFT_COLLAPSE = 1250, RIFT_SNAP = 1300, RIFT_TICKS = 1370;
+    public static final int RIFT_FIRE = 120, RIFT_OPEN = 136, RIFT_OPENED = 206, RIFT_COLLAPSE = 2606, RIFT_SNAP = 2656, RIFT_TICKS = 2730;
+    /** Warnings to anyone in space before the rift closes (ticks before RIFT_COLLAPSE). */
+    public static final int[] RIFT_WARNINGS = {1200, 600, 200};
     public static final int RIFT_COOLDOWN = 1200;
     public static final double RIFT_HEIGHT = 120.0, RIFT_RADIUS = 22.0, VORTEX_RADIUS = 34.0, LIFT_RADIUS = 5.5;
     private int riftReadyAge;
@@ -360,13 +362,24 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 sp.sendMessage(Text.translatable("message.orbital_railgun.rift.open").formatted(Formatting.LIGHT_PURPLE), true);
             }
         }
+        if (t == RIFT_OPENED) {
+            com.creedpdf.orbitalrailgun.space.RiftPortals.open(world, this, RIFT_RADIUS * 0.94, RIFT_SNAP - RIFT_OPENED + 40);
+            world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_PORTAL, SoundCategory.BLOCKS, 24f, 1f);
+        }
         if (t >= RIFT_OPENED && t < RIFT_COLLAPSE) {
             vortex(world, rift, t);
             liftPlayers(world, rift, t);
             if (t % 40 == 7) groundStrike(world, rift);
         }
+        for (int w : RIFT_WARNINGS) {
+            if (t == RIFT_COLLAPSE - w) warnSpace(world, w / 20);
+        }
+        if (t >= RIFT_COLLAPSE && t < RIFT_SNAP && t % 4 == 0) {
+            com.creedpdf.orbitalrailgun.space.RiftPortals.resize(world, this, riftRadius(t) * 0.94);
+        }
         if (t == RIFT_COLLAPSE) world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_CHARGE, SoundCategory.BLOCKS, 20f, 0.55f);
         if (t == RIFT_SNAP) {
+            com.creedpdf.orbitalrailgun.space.RiftPortals.close(world, this);
             world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_CLOSE, SoundCategory.BLOCKS, 32f, 1f);
             RailgunFx.burst(world, ModParticles.RIFT_FLASH, rift, 2, 0, 0, 0);
             RailgunFx.burst(world, ModParticles.RIFT_DUST, rift, 500, 10, 2, 0.4);
@@ -385,6 +398,19 @@ public class RailgunEntity extends Entity implements GeoEntity {
         }
     }
 
+    /** Everyone in space (and the owner) hears the countdown to the rift closing. */
+    private void warnSpace(ServerWorld world, int seconds) {
+        Text msg = Text.translatable("message.orbital_railgun.rift.closing", seconds).formatted(Formatting.LIGHT_PURPLE);
+        ServerWorld space = world.getServer().getWorld(com.creedpdf.orbitalrailgun.space.SpaceDims.SPACE);
+        if (space != null) {
+            for (net.minecraft.server.network.ServerPlayerEntity p : space.getPlayers()) {
+                p.sendMessage(msg, false);
+                p.playSound(ModSounds.SUIT_ALARM, SoundCategory.PLAYERS, 1f, 1f);
+            }
+        }
+        if (getOwner(world) instanceof net.minecraft.server.network.ServerPlayerEntity sp && sp.getWorld() != space) sp.sendMessage(msg, true);
+    }
+
     /**
      * The beam is a way up: players standing in its column (at the emplacement) are carried up
      * the beam and through the rift into the dimension beyond. Sneaking resists the lift.
@@ -395,10 +421,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 x -> x.isAlive() && !x.isSpectator())) {
             double dx = getX() - p.getX(), dz = getZ() - p.getZ();
             if (dx * dx + dz * dz > LIFT_RADIUS * LIFT_RADIUS) continue;
-            if (p.getY() >= rift.y - 3) {
-                com.creedpdf.orbitalrailgun.rift.RiftDimension.enter(p);
-                continue;
-            }
+            if (p.getY() >= rift.y + 2) continue; // through the portal (Immersive Portals carries them into space)
             if (p.isSneaking() && p.getY() < getY() + 12) continue;
             double rise = Math.min(1.4, 0.35 + (p.getY() - getY()) * 0.012);
             p.setVelocity(dx * 0.05, rise, dz * 0.05);
@@ -1409,6 +1432,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             RailgunCollision.remove(world, getBlockPos());
             setChunkForced(world, false);
         }
+        if (getWorld() instanceof ServerWorld world) com.creedpdf.orbitalrailgun.space.RiftPortals.close(world, this);
         super.remove(reason);
     }
 

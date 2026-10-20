@@ -31,7 +31,8 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
 
     public RailgunEntityRenderer(EntityRendererFactory.Context context) {
         super(context, new RailgunModel());
-        addRenderLayer(new AutoGlowingGeoLayer<>(this));
+        addRenderLayer(new PurpleSweep.RedGlowLayer(this));
+        addRenderLayer(new PurpleSweep.Layer(this));
         this.shadowRadius = 2.5f;
         this.shadowOpacity = 0.9f;
     }
