@@ -37,6 +37,7 @@ public final class Jetpack {
     private static boolean wasThrusting;
 
     static void tick(MinecraftClient client, ClientPlayerEntity p, ClientWorld w) {
+        JetFlameFx.tickCleanup(w);
         otherPlayers(w, p);
         if (!EvaSuit.jetpack(p) || p.isSpectator() || p.getAbilities().flying || p.hasVehicle()) {
             thrust = 0f;
@@ -117,23 +118,9 @@ public final class Jetpack {
         }
     }
 
-    /** Nozzle positions: two thrusters on the back of the suit. */
+    /** The exhaust: two 3D blue flames, drawn by {@link JetFlameFx}. */
     private static void flames(PlayerEntity p, float t, boolean boost) {
-        Random r = p.getWorld().random;
-        float yaw = p.bodyYaw * MathHelper.RADIANS_PER_DEGREE;
-        Vec3d back = new Vec3d(MathHelper.sin(yaw), 0, -MathHelper.cos(yaw)).multiply(0.38);
-        Vec3d side = new Vec3d(MathHelper.cos(yaw), 0, MathHelper.sin(yaw)).multiply(0.2);
-        Vec3d base = p.getPos().add(0, 0.85, 0).add(back);
-        Vec3d exhaust = p.getVelocity().multiply(0.5).add(0, -0.35 - 0.3 * t, 0).add(back.multiply(0.4));
-        int n = boost ? 3 : 1 + (r.nextFloat() < t ? 1 : 0);
-        for (int s = -1; s <= 1; s += 2) {
-            Vec3d nz = base.add(side.multiply(s));
-            for (int i = 0; i < n; i++) {
-                p.getWorld().addParticle(ModParticles.THRUSTER_FLAME, nz.x, nz.y, nz.z,
-                        exhaust.x + (r.nextDouble() - 0.5) * 0.05, exhaust.y, exhaust.z + (r.nextDouble() - 0.5) * 0.05);
-            }
-            if (boost && r.nextInt(3) == 0) p.getWorld().addParticle(ModParticles.PLASMA_SPARK, nz.x, nz.y, nz.z, exhaust.x, exhaust.y, exhaust.z);
-        }
+        JetFlameFx.set(p, t, boost);
     }
 
     /** Other players flying jetpacks get flames too (guessed from their motion). */
@@ -142,7 +129,7 @@ public final class Jetpack {
             if (o == self || !EvaSuit.jetpack(o) || o.isOnGround()) continue;
             Vec3d v = o.getVelocity();
             boolean flying = SpaceDims.isSpace(w) ? v.lengthSquared() > 0.04 : v.y > -0.25;
-            if (flying && o.age % 2 == 0) flames(o, 0.6f, false);
+            if (flying) flames(o, 0.6f, false);
         }
     }
 

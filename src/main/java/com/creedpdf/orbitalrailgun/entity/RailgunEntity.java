@@ -304,9 +304,11 @@ public class RailgunEntity extends Entity implements GeoEntity {
     // ---- Rift ---------------------------------------------------------------------------------------
 
     /** Timeline (ticks): crown unfolds + rail swings up, beam, tear, open (vortex), collapse, snap, fold. */
-    public static final int RIFT_FIRE = 120, RIFT_OPEN = 136, RIFT_OPENED = 206, RIFT_COLLAPSE = 2606, RIFT_SNAP = 2656, RIFT_TICKS = 2730;
+    public static final int RIFT_FIRE = 120, RIFT_OPEN = 136, RIFT_OPENED = 206, RIFT_COLLAPSE = 806, RIFT_SNAP = 856, RIFT_TICKS = 930;
+    /** The beam fires and holds for one second, then cuts out; the rift stays open on its own. */
+    public static final int RIFT_BEAM_END = RIFT_FIRE + 20;
     /** Warnings to anyone in space before the rift closes (ticks before RIFT_COLLAPSE). */
-    public static final int[] RIFT_WARNINGS = {1200, 600, 200};
+    public static final int[] RIFT_WARNINGS = {400, 200, 100};
     public static final int RIFT_COOLDOWN = 1200;
     public static final double RIFT_HEIGHT = 160.0, RIFT_RADIUS = 26.0, VORTEX_RADIUS = 40.0, LIFT_RADIUS = 5.5;
     private int riftReadyAge;

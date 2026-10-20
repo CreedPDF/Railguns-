@@ -85,18 +85,19 @@ smooth surfaces rather than pixel art.
 Press **RIFT** on the tablet while the railgun is idle. A crown of six emitter petals blooms
 around the muzzle and the rail swings straight up while it charges: every red part of ARES-9,
 paint and lights, slowly turns dark purple, the colour running down from the tip of the rail to
-the ground. Then a thick violet beam punches **120 blocks** into the sky and rips it open.
+the ground. Then a thick violet beam punches **160 blocks** into the sky, holds for one second and cuts out,
+leaving the sky ripped open.
 
 The rift is a **real see-through portal into space** (Immersive Portals), shaped like an actual
 tear: a long, jagged, bent gash about **50 blocks across** with pointed ends, its rim spiked and
-crawling with arcs. Look up through it and you see actual space: stars, the Milky Way, the sun, the planets. Stand in
-the beam at the railgun and it carries you up and straight through, **no loading screen**: you
+crawling with arcs. Look up through it and you see actual space: stars, the Milky Way, the sun, the planets. Stand on
+the railgun while the rift is open and an updraft carries you up and straight through, **no loading screen**: you
 are simply floating in space, high above Earth, and looking back down through the hole you can
 see your world and the railgun below.
 
-The rift stays open for **two minutes**. Warnings go out to everyone in space at 60, 30 and 10
-seconds. When it closes, the railgun stops firing, the hole slams shut and anyone still up there
-is **stranded in space**. The only way home is to fly back down into Earth's atmosphere.
+The rift stays open on its own for **30 seconds** after the beam stops. Warnings go out to
+everyone in space at 20, 10 and 5 seconds. When it closes the hole slams shut and anyone still up
+there is **stranded in space**. The only way home is to fly back down into Earth's atmosphere.
 
 ## Space
 A realistic solar system in its own dimension: black sky, sharp stars, the Milky Way, a white
@@ -120,6 +121,8 @@ need **all four** to survive anywhere off Earth. The boots absorb any fall.
   stop you; Space + Shift brakes hard.
 * **Jetpack in gravity:** hold Space in the air to fly, Sprint to go faster, Shift to hover down.
   Earth's thrusters can't climb past about Y 450: the rift is the only way to space.
+* Twin 3D thruster flames, blue, under the nozzles: they grow with thrust and show shock
+  diamonds when you boost.
 * Visor HUD: seal status, speed, nearest body and distance, gravity.
 
 Recipes: helmet (iron, tinted glass, netherite, redstone lamp); suit (iron, fire charges,

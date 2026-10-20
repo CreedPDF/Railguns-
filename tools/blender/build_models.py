@@ -1267,7 +1267,7 @@ def build_suit(offset):
         cx = sx * 2.7
         octagon(f"jet_tank{sx}", Bd, "white", 10.4, 3.4, 12.2, center_xz=(cx, 6.6))
         octagon(f"jet_nozzle{sx}", Bd, "dark", 8.6, 3.9, 1.8, center_xz=(cx, 6.6))
-        octagon(f"jet_glow{sx}", Bd, "orange", 8.3, 2.6, 0.3, center_xz=(cx, 6.6))
+        octagon(f"jet_glow{sx}", Bd, "cyan", 8.3, 2.6, 0.3, center_xz=(cx, 6.6))
         box(Bd, "steel", [cx - 0.3, 14, 8.2], [0.6, 7, 1.2])
     box(Bd, "amber", [-0.5, 22.0, 5.45], [1, 0.6, 0.6])
     for side, n in ((-1, "armorRightArm"), (1, "armorLeftArm")):

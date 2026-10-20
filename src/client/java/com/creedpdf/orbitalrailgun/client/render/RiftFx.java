@@ -112,10 +112,10 @@ public final class RiftFx {
         float open = R / (float) RailgunEntity.RIFT_RADIUS;
         float collapse = t > RailgunEntity.RIFT_COLLAPSE ? (t - RailgunEntity.RIFT_COLLAPSE) / (RailgunEntity.RIFT_SNAP - RailgunEntity.RIFT_COLLAPSE) : 0f;
 
-        // ---- the beam holding it open ----
-        if (t > RailgunEntity.RIFT_FIRE && t < RailgunEntity.RIFT_SNAP + 4) {
+        // ---- the beam: fires, holds for a second and cuts out ----
+        if (t > RailgunEntity.RIFT_FIRE && t < RailgunEntity.RIFT_BEAM_END + 6) {
             float a = t < RailgunEntity.RIFT_FIRE + 4 ? (t - RailgunEntity.RIFT_FIRE) / 4f
-                    : t > RailgunEntity.RIFT_COLLAPSE ? Math.max(0.2f, 1f - collapse) : 1f;
+                    : t > RailgunEntity.RIFT_BEAM_END ? Math.max(0f, 1f - (t - RailgunEntity.RIFT_BEAM_END) / 6f) : 1f;
             float flick = 0.85f + 0.15f * MathHelper.sin(time * 5.3f);
             Vector3f mz = rel(rg.getMuzzlePos(1f), cam);
             BeamRenderer.Beam b = new BeamRenderer.Beam(mz, new Vector3f(c).add(0, 2f, 0));
