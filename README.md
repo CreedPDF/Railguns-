@@ -11,7 +11,7 @@ is made by this repo's own tools (Blender, numpy, synthesized audio). No vanilla
 | Fabric Loader | ≥ 0.15 |
 | Fabric API | 0.92.x+1.20.1 |
 | GeckoLib | 4.2 – 4.4.x (Fabric, 1.20.1) |
-| Immersive Portals | 3.3.9 for 1.20.1 (Fabric) — required since 4.0 |
+| Immersive Portals | 3.3.9 for 1.20.1 — bundled inside the jar since 4.0.1 (with Cloth Config); nothing extra to install |
 
 Three small client mixins (two-handed tablet in first and third person, camera fly-in to the control panel); no owo-lib, no Cloth Config. The beam uses vanilla shader programs in custom render
 layers, so it works alongside Sodium.

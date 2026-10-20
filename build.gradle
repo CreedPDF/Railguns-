@@ -10,6 +10,11 @@ base { archivesName = project.archives_base_name }
 
 repositories {
     maven {
+        name = 'Shedaniel'
+        url = 'https://maven.shedaniel.me/'
+        content { includeGroup('me.shedaniel.cloth'); includeGroup('me.shedaniel') }
+    }
+    maven {
         name = 'JitPack'
         url = 'https://jitpack.io'
         content { includeGroupByRegex('com\\.github\\.iPortalTeam.*') }
@@ -53,6 +58,17 @@ dependencies {
     modImplementation("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${project.immersive_portals_version}") {
         exclude(group: 'net.fabricmc.fabric-api')
         transitive = false
+    }
+    // Immersive Portals' core needs Cloth Config at runtime
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+        exclude(group: 'net.fabricmc.fabric-api')
+    }
+    // Bundled (jar-in-jar) so the mod works on its own: no separate Immersive Portals download needed.
+    // If a newer Immersive Portals is installed separately, Fabric Loader uses that one instead.
+    include("com.github.iPortalTeam.ImmersivePortalsMod:imm_ptl_core:${project.immersive_portals_version}") { transitive = false }
+    include("com.github.iPortalTeam.ImmersivePortalsMod:q_misc_util:${project.immersive_portals_version}") { transitive = false }
+    include("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+        exclude(group: 'net.fabricmc.fabric-api')
     }
 }
 
