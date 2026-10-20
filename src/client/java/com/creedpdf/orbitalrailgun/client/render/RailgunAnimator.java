@@ -158,7 +158,7 @@ public final class RailgunAnimator {
         crown.setScaleZ(s);
         crown.setRotZ(t * 0.02f + (1 - open) * 1.2f);
         if (halo != null) {
-            float firing = t > RailgunEntity.RIFT_FIRE && t < RailgunEntity.RIFT_SNAP ? 1f : 0.4f;
+            float firing = t > RailgunEntity.RIFT_FIRE && t < RailgunEntity.RIFT_BEAM_END ? 1f : 0.4f;
             halo.setRotZ(-t * 0.12f * firing);
             float pulse = 1f + 0.06f * net.minecraft.util.math.MathHelper.sin(t * 0.5f) * firing;
             halo.setScaleX(pulse);

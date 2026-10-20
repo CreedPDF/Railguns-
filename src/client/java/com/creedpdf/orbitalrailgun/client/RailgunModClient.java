@@ -34,6 +34,7 @@ public final class RailgunModClient implements ClientModInitializer {
         EntityRendererRegistry.register(RailgunMod.METEOR, com.creedpdf.orbitalrailgun.client.render.MeteorRenderer::new);
         registerPortalRenderer();
         com.creedpdf.orbitalrailgun.client.ares0.Ares0Fx.register();
+        com.creedpdf.orbitalrailgun.client.space.JetFlameFx.register();
         com.creedpdf.orbitalrailgun.client.space.SpaceClient.register();
         HudRenderCallback.EVENT.register(com.creedpdf.orbitalrailgun.client.space.SpaceHud::render);
         RailgunParticles.register();
