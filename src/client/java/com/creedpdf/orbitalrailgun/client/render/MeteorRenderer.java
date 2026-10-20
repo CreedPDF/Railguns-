@@ -96,8 +96,9 @@ public class MeteorRenderer extends EntityRenderer<MeteorEntity> {
         // churning fire behind it
         VertexConsumer fire = vcp.getBuffer(BeamRenderLayers.textured(PlanetBlastFx.FIRE));
         float[] col = new float[3];
-        for (int i = 0; i < 18; i++) {
-            float f = (i + (time * 0.6f) % 1f) / 18f;
+        int nf = com.creedpdf.orbitalrailgun.client.config.Quality.scale(18, 6);
+        for (int i = 0; i < nf; i++) {
+            float f = (i + (time * 0.6f) % 1f) / nf;
             Vector3f p = new Vector3f(back).mul(f * len * 2.2f).add(c);
             PlanetBlastFx.blackbodyPublic(1f - f * 0.8f, col);
             float size = s * (1.2f + f * 4f);
@@ -105,8 +106,9 @@ public class MeteorRenderer extends EntityRenderer<MeteorEntity> {
         }
         // and smoke beyond that
         VertexConsumer smoke = vcp.getBuffer(BeamRenderLayers.translucent(PlanetBlastFx.SMOKE));
-        for (int i = 0; i < 26; i++) {
-            float f = (i + (time * 0.3f) % 1f) / 26f;
+        int ns = com.creedpdf.orbitalrailgun.client.config.Quality.scale(26, 8);
+        for (int i = 0; i < ns; i++) {
+            float f = (i + (time * 0.3f) % 1f) / ns;
             Vector3f p = new Vector3f(back).mul(len * (1.2f + f * 5f)).add(c);
             float size = s * (2.5f + f * 9f);
             PlanetBlastFx.billboardPublic(smoke, m, p, size, i * 2.3f, 0.16f, 0.14f, 0.13f, (1f - f) * 0.45f);

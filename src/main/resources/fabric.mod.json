@@ -19,6 +19,9 @@
     ],
     "client": [
       "com.creedpdf.orbitalrailgun.client.RailgunModClient"
+    ],
+    "modmenu": [
+      "com.creedpdf.orbitalrailgun.client.config.ModMenuEntry"
     ]
   },
   "accessWidener": "orbital_railgun.accesswidener",

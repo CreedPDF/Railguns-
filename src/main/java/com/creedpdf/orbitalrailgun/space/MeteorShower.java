@@ -28,8 +28,10 @@ public final class MeteorShower {
         if (since < 0 || since > DURATION) return;
         ServerWorld w = server.getOverworld();
         float f = since / (float) DURATION;
-        float rate = (0.06f + 0.14f * (float) Math.exp(-since / 900f)) * (1f - f * 0.7f);
-        if (b.gasGiant()) rate *= 1.4f;
+        // about one piece every 2 s per player at first, thinning to one every ~10 s: each impact is
+        // a real explosion, so the sky streaks (client-only, free for the server) carry the spectacle
+        float rate = (0.012f + 0.028f * (float) Math.exp(-since / 1200f)) * (1f - f * 0.6f);
+        if (b.gasGiant()) rate *= 1.3f;
         Random r = w.random;
         for (ServerPlayerEntity p : w.getPlayers()) {
             if (r.nextFloat() > rate) continue;

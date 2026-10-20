@@ -146,21 +146,39 @@ public final class BodyDraw {
 
     /** Atmospheric limb: a thin shell that brightens toward the edge, lit side only, reddened at the terminator. */
     static void limb(VertexConsumerProvider cp, Matrix4f m, Vector3f c, float r, Vector3f l, float[] col, float alpha, int lat, int lon) {
-        VertexConsumer g = cp.getBuffer(BeamRenderLayers.GLOW);
-        Vector3f view = new Vector3f(c).normalize();
+        // a smooth gradient: half the surface's resolution is plenty, and only the rim (faces seen
+        // nearly edge-on) carries any light, so the face-on middle is skipped
+        lat = Math.max(8, lat / 2);
+        lon = Math.max(16, lon / 2);
+        float[] g = grid(lat, lon);
+        int w = lon + 1, n = (lat + 1) * w;
+        float[] buf = scratch(n * 8);
+        for (int k = 0; k < n; k++) {
+            float nx = g[k * 3], ny = g[k * 3 + 1], nz = g[k * 3 + 2];
+            float px = nx * r + c.x, py = ny * r + c.y, pz = nz * r + c.z;
+            float len = (float) Math.sqrt(px * px + py * py + pz * pz);
+            float facing = len > 0 ? (nx * px + ny * py + nz * pz) / len : 0f;
+            float edge = (float) Math.pow(1f - Math.abs(facing), 2.2);
+            float nl = nx * l.x + ny * l.y + nz * l.z;
+            float light = PlanetDrawMath.smooth(-0.35f, 0.3f, nl);
+            float sunset = (float) Math.exp(-(nl / 0.18f) * (nl / 0.18f));
+            int o = k * 8;
+            buf[o] = px; buf[o + 1] = py; buf[o + 2] = pz;
+            buf[o + 3] = Math.min(1f, col[0] + sunset * 0.6f);
+            buf[o + 4] = col[1] * (1f - sunset * 0.3f);
+            buf[o + 5] = col[2] * (1f - sunset * 0.6f);
+            buf[o + 6] = Math.min(1f, edge * light * col[3]) * alpha;
+            buf[o + 7] = facing;
+        }
+        VertexConsumer vc = cp.getBuffer(BeamRenderLayers.GLOW);
         for (int i = 0; i < lat; i++) {
             for (int j = 0; j < lon; j++) {
-                float[][] uv = {{j / (float) lon, i / (float) lat}, {(j + 1) / (float) lon, i / (float) lat},
-                        {(j + 1) / (float) lon, (i + 1) / (float) lat}, {j / (float) lon, (i + 1) / (float) lat}};
-                for (float[] t : uv) {
-                    Vector3f n = PlanetDrawMath.unit(t[0], t[1]);
-                    Vector3f p = new Vector3f(n).mul(r).add(c);
-                    float edge = (float) Math.pow(1f - Math.abs(n.dot(new Vector3f(p).normalize())), 2.2);
-                    float light = PlanetDrawMath.smooth(-0.35f, 0.3f, n.dot(l));
-                    float sunset = (float) Math.exp(-(n.dot(l) / 0.18f) * (n.dot(l) / 0.18f));
-                    float a = Math.min(1f, edge * light * col[3]) * alpha;
-                    g.vertex(m, p.x, p.y, p.z).color(Math.min(1f, col[0] + sunset * 0.6f), col[1] * (1f - sunset * 0.3f),
-                            col[2] * (1f - sunset * 0.6f), a).next();
+                int k00 = i * w + j, k01 = k00 + 1, k10 = k00 + w, k11 = k10 + 1;
+                float amax = Math.max(Math.max(buf[k00 * 8 + 6], buf[k01 * 8 + 6]), Math.max(buf[k10 * 8 + 6], buf[k11 * 8 + 6]));
+                if (amax < 0.002f) continue;
+                for (int k : new int[]{k00, k01, k11, k10}) {
+                    int o = k * 8;
+                    vc.vertex(m, buf[o], buf[o + 1], buf[o + 2]).color(buf[o + 3], buf[o + 4], buf[o + 5], buf[o + 6]).next();
                 }
             }
         }
@@ -215,31 +233,64 @@ public final class BodyDraw {
      *             sphere never needs the depth buffer to hide its own far side
      */
     public static void sphere(VertexConsumer vc, Matrix4f m, Vector3f c, float r, Quaternionf spin, int lat, int lon, Shade shade, boolean cull) {
+        // every grid point is transformed and shaded once and shared by its four quads
+        float[] g = grid(lat, lon);
+        int w = lon + 1, n = (lat + 1) * w;
+        float[] buf = scratch(n * 8);
         float[] col = new float[4];
-        Vector3f tmp = new Vector3f();
+        Vector3f nv = new Vector3f();
+        for (int k = 0; k < n; k++) {
+            nv.set(g[k * 3], g[k * 3 + 1], g[k * 3 + 2]);
+            spin.transform(nv);
+            col[0] = col[1] = col[2] = col[3] = 0f;
+            shade.apply(nv, col);
+            int o = k * 8;
+            buf[o] = nv.x * r + c.x; buf[o + 1] = nv.y * r + c.y; buf[o + 2] = nv.z * r + c.z;
+            buf[o + 3] = Math.min(1f, col[0]); buf[o + 4] = Math.min(1f, col[1]); buf[o + 5] = Math.min(1f, col[2]); buf[o + 6] = col[3];
+            // facing term for culling: normal . (point direction from the camera)
+            float len = (float) Math.sqrt(buf[o] * buf[o] + buf[o + 1] * buf[o + 1] + buf[o + 2] * buf[o + 2]);
+            buf[o + 7] = len > 0 ? (nv.x * buf[o] + nv.y * buf[o + 1] + nv.z * buf[o + 2]) / len : 0f;
+        }
         for (int i = 0; i < lat; i++) {
             float v0 = i / (float) lat, v1 = (i + 1) / (float) lat;
             for (int j = 0; j < lon; j++) {
+                int k00 = i * w + j, k01 = k00 + 1, k10 = k00 + w, k11 = k10 + 1;
+                // keep a sliver past the limb so the edge never shows gaps
+                if (cull && (buf[k00 * 8 + 7] + buf[k01 * 8 + 7] + buf[k10 * 8 + 7] + buf[k11 * 8 + 7]) * 0.25f > 0.12f) continue;
                 float u0 = j / (float) lon, u1 = (j + 1) / (float) lon;
-                if (cull) {
-                    Vector3f n = spin.transform(PlanetDrawMath.unit((u0 + u1) * 0.5f, (v0 + v1) * 0.5f));
-                    tmp.set(n).mul(r).add(c);
-                    // keep a sliver past the limb so the edge never shows gaps
-                    if (n.dot(tmp) > 0.12f * tmp.length()) continue;
-                }
-                vert(vc, m, c, r, spin, u0, v0, shade, col);
-                vert(vc, m, c, r, spin, u1, v0, shade, col);
-                vert(vc, m, c, r, spin, u1, v1, shade, col);
-                vert(vc, m, c, r, spin, u0, v1, shade, col);
+                emit(vc, m, buf, k00, u0, v0);
+                emit(vc, m, buf, k01, u1, v0);
+                emit(vc, m, buf, k11, u1, v1);
+                emit(vc, m, buf, k10, u0, v1);
             }
         }
     }
 
-    private static void vert(VertexConsumer vc, Matrix4f m, Vector3f c, float r, Quaternionf spin, float u, float v, Shade shade, float[] col) {
-        Vector3f n = spin.transform(PlanetDrawMath.unit(u, v));
-        shade.apply(n, col);
-        Vector3f p = new Vector3f(n).mul(r).add(c);
-        vc.vertex(m, p.x, p.y, p.z).color(Math.min(1f, col[0]), Math.min(1f, col[1]), Math.min(1f, col[2]), col[3])
-                .texture(u, v).light(LIGHT).normal(0, 1, 0).next();
+    private static void emit(VertexConsumer vc, Matrix4f m, float[] b, int k, float u, float v) {
+        int o = k * 8;
+        vc.vertex(m, b[o], b[o + 1], b[o + 2]).color(b[o + 3], b[o + 4], b[o + 5], b[o + 6]).texture(u, v).light(LIGHT).normal(0, 1, 0).next();
+    }
+
+    private static final java.util.Map<Long, float[]> GRIDS = new java.util.HashMap<>();
+    private static float[] SCRATCH = new float[0];
+
+    /** Unit vectors of an equirectangular grid, (lat+1) x (lon+1) points, cached per resolution. */
+    static float[] grid(int lat, int lon) {
+        return GRIDS.computeIfAbsent(((long) lat << 32) | lon, k -> {
+            float[] g = new float[(lat + 1) * (lon + 1) * 3];
+            for (int i = 0; i <= lat; i++) {
+                for (int j = 0; j <= lon; j++) {
+                    Vector3f u = PlanetDrawMath.unit(j / (float) lon, i / (float) lat);
+                    int o = (i * (lon + 1) + j) * 3;
+                    g[o] = u.x; g[o + 1] = u.y; g[o + 2] = u.z;
+                }
+            }
+            return g;
+        });
+    }
+
+    private static float[] scratch(int n) {
+        if (SCRATCH.length < n) SCRATCH = new float[n];
+        return SCRATCH;
     }
 }

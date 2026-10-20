@@ -72,6 +72,7 @@ public final class BeamRenderLayers extends RenderLayer {
     private static final Map<Identifier, RenderLayer> TEXTURED = new HashMap<>();
 
     public static RenderLayer textured(Identifier texture) {
+        texture = com.creedpdf.orbitalrailgun.client.config.ScaledTextures.map(texture);
         return TEXTURED.computeIfAbsent(texture, tex -> RenderLayer.of(
                 "orbital_railgun_beam_" + tex.getPath(),
                 VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
@@ -92,6 +93,7 @@ public final class BeamRenderLayers extends RenderLayer {
 
     /** Opaque, unlit, depth-writing textured layer (rift walls, planets, skybox): colour = vertex colour x texture. */
     public static RenderLayer solid(Identifier texture) {
+        texture = com.creedpdf.orbitalrailgun.client.config.ScaledTextures.map(texture);
         return SOLID.computeIfAbsent(texture, tex -> RenderLayer.of(
                 "orbital_railgun_solid_" + tex.getPath(),
                 VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
@@ -112,6 +114,7 @@ public final class BeamRenderLayers extends RenderLayer {
 
     /** Alpha-blended, depth-tested, no depth write (planetary rings with real gaps). */
     public static RenderLayer translucent(Identifier texture) {
+        texture = com.creedpdf.orbitalrailgun.client.config.ScaledTextures.map(texture);
         return TRANSLUCENT.computeIfAbsent(texture, tex -> RenderLayer.of(
                 "orbital_railgun_translucent_" + tex.getPath(),
                 VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,

@@ -106,12 +106,12 @@ public final class PlanetBlastFx {
             float a = (1f - f) * (1f - f) * alpha;
             VertexConsumer pl = cp.getBuffer(BeamRenderLayers.textured(PLASMA));
             Quaternionf q = new Quaternionf().rotationY(d * 0.002f).rotateX(0.4f);
-            BodyDraw.sphere(pl, m, c, rr, q, 64, 128, (n, out) -> {
+            BodyDraw.sphere(pl, m, c, rr, q, com.creedpdf.orbitalrailgun.client.config.Quality.segs(64, 16), com.creedpdf.orbitalrailgun.client.config.Quality.segs(128, 32), (n, out) -> {
                 out[0] = a; out[1] = a * (0.75f - 0.35f * f); out[2] = a * (0.45f - 0.35f * f); out[3] = a;
             });
             Quaternionf q2 = new Quaternionf().rotationY(-d * 0.003f).rotateZ(0.7f);
             float rr2 = rr * 0.82f;
-            BodyDraw.sphere(pl, m, c, rr2, q2, 56, 112, (n, out) -> {
+            BodyDraw.sphere(pl, m, c, rr2, q2, com.creedpdf.orbitalrailgun.client.config.Quality.segs(56, 14), com.creedpdf.orbitalrailgun.client.config.Quality.segs(112, 28), (n, out) -> {
                 out[0] = a * 0.9f; out[1] = a * 0.9f * (0.9f - 0.6f * f); out[2] = a * 0.9f * (0.7f - 0.6f * f); out[3] = a;
             });
         }
@@ -163,7 +163,7 @@ public final class PlanetBlastFx {
         float spread = Math.min(1f, heat) * 3.4f;
         VertexConsumer vc = cp.getBuffer(BeamRenderLayers.textured(STREAK));
         float[] col = new float[3];
-        int n = 260;
+        int n = com.creedpdf.orbitalrailgun.client.config.Quality.scale(260, 60);
         for (int i = 0; i < n; i++) {
             rand.setSeed(b.ordinal() * 31337L + i * 0x9E3779B97F4A7C15L);
             Vector3f dir = randomDir(rand);
@@ -200,10 +200,11 @@ public final class PlanetBlastFx {
         if (d > 1100) return;
         Random rand = Random.create(b.ordinal() * 7121L + 3);
         VertexConsumer vc = cp.getBuffer(BeamRenderLayers.textured(FIRE));
+        float cover = (float) Math.pow(1f / Math.max(0.2f, com.creedpdf.orbitalrailgun.client.config.Quality.fx()), 0.3);
         float ease = 1f - (float) Math.exp(-d / 130f);
         float[] col = new float[3];
         float in = Math.min(1f, d / 5f);
-        for (int i = 0; i < 420; i++) {
+        for (int i = 0, N = com.creedpdf.orbitalrailgun.client.config.Quality.scale(420, 90); i < N; i++) {
             rand.setSeed(b.ordinal() * 7919L + 420L + i * 0x9E3779B97F4A7C15L);
             Vector3f dir = randomDir(rand);
             float s = rand.nextFloat();
@@ -212,7 +213,7 @@ public final class PlanetBlastFx {
             float dist = r * (0.15f + 5.2f * s * core * ease + d * 0.0006f * s);
             Vector3f turb = new Vector3f(MathHelper.sin(d * 0.011f + i), MathHelper.sin(d * 0.009f + i * 1.7f), MathHelper.cos(d * 0.013f + i * 0.6f)).mul(r * 0.12f * ease);
             Vector3f p = new Vector3f(dir).mul(dist).add(c).add(turb);
-            float size = r * (0.45f + 0.95f * rand.nextFloat()) * (0.5f + 2.6f * ease) * (core < 1 ? 0.8f : 1f);
+            float size = r * (0.45f + 0.95f * rand.nextFloat()) * (0.5f + 2.6f * ease) * (core < 1 ? 0.8f : 1f) * cover;
             float t = 1.08f - d / life - 0.2f * s;
             if (t <= 0.02f) continue;
             blackbody(t, col);
@@ -228,19 +229,20 @@ public final class PlanetBlastFx {
         if (d < 25) return;
         Random rand = Random.create(b.ordinal() * 6007L + 9);
         VertexConsumer vc = cp.getBuffer(BeamRenderLayers.translucent(SMOKE));
+        float cover = (float) Math.pow(1f / Math.max(0.2f, com.creedpdf.orbitalrailgun.client.config.Quality.fx()), 0.3);
         Vector3f l = new Vector3f(L).normalize();
         float ease = 1f - (float) Math.exp(-d / 480f);
         float appear = MathHelper.clamp((d - 25) / 220f, 0f, 1f);
         float thin = 0.3f + 0.7f * (float) Math.exp(-d / 5000f);
         float[] col = new float[3];
         float under = MathHelper.clamp(1f - d / 700f, 0f, 1f);
-        for (int i = 0; i < 320; i++) {
+        for (int i = 0, N = com.creedpdf.orbitalrailgun.client.config.Quality.scale(320, 70); i < N; i++) {
             rand.setSeed(b.ordinal() * 7919L + 320L + i * 0x9E3779B97F4A7C15L);
             Vector3f dir = randomDir(rand);
             float s = 0.25f + 0.75f * rand.nextFloat();
             float dist = r * (0.4f + 6.2f * s * ease + d * 0.0003f * s);
             Vector3f p = new Vector3f(dir).mul(dist).add(c);
-            float size = r * (0.8f + 1.6f * rand.nextFloat()) * (0.7f + 2.2f * ease);
+            float size = r * (0.8f + 1.6f * rand.nextFloat()) * (0.7f + 2.2f * ease) * cover;
             float lit = 0.06f + 0.42f * Math.max(0f, dir.dot(l)) ;
             blackbody(0.55f * under * (1f - s * 0.5f), col);
             float rr = lit * 0.82f + col[0] * 0.55f, gg = lit * 0.74f + col[1] * 0.45f, bb = lit * 0.66f + col[2] * 0.35f;
@@ -257,7 +259,7 @@ public final class PlanetBlastFx {
         Vector3f l = new Vector3f(L).normalize();
         float[] col = new float[3];
         float in = Math.min(1f, d / 3f);
-        for (int i = 0; i < 3600; i++) {
+        for (int i = 0, N = com.creedpdf.orbitalrailgun.client.config.Quality.scale(3600, 500); i < N; i++) {
             rand.setSeed(b.ordinal() * 7919L + 3600L + i * 0x9E3779B97F4A7C15L);
             Vector3f dir = randomDir(rand);
             float u = rand.nextFloat();
@@ -294,7 +296,7 @@ public final class PlanetBlastFx {
         Vector3f l = new Vector3f(L).normalize();
         float appear = MathHelper.clamp((d - 150) / 900f, 0f, 1f);
         float flat = (float) Math.exp(-(d - 150) / 2600f);
-        for (int i = 0; i < 1800; i++) {
+        for (int i = 0, N = com.creedpdf.orbitalrailgun.client.config.Quality.scale(1800, 300); i < N; i++) {
             rand.setSeed(b.ordinal() * 7919L + 1800L + i * 0x9E3779B97F4A7C15L);
             float rho = r * (1.6f + 10f * (float) Math.pow(rand.nextFloat(), 1.6f));
             float th0 = rand.nextFloat() * MathHelper.TAU;
@@ -382,16 +384,22 @@ public final class PlanetBlastFx {
     private record Shard(Vector3f dir, float speed, Vector3f axis, float spin, List<Vector3f[]> tris) {}
 
     private static final Map<Body, List<Shard>> SHARDS = new EnumMap<>(Body.class);
+    private static int shardDetail = -1;
 
     private static List<Shard> shards(Body b) {
+        int detail = com.creedpdf.orbitalrailgun.client.config.Quality.geo() >= 0.9f ? 2 : com.creedpdf.orbitalrailgun.client.config.Quality.geo() >= 0.6f ? 1 : 0;
+        if (detail != shardDetail) {
+            SHARDS.clear();
+            shardDetail = detail;
+        }
         return SHARDS.computeIfAbsent(b, PlanetBlastFx::buildShards);
     }
 
     /** Icosphere (5120 triangles) cut into ~420 Voronoi chunks. */
     private static List<Shard> buildShards(Body b) {
-        List<Vector3f[]> tris = icosphere(4);
+        List<Vector3f[]> tris = icosphere(shardDetail == 2 ? 4 : 3);
         Random rand = Random.create(b.ordinal() * 104729L + 17);
-        int n = 420;
+        int n = shardDetail == 2 ? 420 : shardDetail == 1 ? 220 : 140;
         Vector3f[] seeds = new Vector3f[n];
         float golden = MathHelper.PI * (3f - (float) Math.sqrt(5f));
         for (int i = 0; i < n; i++) {
@@ -486,18 +494,19 @@ public final class PlanetBlastFx {
 
     public static void glowBall(VertexConsumer g, Matrix4f m, Vector3f c, float r, float cr, float cg, float cb, float a) {
         if (a <= 0.003f) return;
-        int lat = 24, lon = 48;
+        int lon = com.creedpdf.orbitalrailgun.client.config.Quality.segs(48, 16), lat = lon / 2;
+        float[] grid = BodyDraw.grid(lat, lon);
+        int w = lon + 1;
         for (int i = 0; i < lat; i++) {
             for (int j = 0; j < lon; j++) {
-                float[][] uv = {{j / (float) lon, i / (float) lat}, {(j + 1) / (float) lon, i / (float) lat},
-                        {(j + 1) / (float) lon, (i + 1) / (float) lat}, {j / (float) lon, (i + 1) / (float) lat}};
-                for (float[] t : uv) {
-                    Vector3f n = PlanetDrawMath.unit(t[0], t[1]);
-                    Vector3f p = new Vector3f(n).mul(r).add(c);
-                    Vector3f view = new Vector3f(p).normalize();
-                    float facing = Math.abs(n.dot(view));
-                    float aa = a * facing * facing;
-                    g.vertex(m, p.x, p.y, p.z).color(cr, cg, cb, aa).next();
+                int k00 = i * w + j;
+                int[] ks = {k00, k00 + 1, k00 + w + 1, k00 + w};
+                for (int k : ks) {
+                    float nx = grid[k * 3], ny = grid[k * 3 + 1], nz = grid[k * 3 + 2];
+                    float px = nx * r + c.x, py = ny * r + c.y, pz = nz * r + c.z;
+                    float len = (float) Math.sqrt(px * px + py * py + pz * pz);
+                    float facing = len > 0 ? Math.abs(nx * px + ny * py + nz * pz) / len : 1f;
+                    g.vertex(m, px, py, pz).color(cr, cg, cb, a * facing * facing).next();
                 }
             }
         }
@@ -507,7 +516,7 @@ public final class PlanetBlastFx {
         Vector3f n = new Vector3f(normal).normalize();
         Vector3f u = new Vector3f(n).cross(Math.abs(n.y) < 0.9f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0)).normalize();
         Vector3f v = new Vector3f(n).cross(u).normalize();
-        int seg = 256;
+        int seg = com.creedpdf.orbitalrailgun.client.config.Quality.segs(256, 64);
         for (int k = 0; k < seg; k++) {
             float t0 = k / (float) seg * MathHelper.TAU, t1 = (k + 1) / (float) seg * MathHelper.TAU;
             Vector3f[] q = {

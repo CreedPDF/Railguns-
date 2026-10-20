@@ -295,7 +295,8 @@ public final class BeamRenderer {
     }
 
     private static int segments(float length) {
-        return MathHelper.clamp((int) (length / 3f), 2, MAX_SEGMENTS);
+        float q = com.creedpdf.orbitalrailgun.client.config.Quality.geo();
+        return MathHelper.clamp((int) (length / (3f / Math.max(0.35f, q))), 2, Math.max(60, (int) (MAX_SEGMENTS * q)));
     }
 
     /** Radius multiplier along a tube: soft taper at the muzzle, flare at the far end, wobble. */

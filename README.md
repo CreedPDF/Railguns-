@@ -187,6 +187,22 @@ platform on touchdown. The drop is refused if the zone holds unbreakable blocks,
 away under too much of the footprint, the landing block is liquid, another railgun is too close,
 or the site is buried too deep. The tablet shows the survey live before you call it down.
 
+## Graphics settings
+Everything the mod draws itself (planets, sky, explosions, debris, flames, beams) follows an
+**effects quality** setting, changed in Mod Menu's config screen (if Mod Menu is installed) or with
+`/orbitalquality <low|medium|high|ultra> [adaptive|fixed]`:
+
+| | |
+|---|---|
+| **Ultra** | full detail everywhere |
+| **High** (default) | looks the same at normal viewing distance, with far less geometry and fewer sprites |
+| **Medium** | lighter effects, space textures loaded at half resolution (a quarter of the video memory) |
+| **Low** | for laptops and older PCs |
+
+**Adaptive quality** (on by default) steps the effects down by itself while the frame rate stays
+under ~30 FPS and climbs back once it recovers, never above the chosen level. Saved in
+`config/orbital_railgun_client.json`.
+
 ## Building
 Every push to `main` runs GitHub Actions, which:
 1. downloads Blender 4.2 LTS and runs `tools/blender/build_models.py` headless,
