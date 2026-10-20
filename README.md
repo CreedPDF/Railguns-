@@ -1,4 +1,6 @@
-# Orbital Railgun (Fabric 1.20.1)
+# Railguns+ (Fabric 1.20.1)
+
+*(mod id `orbital_railgun`, kept so existing worlds and items carry over)*
 
 Call a colossal railgun emplacement down from orbit, lock a target from its fire-control
 console, and fire a churning, textured plasma beam. Every model, texture, particle and sound
@@ -157,8 +159,8 @@ planet:
 4. what is left is a smouldering cinder inside a debris disk that flattens and shears into rings
    over time. Players standing on it are thrown clear into space a moment before it goes.
 
-The kill is announced across the top of everyone's screen (**JUPITER HAS BEEN DECIMATED**, **THE
-MOON HAS BEEN ERADICATED**...). A few seconds later **pieces of the planet start falling to
+The kill is announced across the top of everyone's screen: **GRAVITATIONAL BINDING FAILED** with
+*CELLULAR DISRUPTION IMMINENT* in smaller type beneath it. A few seconds later **pieces of the planet start falling to
 Earth**: for about five minutes burning fragments streak across the whole sky, and around every
 player in the overworld real ones come screaming down, blast craters and leave heaps of that
 planet's rock (Martian red rock, lunar basalt, Venusian blackstone and magma, Europan ice,
@@ -186,6 +188,23 @@ Before a pod is released, an orbital site survey checks the landing zone (a disc
 platform on touchdown. The drop is refused if the zone holds unbreakable blocks, the ground falls
 away under too much of the footprint, the landing block is liquid, another railgun is too close,
 or the site is buried too deep. The tablet shows the survey live before you call it down.
+
+## Uplink terminal
+The tablet (and the railgun's own field terminal and the ARES-0 console) is a classified command
+terminal: a file tree on the left, the open file on the right, small bracketed text commands
+instead of big buttons, and a two-step confirm on anything destructive.
+
+```
+~/ares-9/        status  fire_control  scan  rift  recall
+~/ares-0/        targets  recall
+~/orbital_drop/  ares-9.pod  ares-0.pod
+```
+
+Everything works **remotely, at any distance**: lock coordinates and fire ARES-9, scan, tear a
+rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pick a planet and
+**fire ARES-0** or recall it. Arrow keys move through the tree.
+
+All the mod's items are in their own **Railguns+** creative tab.
 
 ## Graphics settings
 Everything the mod draws itself (planets, sky, explosions, debris, flames, beams) follows an

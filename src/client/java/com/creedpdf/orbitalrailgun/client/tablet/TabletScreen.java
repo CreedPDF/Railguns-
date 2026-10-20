@@ -2,10 +2,14 @@ package com.creedpdf.orbitalrailgun.client.tablet;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.client.network.ClientPackets;
-import com.creedpdf.orbitalrailgun.client.ui.UiKit;
-import com.creedpdf.orbitalrailgun.loadout.Loadout;
+import com.creedpdf.orbitalrailgun.client.space.ClientPlanets;
+import com.creedpdf.orbitalrailgun.client.ui.Term;
+import com.creedpdf.orbitalrailgun.client.ui.Term.Hit;
+import com.creedpdf.orbitalrailgun.entity.Ares0Entity;
 import com.creedpdf.orbitalrailgun.entity.RailgunState;
+import com.creedpdf.orbitalrailgun.loadout.Loadout;
 import com.creedpdf.orbitalrailgun.registry.ModSounds;
+import com.creedpdf.orbitalrailgun.space.Body;
 import com.creedpdf.orbitalrailgun.util.RailgunConfig;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.MinecraftClient;
@@ -22,28 +26,24 @@ import org.lwjgl.glfw.GLFW;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.BooleanSupplier;
+
+import static com.creedpdf.orbitalrailgun.client.ui.Term.*;
 
 /**
- * The uplink tablet, "zoomed into".
+ * The uplink tablet, "zoomed into": a classified command terminal.
  *
- * <h2>How the zoom works</h2>
- * The tablet is a real item model held in both hands (see {@code HeldItemRendererMixin}). While
- * this screen is open, {@link #zoom(float)} goes 0 → 1 over {@link #ZOOM_TICKS}; the mixin uses it
- * to lift the tablet off the hands, square it up and pull it toward the camera until its display
- * fills the view. Only then does this screen fade in the display image (the same tablet, seen
- * from a few centimetres away) and boot the UI with a scan line. Closing plays it in reverse.
- * Nothing is a pop-up window; the world keeps running behind it.
+ * <p>The tablet is a real item model held in both hands (see {@code HeldItemRendererMixin}). While
+ * this screen is open {@link #zoom(float)} goes 0 to 1 and the mixin pulls the tablet up to the
+ * camera; then the display boots.</p>
  *
- * <h2>Pages</h2>
- * <ul>
- *   <li><b>Orbital drop</b> (no railgun yet): shows the block you were aiming at when you raised
- *       the tablet and a CALL DOWN button.</li>
- *   <li><b>Fire control</b> (railgun exists): status, capacitor, waveform, target entry (typed or
- *       PAINT = the block you aimed at), SET, a big FIRE button for remote firing, and ABORT.</li>
- * </ul>
- * The status comes from the server every few ticks (railguns can be far away, out of the client's
- * entity range), see {@link TabletStatus}.
+ * <p>Navigation is a file tree on the left; the selected "file" opens on the right:</p>
+ * <pre>
+ *  ~/ares-9/   status  fire_control  scan  rift  recall
+ *  ~/ares-0/   targets  recall
+ *  ~/orbital_drop/   ares-9.pod  ares-0.pod
+ * </pre>
+ * Everything works remotely: firing ARES-9, scans, rifts, recalling either weapon to orbit and
+ * firing ARES-0 at a planet, from any distance.
  */
 public class TabletScreen extends Screen {
     private static final Identifier DISPLAY = RailgunMod.id("textures/gui/tablet_display.png");
@@ -51,28 +51,35 @@ public class TabletScreen extends Screen {
     // Display area inside tablet_display.png (512x288).
     private static final float DX0 = 40f / 512, DY0 = 30f / 288, DX1 = 472f / 512, DY1 = 258f / 288;
     private static final int CW = 400, CH = 214; // virtual canvas
-
-    private static final int RED = 0xFFFF3B30, RED_DIM = 0xFF7A1A16, TEXT = 0xFFDDE6EE, MUTED = 0xFF7D8A96;
-    private static final int CYAN = 0xFF5FE3FF, AMBER = 0xFFFFB020, GREEN = 0xFF4CFF8A;
+    private static final int TREE_X = 5, TREE_W = 112, PANE_X = 128, PANE_W = CW - PANE_X - 6;
 
     @Nullable private static TabletScreen open;
+    /** Remembered between openings. */
+    @Nullable private static Node lastNode;
 
     @Nullable private final BlockPos aimed;
     private int ticks;
     private int closeTicks = -1;
     private int bootTicks = -1;
-    private final List<Btn> buttons = new ArrayList<>();
-    private final NumberField[] fields = new NumberField[3];
+    private final String[] fields = {"", "", ""};
     private int focused = -1;
     private boolean fieldsInitialised;
+    private Node node;
+    private int nodeTicks;
+    /** Two-step confirm: the command armed and until when. */
+    @Nullable private String armed;
+    private int armedUntil;
+    private int a0Pick = -1;
+    private final List<Hit> hits = new ArrayList<>();
 
-    // canvas transform
     private float ox, oy, s = 1f;
+
+    private enum Node { A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL, A0_TARGETS, A0_RECALL, DROP_A9, DROP_A0 }
 
     public TabletScreen(@Nullable BlockPos aimed) {
         super(Text.translatable("item.orbital_railgun.railgun_remote"));
         this.aimed = aimed;
-        for (int i = 0; i < 3; i++) fields[i] = new NumberField();
+        this.node = lastNode != null ? lastNode : Node.A9_FIRE;
     }
 
     /** 0 = tablet resting in the hands, 1 = display fills the view. Smoothstepped. */
@@ -98,41 +105,47 @@ public class TabletScreen extends Screen {
             ClientPackets.requestStatus();
             if (aimed != null) ClientPackets.requestSurvey(aimed);
         }
-        buildButtons();
     }
 
-    /** Tablet switched to calling down ARES-0 (the planet killer) instead of ARES-9. */
-    private static boolean ares0Page;
+    // ---- state helpers --------------------------------------------------------------------------
 
-    private void buildButtons() {
-        buttons.clear();
-        buttons.add(new Btn(196, 3, 56, 12, ares0Page ? "< ARES-9" : "ARES-0 >", 0xFF7088FF, () -> true, () -> {
-            ares0Page = !ares0Page;
-            buildButtons();
-            if (aimed != null) ClientPackets.requestSurvey(aimed);
-        }, false, null));
-        // Orbital drop page
-        buttons.add(new Btn(214, 150, 178, 52, "CALL DOWN", RED, () -> page() == Page.DROP && aimed != null
-                && !TabletStatus.latest.pending && !onCooldown() && surveyOk(), this::callDown, true, Page.DROP));
-        // Fire-control page
-        buttons.add(new Btn(8, 128, 90, 16, "SET", RED, this::canRetarget, this::submitTarget, false, Page.FIRE));
-        buttons.add(new Btn(104, 128, 92, 16, "PAINT", AMBER, () -> canRetarget() && aimed != null, this::paint, false, Page.FIRE));
-        buttons.add(new Btn(8, 178, 60, 28, "ABORT", AMBER, () -> TabletStatus.latest.state == RailgunState.CHARGING,
-                ClientPackets::sendAbort, false, Page.FIRE));
-        buttons.add(new Btn(72, 178, 60, 28, "SCAN", CYAN, () -> TabletStatus.latest.state == RailgunState.IDLE,
-                ClientPackets::sendScan, false, Page.FIRE));
-        buttons.add(new Btn(136, 178, 60, 28, "RIFT", 0xFFB070FF, () -> TabletStatus.latest.state == RailgunState.IDLE,
-                ClientPackets::sendRift, false, Page.FIRE));
-        buttons.add(new Btn(208, 150, 184, 56, "FIRE", RED, () -> {
-            TabletStatus st = TabletStatus.latest;
-            return st.state == RailgunState.IDLE && st.hasTarget && st.sameDimension;
-        }, this::fire, true, Page.FIRE));
+    private static TabletStatus st() {
+        return TabletStatus.latest;
     }
 
-    private enum Page { DROP, FIRE }
+    private boolean a9() {
+        return st().found;
+    }
 
-    private Page page() {
-        return ares0Page || !TabletStatus.latest.found ? Page.DROP : Page.FIRE;
+    private boolean a0() {
+        return st().a0Found;
+    }
+
+    /** Opening node once the first status arrives: whatever is deployed, else the drop page. */
+    private void pickDefault() {
+        if (lastNode != null) return;
+        node = a9() ? Node.A9_FIRE : a0() ? Node.A0_TARGETS : Node.DROP_A9;
+    }
+
+    private boolean available(Node n) {
+        return switch (n) {
+            case A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL -> a9();
+            case A0_TARGETS, A0_RECALL -> a0();
+            case DROP_A9 -> !a9();
+            case DROP_A0 -> !a0();
+        };
+    }
+
+    private void select(Node n) {
+        if (node != n) {
+            node = n;
+            lastNode = n;
+            nodeTicks = 0;
+            armed = null;
+            focused = -1;
+            play(ModSounds.UI_CLICK, 1.25f);
+            if ((n == Node.DROP_A9 || n == Node.DROP_A0) && aimed != null) ClientPackets.requestSurvey(aimed);
+        }
     }
 
     @Nullable
@@ -152,30 +165,45 @@ public class TabletScreen extends Screen {
     }
 
     private boolean canRetarget() {
-        TabletStatus st = TabletStatus.latest;
-        return st.found && st.sameDimension && (st.state == RailgunState.IDLE || st.state == RailgunState.COOLDOWN);
+        TabletStatus t = st();
+        return t.found && t.sameDimension && (t.state == RailgunState.IDLE || t.state == RailgunState.COOLDOWN);
     }
 
-    // ---- Actions -------------------------------------------------------------------------------
+    private boolean isArmed(String key) {
+        return key.equals(armed) && ticks < armedUntil;
+    }
 
-    private void callDown() {
+    /** First press arms, second press within 3 s executes. */
+    private void confirm(String key, Runnable action) {
+        if (isArmed(key)) {
+            armed = null;
+            action.run();
+        } else {
+            armed = key;
+            armedUntil = ticks + 60;
+            play(ModSounds.UI_COUNTDOWN_BEEP, 1.2f);
+        }
+    }
+
+    // ---- actions --------------------------------------------------------------------------------
+
+    private void callDown(int kind) {
         if (aimed == null) return;
-        ClientPackets.sendDeployRequest(aimed, ares0Page ? 1 : 0);
+        ClientPackets.sendDeployRequest(aimed, kind);
         beginClose();
     }
 
     private void paint() {
         if (aimed == null) return;
-        fields[0].text = Integer.toString(aimed.getX());
-        fields[1].text = Integer.toString(aimed.getY());
-        fields[2].text = Integer.toString(aimed.getZ());
+        fields[0] = Integer.toString(aimed.getX());
+        fields[1] = Integer.toString(aimed.getY());
+        fields[2] = Integer.toString(aimed.getZ());
         submitTarget();
     }
 
     private void submitTarget() {
         try {
-            ClientPackets.sendTarget(new BlockPos(Integer.parseInt(fields[0].text), Integer.parseInt(fields[1].text),
-                    Integer.parseInt(fields[2].text)));
+            ClientPackets.sendTarget(new BlockPos(Integer.parseInt(fields[0]), Integer.parseInt(fields[1]), Integer.parseInt(fields[2])));
         } catch (NumberFormatException e) {
             play(ModSounds.UI_DENIED, 1f);
         }
@@ -188,17 +216,17 @@ public class TabletScreen extends Screen {
 
     private void beginClose() {
         if (closeTicks < 0) {
-            // Mirror the current zoom so a quick open/close doesn't jump.
             closeTicks = Math.max(0, ZOOM_TICKS - Math.min(ticks, ZOOM_TICKS));
             play(ModSounds.UI_TABLET_CLOSE, 1f);
         }
     }
 
-    // ---- Lifecycle -----------------------------------------------------------------------------
+    // ---- lifecycle ------------------------------------------------------------------------------
 
     @Override
     public void tick() {
         ticks++;
+        nodeTicks++;
         if (closeTicks >= 0) {
             closeTicks++;
             if (closeTicks >= ZOOM_TICKS) {
@@ -210,17 +238,25 @@ public class TabletScreen extends Screen {
         if (ticks == ZOOM_TICKS) bootTicks = 0;
         if (bootTicks >= 0) bootTicks++;
         if (ticks % RailgunConfig.TABLET_POLL_TICKS == 0) ClientPackets.requestStatus();
-        if (aimed != null && page() == Page.DROP && ticks % 40 == 0) ClientPackets.requestSurvey(aimed);
-        TabletStatus st = TabletStatus.latest;
-        if (!fieldsInitialised && st.received) {
-            BlockPos init = st.found && st.hasTarget ? st.target : aimed;
+        if (aimed != null && (node == Node.DROP_A9 || node == Node.DROP_A0) && ticks % 40 == 0) ClientPackets.requestSurvey(aimed);
+        TabletStatus t = st();
+        if (!fieldsInitialised && t.received) {
+            BlockPos init = t.found && t.hasTarget ? t.target : aimed;
             if (init != null) {
-                fields[0].text = Integer.toString(init.getX());
-                fields[1].text = Integer.toString(init.getY());
-                fields[2].text = Integer.toString(init.getZ());
+                fields[0] = Integer.toString(init.getX());
+                fields[1] = Integer.toString(init.getY());
+                fields[2] = Integer.toString(init.getZ());
             }
             fieldsInitialised = true;
+            pickDefault();
         }
+        if (t.received && !available(node)) {
+            Node n = a9() ? Node.A9_STATUS : a0() ? Node.A0_TARGETS : Node.DROP_A9;
+            if (!available(n)) n = Node.DROP_A0;
+            node = n;
+            nodeTicks = 0;
+        }
+        if (t.a0Found && a0Pick < 0) a0Pick = t.a0Target;
         if (client != null && client.player != null && !client.player.getMainHandStack().isOf(RailgunMod.RAILGUN_REMOTE)) {
             beginClose();
         }
@@ -245,32 +281,24 @@ public class TabletScreen extends Screen {
         return closeTicks < 0 && ticks >= ZOOM_TICKS;
     }
 
-    // ---- Input -------------------------------------------------------------------------------
+    // ---- input ----------------------------------------------------------------------------------
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!uiLive() || button != 0) return true;
         float cx = (float) ((mouseX - ox) / s), cy = (float) ((mouseY - oy) / s);
-        for (Btn b : buttons) {
-            if ((b.page == null || b.page == page()) && b.hit(cx, cy)) {
-                if (b.enabled.getAsBoolean()) {
+        for (Hit h : new ArrayList<>(hits)) {
+            if (h.in(cx, cy)) {
+                if (h.enabled()) {
                     play(ModSounds.UI_CLICK, 1f);
-                    b.action.run();
+                    h.action().run();
                 } else {
-                    play(ModSounds.UI_CLICK, 0.6f);
+                    play(ModSounds.UI_DENIED, 1.3f);
                 }
                 return true;
             }
         }
         focused = -1;
-        if (page() == Page.FIRE) {
-            for (int i = 0; i < 3; i++) {
-                if (cx >= 24 && cx < 196 && cy >= 70 + i * 18 && cy < 84 + i * 18) {
-                    focused = i;
-                    play(ModSounds.UI_CLICK, 1.3f);
-                }
-            }
-        }
         return true;
     }
 
@@ -282,8 +310,8 @@ public class TabletScreen extends Screen {
         }
         if (!uiLive()) return true;
         if (focused >= 0) {
-            if (keyCode == GLFW.GLFW_KEY_BACKSPACE && !fields[focused].text.isEmpty()) {
-                fields[focused].text = fields[focused].text.substring(0, fields[focused].text.length() - 1);
+            if (keyCode == GLFW.GLFW_KEY_BACKSPACE && !fields[focused].isEmpty()) {
+                fields[focused] = fields[focused].substring(0, fields[focused].length() - 1);
                 return true;
             }
             if (keyCode == GLFW.GLFW_KEY_TAB) {
@@ -298,6 +326,20 @@ public class TabletScreen extends Screen {
                 focused = -1;
                 return true;
             }
+            return true;
+        }
+        // keyboard navigation of the tree
+        if (keyCode == GLFW.GLFW_KEY_UP || keyCode == GLFW.GLFW_KEY_DOWN) {
+            Node[] all = Node.values();
+            int i = node.ordinal();
+            for (int k = 0; k < all.length; k++) {
+                i = (i + (keyCode == GLFW.GLFW_KEY_DOWN ? 1 : all.length - 1)) % all.length;
+                if (available(all[i])) {
+                    select(all[i]);
+                    break;
+                }
+            }
+            return true;
         }
         return true;
     }
@@ -305,15 +347,15 @@ public class TabletScreen extends Screen {
     @Override
     public boolean charTyped(char chr, int modifiers) {
         if (focused < 0 || !uiLive()) return false;
-        String t = fields[focused].text;
+        String t = fields[focused];
         if ((Character.isDigit(chr) && t.replace("-", "").length() < 8) || (chr == '-' && t.isEmpty())) {
-            fields[focused].text = t + chr;
+            fields[focused] = t + chr;
             return true;
         }
         return false;
     }
 
-    // ---- Rendering -----------------------------------------------------------------------------
+    // ---- rendering ------------------------------------------------------------------------------
 
     @Override
     public void renderBackground(DrawContext context) {
@@ -331,7 +373,6 @@ public class TabletScreen extends Screen {
         ctx.drawTexture(DISPLAY, 0, 0, width, height, 0, 0, 512, 288, 512, 288);
         ctx.setShaderColor(1f, 1f, 1f, 1f);
         RenderSystem.disableBlend();
-        // Float rounding means the fade can stop a hair under 1.0; the UI is live once zoomed in.
         if (alpha < 0.98f || closeTicks >= 0) return;
 
         float time = ticks + delta;
@@ -339,272 +380,373 @@ public class TabletScreen extends Screen {
         ctx.getMatrices().translate(ox, oy, 0);
         ctx.getMatrices().scale(s, s, 1f);
         float mx = (mouseX - ox) / s, my = (mouseY - oy) / s;
+        hits.clear();
 
-        ctx.fill(0, 0, CW, CH, UiKit.BG);
-        UiKit.hexGrid(ctx, 0, 0, CW, CH, time, 0x1833E0FF);
-        drawHeader(ctx, time);
-        if (page() == Page.DROP) drawDropPage(ctx, time);
-        else drawFirePage(ctx, time);
-        for (Btn b : buttons) if (b.page == null || b.page == page()) b.render(ctx, mx, my, time);
-        UiKit.scanlines(ctx, 0, 0, CW, CH, time);
-        UiKit.brackets(ctx, 1, 1, CW - 2, CH - 2, 12, CYAN);
+        backdrop(ctx, CW, CH, time);
+        TabletStatus t = st();
+        String link;
+        int linkColor;
+        if (!t.received) { link = "HANDSHAKE..."; linkColor = AMBER; }
+        else if (t.found || t.a0Found) { link = "UPLINK SECURE  " + (t.found ? "A9" : "--") + "/" + (t.a0Found ? "A0" : "--"); linkColor = OK; }
+        else if (t.pending) { link = "DROP INBOUND"; linkColor = AMBER; }
+        else { link = "NO ASSETS DEPLOYED"; linkColor = DIM; }
+        header(ctx, textRenderer, CW, path(), link, linkColor, time);
+        drawTree(ctx, mx, my, time);
+        vline(ctx, PANE_X - 5, 26, CH - 12, RULE);
+        drawPane(ctx, mx, my, time);
+        footer(ctx, textRenderer, CW, CH, time, "ESC close   UP/DOWN navigate");
+        corners(ctx, 1, 1, CW - 2, CH - 2, 8, RED_DIM);
 
-        // Boot-up scan line sweeping down the display.
-        if (bootTicks >= 0 && bootTicks < 10) {
-            int y = (int) ((bootTicks + delta) / 10f * CH);
-            ctx.fill(0, 0, CW, y, 0x22000000);
-            ctx.fill(0, y, CW, y + 2, 0xAA5FE3FF);
-            ctx.fill(0, y + 2, CW, CH, 0xE0050709);
+        if (bootTicks >= 0) {
+            boot(ctx, textRenderer, CW, CH, bootTicks + delta, new String[]{
+                    "> railguns+ uplink v4  // orbital command network",
+                    "> handshake 0x5EED0FA2 ............ OK",
+                    "> decrypting asset manifests ...... OK",
+                    "> clearance level OMEGA verified",
+                    "> ACCESS GRANTED"});
         }
         ctx.getMatrices().pop();
     }
 
-    private void drawHeader(DrawContext ctx, float time) {
-        TabletStatus st = TabletStatus.latest;
-        UiKit.chamfer(ctx, 0, 0, CW, 18, 7, 0xE0081420, UiKit.CYAN_DIM);
-        UiKit.spaced(ctx, textRenderer, "ARES-9", 8, 4, CYAN, 2f, 1.25f, true);
-        ctx.drawText(textRenderer, "// ORBITAL UPLINK", 70, 6, MUTED, false);
-        String link;
-        int linkColor;
-        if (!st.received) { link = "LINKING"; linkColor = AMBER; }
-        else if (st.found) { link = st.sameDimension ? "RAILGUN ONLINE" : "OTHER DIMENSION"; linkColor = st.sameDimension ? GREEN : AMBER; }
-        else if (st.pending) { link = "DROP INBOUND"; linkColor = AMBER; }
-        else { link = "NO RAILGUN"; linkColor = MUTED; }
-        boolean blink = ((int) (time / 8)) % 2 == 0;
-        int w = textRenderer.getWidth(link) + 8;
-        UiKit.tag(ctx, textRenderer, link, CW - w - 14, 4, blink || !st.found ? linkColor : UiKit.alpha(linkColor, 0.7f));
-        ctx.fill(CW - 10, 7, CW - 6, 11, blink ? linkColor : 0xFF1A2228);
-        UiKit.glowLine(ctx, 6, 18, CW - 6, CYAN);
+    private String path() {
+        return switch (node) {
+            case A9_STATUS -> "~/ares-9/status";
+            case A9_FIRE -> "~/ares-9/fire_control";
+            case A9_SCAN -> "~/ares-9/scan";
+            case A9_RIFT -> "~/ares-9/rift";
+            case A9_RECALL -> "~/ares-9/recall";
+            case A0_TARGETS -> "~/ares-0/targets";
+            case A0_RECALL -> "~/ares-0/recall";
+            case DROP_A9 -> "~/orbital_drop/ares-9.pod";
+            case DROP_A0 -> "~/orbital_drop/ares-0.pod";
+        };
     }
 
-    private void drawDropPage(DrawContext ctx, float time) {
-        UiKit.chamfer(ctx, 6, 24, 196, 182, 10, UiKit.PANEL, UiKit.CYAN_DIM);
-        title(ctx, ares0Page ? "ORBITAL DROP // ARES-0" : "ORBITAL DROP", 12, 30);
-        // Targeting reticle with orbital track
-        int cx = 104, cy = 118;
-        int r = 52 + (int) (2 * MathHelper.sin(time * 0.2f));
-        UiKit.ring(ctx, cx, cy, r, 0x9933E0FF, 128);
-        UiKit.ring(ctx, cx, cy, r - 18, 0x5533E0FF, 96);
-        UiKit.ring(ctx, cx, cy, 8, 0x8833E0FF, 32);
-        UiKit.octagon(ctx, cx, cy, r - 30, time * 0.01f, 0x4433E0FF);
-        ctx.fill(cx - r - 6, cy, cx - 10, cy + 1, 0xAA33E0FF);
-        ctx.fill(cx + 10, cy, cx + r + 6, cy + 1, 0xAA33E0FF);
-        ctx.fill(cx, cy - r - 6, cx + 1, cy - 10, 0xAA33E0FF);
-        ctx.fill(cx, cy + 10, cx + 1, cy + r + 6, 0xAA33E0FF);
-        float sweep = time * 0.12f;
-        for (int i = 0; i < 28; i++) {
-            float a = sweep - i * 0.035f;
-            int px = cx + (int) (MathHelper.cos(a) * (r - 2)), py = cy + (int) (MathHelper.sin(a) * (r - 2));
-            ctx.fill(px, py, px + 2, py + 2, UiKit.alpha(CYAN, 1f - i / 28f));
+    private void drawTree(DrawContext ctx, float mx, float my, float time) {
+        TabletStatus t = st();
+        int x = TREE_X, y = 28, w = TREE_W;
+        text(ctx, textRenderer, "~/", x, y, DIM, 0.75f);
+        y += 10;
+        node(ctx, textRenderer, "ares-9", x, y, w, 1, false, false, true, true, a9() ? "ONLINE" : "--", a9() ? OK : FAINT, mx, my, null);
+        y += 10;
+        Object[][] a9n = {{"status", Node.A9_STATUS}, {"fire_control", Node.A9_FIRE}, {"scan", Node.A9_SCAN}, {"rift", Node.A9_RIFT}, {"recall", Node.A9_RECALL}};
+        for (int i = 0; i < a9n.length; i++) {
+            Node n = (Node) a9n[i][1];
+            add(node(ctx, textRenderer, (String) a9n[i][0], x, y, w, 2, i == a9n.length - 1, node == n, available(n), false,
+                    null, 0, mx, my, () -> select(n)));
+            y += 10;
         }
-        float orbit = time * 0.03f;
-        int sx = cx + (int) (MathHelper.cos(orbit) * (r + 10)), sy = cy + (int) (MathHelper.sin(orbit) * (r + 10) * 0.35f) - 40;
-        ctx.fill(sx - 2, sy - 1, sx + 3, sy + 2, AMBER);
-        ctx.fill(cx - 2, cy - 2, cx + 3, cy + 3, aimed != null ? (surveyOk() ? GREEN : RED) : MUTED);
-
-        int x = 214;
-        UiKit.chamfer(ctx, 208, 24, 186, 120, 8, UiKit.PANEL, UiKit.CYAN_DIM);
-        TabletStatus st = TabletStatus.latest;
-        if (aimed != null) {
-            line(ctx, "LANDING ZONE", x, 30, MUTED);
-            UiKit.spaced(ctx, textRenderer, String.format(Locale.ROOT, "%d %d %d", aimed.getX(), aimed.getY() + 1, aimed.getZ()), x, 42, TEXT, 1f, 1.2f, false);
-            double dist = client != null && client.player != null ? Math.sqrt(client.player.getBlockPos().getSquaredDistance(aimed)) : 0;
-            line(ctx, String.format(Locale.ROOT, "RANGE  %.0f m", dist), x, 58, MUTED);
-            line(ctx, "SITE SURVEY", x, 74, MUTED);
-            TabletStatus.Survey sv = survey();
-            if (sv == null) {
-                line(ctx, "SCANNING" + ".".repeat(1 + (ticks / 5) % 3), x, 86, AMBER);
-            } else if (sv.ok()) {
-                UiKit.tag(ctx, textRenderer, "ZONE CLEAR", x, 85, GREEN);
-                line(ctx, "Obstructions will be smashed", x, 100, MUTED);
-                line(ctx, "flat on touchdown.", x, 110, MUTED);
-            } else {
-                UiKit.tag(ctx, textRenderer, "NO ROOM TO DEPLOY", x, 85, RED);
-                String why = Text.translatable("message.orbital_railgun.denied." + sv.reason()).getString();
-                int yy = 100;
-                for (String l : UiKit.wrap(textRenderer, why, 172)) { line(ctx, l, x, yy, 0xFFFF9A90); yy += 10; }
-            }
-        } else {
-            line(ctx, "NO LANDING ZONE", x, 30, RED);
-            line(ctx, "Aim at open ground, then", x, 46, MUTED);
-            line(ctx, "raise the tablet again.", x, 58, MUTED);
+        y += 2;
+        node(ctx, textRenderer, "ares-0", x, y, w, 1, false, false, true, true, a0() ? "ONLINE" : "--", a0() ? ORANGE : FAINT, mx, my, null);
+        y += 10;
+        Object[][] a0n = {{"targets", Node.A0_TARGETS}, {"recall", Node.A0_RECALL}};
+        for (int i = 0; i < a0n.length; i++) {
+            Node n = (Node) a0n[i][1];
+            add(node(ctx, textRenderer, (String) a0n[i][0], x, y, w, 2, i == a0n.length - 1, node == n, available(n), false,
+                    null, 0, mx, my, () -> select(n)));
+            y += 10;
         }
-        line(ctx, ares0Page ? "PAYLOAD  ARES-0 PLANET KILLER" : "PAYLOAD  ARES-9 RAILGUN POD", x, 130, ares0Page ? 0xFF9FB0FF : MUTED);
-        if (st.pending) line(ctx, "DROP INBOUND", x, 138 + 4, AMBER);
-        else if (onCooldown()) line(ctx, "UPLINK RECHARGING", x, 142, AMBER);
+        y += 2;
+        node(ctx, textRenderer, "orbital_drop", x, y, w, 1, true, false, true, true, t.pending ? "INBOUND" : null, AMBER, mx, my, null);
+        y += 10;
+        add(node(ctx, textRenderer, "ares-9.pod", x, y, w, 2, false, node == Node.DROP_A9, available(Node.DROP_A9), false,
+                null, 0, mx, my, () -> select(Node.DROP_A9)));
+        y += 10;
+        add(node(ctx, textRenderer, "ares-0.pod", x, y, w, 2, true, node == Node.DROP_A0, available(Node.DROP_A0), false,
+                null, 0, mx, my, () -> select(Node.DROP_A0)));
+        y += 14;
+        // tiny live readout under the tree
+        if (a9()) {
+            text(ctx, textRenderer, "A9 " + stateName(t.state), x, y, stateColor(t.state, time), 0.6f);
+            y += 7;
+        }
+        if (a0()) {
+            text(ctx, textRenderer, "A0 " + t.a0State.name(), x, y, t.a0State == Ares0Entity.State.FIRING || t.a0State == Ares0Entity.State.CHARGING
+                    ? (((int) (time / 3)) % 2 == 0 ? RED : ORANGE) : ORANGE, 0.6f);
+        }
     }
 
-    private void drawFirePage(DrawContext ctx, float time) {
-        TabletStatus st = TabletStatus.latest;
-        UiKit.chamfer(ctx, 4, 22, 198, 188, 10, UiKit.PANEL, UiKit.CYAN_DIM);
-        UiKit.chamfer(ctx, 204, 22, 192, 124, 10, UiKit.PANEL, UiKit.CYAN_DIM);
-        title(ctx, "FIRE CONTROL", 8, 24);
-        // Installed loadout chips
-        Loadout lo = Loadout.of(st.loadout);
-        java.util.List<Loadout.Option> opts = new java.util.ArrayList<>();
+    private void add(@Nullable Hit h) {
+        if (h != null) hits.add(h);
+    }
+
+    private void drawPane(DrawContext ctx, float mx, float my, float time) {
+        switch (node) {
+            case A9_STATUS -> a9Status(ctx, time);
+            case A9_FIRE -> a9Fire(ctx, mx, my, time);
+            case A9_SCAN -> a9Simple(ctx, mx, my, "SCAN", "Holographic pulse from the emplacement: maps ores and tags hostiles within 96 m. "
+                    + "Results paint the world for everyone nearby.", "RUN SCAN", 0xFF5FE3FF, st().state == RailgunState.IDLE, ClientPackets::sendScan);
+            case A9_RIFT -> a9Simple(ctx, mx, my, "RIFT", "Fires the rail into the sky for one second and tears a rift into deep space. "
+                    + "Hostiles nearby are dragged through. The rift holds for 30 seconds; anyone still up there when it closes is stranded.",
+                    "TEAR RIFT", VIOLET, st().state == RailgunState.IDLE, ClientPackets::sendRift);
+            case A9_RECALL -> recall(ctx, mx, my, "ARES-9", "Retracts the emplacement into its pod and launches it back to orbit. "
+                    + "Works from any distance. The weapon must be idle.",
+                    st().state == RailgunState.IDLE || st().state == RailgunState.COOLDOWN || st().state == RailgunState.POD
+                            || st().state == RailgunState.POD_READY, 0);
+            case A0_TARGETS -> a0Targets(ctx, mx, my, time);
+            case A0_RECALL -> recall(ctx, mx, my, "ARES-0", "Folds the array and sends it back to orbit. It cannot leave while charging or firing.",
+                    st().a0State == Ares0Entity.State.IDLE || st().a0State == Ares0Entity.State.COOLDOWN, 3);
+            case DROP_A9 -> drop(ctx, mx, my, time, 0);
+            case DROP_A0 -> drop(ctx, mx, my, time, 1);
+        }
+    }
+
+    // ---- ARES-9 ---------------------------------------------------------------------------------
+
+    private int distTo(BlockPos p) {
+        return client != null && client.player != null ? (int) Math.sqrt(client.player.getBlockPos().getSquaredDistance(p)) : 0;
+    }
+
+    private void a9Status(DrawContext ctx, float time) {
+        TabletStatus t = st();
+        int x = PANE_X, y = 28, w = PANE_W;
+        section(ctx, textRenderer, "ARES-9 // STATUS.LOG", x, y, w, RED);
+        y += 12;
+        typedKv(ctx, "STATE", stateName(t.state), x, y, w, stateColor(t.state, time), 0); y += 10;
+        typedKv(ctx, "POSITION", String.format(Locale.ROOT, "%d %d %d", t.pos.getX(), t.pos.getY(), t.pos.getZ()), x, y, w, TEXT, 2); y += 10;
+        typedKv(ctx, "DISTANCE", distTo(t.pos) + " m" + (t.sameDimension ? "" : "  [OTHER DIM]"), x, y, w, t.sameDimension ? TEXT : AMBER, 4); y += 10;
+        typedKv(ctx, "AZIMUTH / ELEV", String.format(Locale.ROOT, "%+07.2f / %+06.2f", t.yaw, t.pitch), x, y, w, TEXT, 6); y += 10;
+        typedKv(ctx, "TARGET", t.hasTarget ? String.format(Locale.ROOT, "%d %d %d", t.target.getX(), t.target.getY(), t.target.getZ()) : "NONE",
+                x, y, w, t.hasTarget ? RED : DIM, 8); y += 14;
+        text(ctx, textRenderer, "CAPACITOR", x, y, DIM, 0.75f);
+        meter(ctx, textRenderer, t.charge, x + 60, y, 30, RED, 0.75f);
+        y += 14;
+        section(ctx, textRenderer, "LOADOUT", x, y, w, RED_DIM);
+        y += 11;
+        Loadout lo = Loadout.of(t.loadout);
+        List<Loadout.Option> opts = new ArrayList<>();
         if (lo.muzzle() != null) opts.add(lo.muzzle());
         if (lo.ammo() != null) opts.add(lo.ammo());
         opts.addAll(lo.modules());
+        if (opts.isEmpty()) text(ctx, textRenderer, "standard configuration", x, y, DIM, 0.7f);
         for (int i = 0; i < opts.size(); i++) {
-            RenderSystem.enableBlend();
-            ctx.drawTexture(RailgunMod.id("textures/gui/option/" + opts.get(i).id + ".png"), 112 + i * 14, 22, 13, 13, 0, 0, 96, 96, 96, 96);
-            RenderSystem.disableBlend();
+            int cx = x + (i % 2) * (w / 2), cy = y + (i / 2) * 9;
+            ctx.fill(cx, cy + 2, cx + 3, cy + 5, 0xFF000000 | opts.get(i).color);
+            text(ctx, textRenderer, opts.get(i).title.toLowerCase(Locale.ROOT), cx + 6, cy, TEXT, 0.7f);
         }
+        trace(ctx, x, CH - 40, w, 24, t.charge, t.state == RailgunState.FIRING, time);
+    }
 
-        // State + location
-        ctx.getMatrices().push();
-        ctx.getMatrices().translate(8, 40, 0);
-        ctx.getMatrices().scale(1.3f, 1.3f, 1f);
-        ctx.drawText(textRenderer, Text.translatable(st.state.translationKey()), 0, 0, stateColor(st.state, time), false);
-        ctx.getMatrices().pop();
-        double dist = client != null && client.player != null ? Math.sqrt(client.player.getBlockPos().getSquaredDistance(st.pos)) : 0;
-        line(ctx, String.format(Locale.ROOT, "AT %d %d %d  (%.0f m)", st.pos.getX(), st.pos.getY(), st.pos.getZ(), dist), 8, 54, MUTED);
+    private void typedKv(DrawContext ctx, String k, String v, int x, int y, int w, int vc, int delay) {
+        float tt = nodeTicks - delay;
+        if (tt <= 0) return;
+        String vv = v.substring(0, Math.min(v.length(), (int) (tt * 4)));
+        kv(ctx, textRenderer, k, vv, x, y, w, vc, 0.75f);
+    }
 
-        // Target fields
+    /** Thin oscilloscope trace. */
+    private void trace(DrawContext ctx, int x, int y, int w, int h, float charge, boolean firing, float time) {
+        hline(ctx, x, x + w, y + h / 2, FAINT);
+        float amp = 1.5f + charge * (h / 2f - 2f);
+        int prev = y + h / 2;
+        for (int px = 1; px < w; px++) {
+            float phase = px * (0.12f + charge * 0.35f) - time * (0.25f + charge);
+            float noise = firing ? MathHelper.sin(px * 1.7f + time * 5f) * 5f : 0f;
+            int py = MathHelper.clamp(y + h / 2 + (int) (MathHelper.sin(phase) * amp + noise), y, y + h - 1);
+            ctx.fill(x + px, Math.min(prev, py), x + px + 1, Math.max(prev, py) + 1, RED);
+            prev = py;
+        }
+    }
+
+    private void a9Fire(DrawContext ctx, float mx, float my, float time) {
+        TabletStatus t = st();
+        int x = PANE_X, y = 28, w = PANE_W;
+        section(ctx, textRenderer, "ARES-9 // FIRE_CONTROL", x, y, w, RED);
+        y += 12;
+        kv(ctx, textRenderer, "STATE", stateName(t.state), x, y, w, stateColor(t.state, time), 0.75f);
+        y += 12;
         String[] axes = {"X", "Y", "Z"};
         boolean live = canRetarget();
         for (int i = 0; i < 3; i++) {
-            int y = 70 + i * 18;
-            ctx.fill(8, y, 20, y + 14, live ? 0xFF4A1210 : 0xFF1E2226);
-            ctx.drawCenteredTextWithShadow(textRenderer, axes[i], 14, y + 3, 0xFFFFD0C8);
+            int fy = y + i * 11;
             boolean f = focused == i;
-            ctx.fill(24, y, 196, y + 14, f ? 0xFF0F2A33 : 0xFF0A1418);
-            ctx.fill(24, y + 13, 196, y + 14, f ? CYAN : 0x665FE3FF);
-            String text = fields[i].text + (f && ((int) (time / 6)) % 2 == 0 ? "_" : "");
-            ctx.drawText(textRenderer, text, 28, y + 3, live ? 0xFFFF7A6A : MUTED, false);
+            text(ctx, textRenderer, axes[i] + ":", x, fy, live ? RED : DIM, 0.75f);
+            int bx = x + 12, bw = 90;
+            ctx.fill(bx, fy - 2, bx + bw, fy + 8, f ? 0xFF1A0706 : BG2);
+            hline(ctx, bx, bx + bw, fy + 8, f ? RED : RULE_HI);
+            String txt = fields[i] + (f && ((int) (time / 6)) % 2 == 0 ? "_" : "");
+            text(ctx, textRenderer, txt, bx + 3, fy, live ? TEXT : DIM, 0.75f);
+            final int idx = i;
+            hits.add(new Hit(bx, fy - 2, bw, 11, () -> focused = idx, live));
         }
-        if (st.hasTarget) {
-            line(ctx, String.format(Locale.ROOT, "LOCK  %d %d %d", st.target.getX(), st.target.getY(), st.target.getZ()), 8, 150, RED);
-            double range = Math.sqrt(st.pos.getSquaredDistance(st.target));
-            line(ctx, String.format(Locale.ROOT, "RANGE %.0f / %.0f m", range, RailgunConfig.MAX_FIRE_RANGE * Loadout.of(st.loadout).rangeMul()), 8, 162, MUTED);
+        int cx = x + 112;
+        hits.add(cmd(ctx, textRenderer, "SET", cx, y, RED, live, mx, my, 0.75f, this::submitTarget));
+        hits.add(cmd(ctx, textRenderer, "PAINT AIMED", cx, y + 12, AMBER, live && aimed != null, mx, my, 0.75f, this::paint));
+        y += 38;
+        if (t.hasTarget) {
+            kv(ctx, textRenderer, "LOCK", String.format(Locale.ROOT, "%d %d %d", t.target.getX(), t.target.getY(), t.target.getZ()), x, y, w, RED, 0.75f);
+            y += 10;
+            double range = Math.sqrt(t.pos.getSquaredDistance(t.target));
+            kv(ctx, textRenderer, "RANGE", String.format(Locale.ROOT, "%.0f / %.0f m", range, RailgunConfig.MAX_FIRE_RANGE * Loadout.of(t.loadout).rangeMul()),
+                    x, y, w, TEXT, 0.75f);
         } else {
-            line(ctx, "NO TARGET LOCKED", 8, 150, MUTED);
+            text(ctx, textRenderer, "no target locked", x, y, DIM, 0.75f);
+            y += 10;
         }
-
-        // Capacitor
-        int rx = 208, rw = 184;
-        line(ctx, "CAPACITOR", rx, 24, MUTED);
-        String pct = String.format(Locale.ROOT, "%3d%%", (int) (st.charge * 100));
-        ctx.drawText(textRenderer, pct, rx + rw - textRenderer.getWidth(pct), 24, TEXT, false);
-        int segs = 23, segW = rw / segs;
-        int lit = (int) Math.ceil(st.charge * segs);
-        for (int i = 0; i < segs; i++) {
-            int sx = rx + i * segW;
-            ctx.fill(sx, 35, sx + segW - 1, 47, i < lit ? lerpColor(0xFF901414, 0xFFFF6048, (float) i / segs) : 0xFF1A1214);
-        }
-        // Oscilloscope
-        int oy = 52, oh = 50;
-        ctx.fill(rx, oy, rx + rw, oy + oh, 0xFF06100B);
-        for (int gx = rx; gx < rx + rw; gx += 12) ctx.fill(gx, oy, gx + 1, oy + oh, 0xFF0E2416);
-        for (int gy = oy; gy < oy + oh; gy += 10) ctx.fill(rx, gy, rx + rw, gy + 1, 0xFF0E2416);
-        float amp = 2f + st.charge * (oh / 2f - 4f);
-        int prevY = oy + oh / 2;
-        for (int px = 1; px < rw - 1; px++) {
-            float phase = px * (0.12f + st.charge * 0.35f) - time * (0.25f + st.charge);
-            float noise = st.state == RailgunState.FIRING ? MathHelper.sin(px * 1.7f + time * 5f) * 6f : 0f;
-            int py = MathHelper.clamp(oy + oh / 2 + (int) (MathHelper.sin(phase) * amp + noise), oy + 1, oy + oh - 2);
-            ctx.fill(rx + px, Math.min(prevY, py), rx + px + 1, Math.max(prevY, py) + 1, GREEN);
-            prevY = py;
-        }
-        line(ctx, String.format(Locale.ROOT, "AZ %+07.2f   EL %+06.2f", st.yaw, st.pitch), rx, 108, MUTED);
-
-        // Context hint
-        String hint = switch (st.state) {
-            case POD -> "Packed. Use the pod's panel to deploy.";
-            case PANEL_OPEN, TRANSFORMING -> String.format(Locale.ROOT, "Deploying... %d%%",
-                    Math.min(100, (int) (100f * (st.stateTicks + (st.state == RailgunState.TRANSFORMING ? RailgunConfig.PANEL_TICKS : 0))
-                            / (RailgunConfig.PANEL_TICKS + RailgunConfig.TRANSFORM_TICKS))));
-            case PACKING -> "Retracting into pod...";
-            case POD_READY -> "Packed. Use its panel to RETURN.";
-            case LAUNCHING -> "Returning to orbit.";
-            case CHARGING -> "Charging. Weapon will fire on lock.";
+        y += 14;
+        text(ctx, textRenderer, "CAPACITOR", x, y, DIM, 0.75f);
+        meter(ctx, textRenderer, t.charge, x + 60, y, 30, RED, 0.75f);
+        y += 16;
+        boolean canFire = t.state == RailgunState.IDLE && t.hasTarget && t.sameDimension;
+        hits.add(cmd(ctx, textRenderer, isArmed("fire") ? "CONFIRM // FIRE" : "EXECUTE FIRE", x, y, RED, canFire, mx, my, 1f,
+                () -> confirm("fire", this::fire)));
+        hits.add(cmd(ctx, textRenderer, "ABORT", x + 130, y + 2, AMBER, t.state == RailgunState.CHARGING, mx, my, 0.75f, ClientPackets::sendAbort));
+        y += 16;
+        String hint = !t.sameDimension ? "railgun is in another dimension" : switch (t.state) {
+            case IDLE -> t.hasTarget ? "armed. weapon free." : "set coordinates to arm";
+            case CHARGING -> "charging // fires on lock";
             case FIRING -> "FIRING";
-            case COOLDOWN -> "Cooling down.";
-            case IDLE -> st.hasTarget ? "Ready. Press FIRE." : "Set a target to arm.";
-            default -> "";
+            case COOLDOWN -> "barrel cooling";
+            case POD, POD_READY -> "packed in pod";
+            default -> "standby";
         };
-        if (!st.sameDimension) hint = "Railgun is in another dimension.";
-        line(ctx, hint, rx, 124, st.state == RailgunState.IDLE ? GREEN : AMBER);
+        text(ctx, textRenderer, "> " + hint, x, y, t.state == RailgunState.IDLE ? OK : DIM, 0.7f);
     }
 
-    private void title(DrawContext ctx, String text, int x, int y) {
-        ctx.fill(x, y + 2, x + 3, y + 7, CYAN);
-        UiKit.spaced(ctx, textRenderer, text, x + 6, y, TEXT, 1.5f, 1f, false);
+    private void a9Simple(DrawContext ctx, float mx, float my, String name, String desc, String label, int accent, boolean enabled, Runnable action) {
+        int x = PANE_X, y = 28, w = PANE_W;
+        section(ctx, textRenderer, "ARES-9 // " + name, x, y, w, accent);
+        y += 14;
+        y = para(ctx, textRenderer, desc, x, y, w, TEXT, 0.75f) + 10;
+        kv(ctx, textRenderer, "STATE", stateName(st().state), x, y, w, enabled ? OK : AMBER, 0.75f);
+        y += 18;
+        hits.add(cmd(ctx, textRenderer, label, x, y, accent, enabled, mx, my, 1f, action));
+        if (!enabled) text(ctx, textRenderer, "> weapon must be idle", x, y + 16, DIM, 0.7f);
     }
 
-    private void line(DrawContext ctx, String text, int x, int y, int color) {
-        ctx.drawText(textRenderer, text, x, y, color, false);
+    private void recall(DrawContext ctx, float mx, float my, String unit, String desc, boolean enabled, int action) {
+        int x = PANE_X, y = 28, w = PANE_W;
+        int accent = action == 0 ? RED : ORANGE;
+        section(ctx, textRenderer, unit + " // RECALL", x, y, w, accent);
+        y += 14;
+        y = para(ctx, textRenderer, desc, x, y, w, TEXT, 0.75f) + 10;
+        BlockPos p = action == 0 ? st().pos : st().a0Pos;
+        kv(ctx, textRenderer, "ASSET POSITION", String.format(Locale.ROOT, "%d %d %d", p.getX(), p.getY(), p.getZ()), x, y, w, TEXT, 0.75f);
+        y += 10;
+        kv(ctx, textRenderer, "DISTANCE", distTo(p) + " m", x, y, w, TEXT, 0.75f);
+        y += 20;
+        String key = "recall" + action;
+        hits.add(cmd(ctx, textRenderer, isArmed(key) ? "CONFIRM // RECALL TO ORBIT" : "RECALL TO ORBIT", x, y, accent, enabled, mx, my, 1f,
+                () -> confirm(key, () -> ClientPackets.sendRemote(action, -1))));
+        if (isArmed(key)) text(ctx, textRenderer, "> press again to confirm", x, y + 16, AMBER, 0.7f);
+        else if (!enabled) text(ctx, textRenderer, "> asset busy", x, y + 16, DIM, 0.7f);
     }
 
-    private static void ring(DrawContext ctx, int cx, int cy, int r, int color) {
-        for (int i = 0; i < 96; i++) {
-            float a = i / 96f * MathHelper.TAU;
-            int px = cx + (int) (MathHelper.cos(a) * r), py = cy + (int) (MathHelper.sin(a) * r);
-            ctx.fill(px, py, px + 1, py + 1, color);
+    // ---- ARES-0 ---------------------------------------------------------------------------------
+
+    private void a0Targets(DrawContext ctx, float mx, float my, float time) {
+        TabletStatus t = st();
+        int x = PANE_X, y = 28, w = PANE_W;
+        section(ctx, textRenderer, "ARES-0 // CORE_COLLAPSE.TARGETS", x, y, w, ORANGE);
+        y += 12;
+        String state = switch (t.a0State) {
+            case IDLE -> "READY";
+            case CHARGING -> String.format(Locale.ROOT, "CHARGING %d%%", Math.min(100, t.a0Ticks * 100 / Ares0Entity.CHARGE_TICKS));
+            case FIRING -> "FIRING";
+            case COOLDOWN -> "COOLING";
+            default -> t.a0State.name();
+        };
+        kv(ctx, textRenderer, "ARRAY", state, x, y, w, t.a0State == Ares0Entity.State.IDLE ? OK : ORANGE, 0.75f);
+        y += 12;
+        text(ctx, textRenderer, "BODY", x, y, FAINT, 0.6f);
+        text(ctx, textRenderer, "STATUS", x + 120, y, FAINT, 0.6f);
+        y += 8;
+        for (Body b : Body.ALL) {
+            if (!b.destroyable()) continue;
+            boolean up = (t.a0Visible & (1 << b.ordinal())) != 0;
+            boolean doomed = (t.a0Doomed & (1 << b.ordinal())) != 0 || ClientPlanets.elapsed(b, 0f) >= 0;
+            boolean sel = a0Pick == b.ordinal();
+            boolean hover = !doomed && mx >= x - 1 && mx < x + w && my >= y - 1 && my < y + 8;
+            if (sel) ctx.fill(x - 1, y - 1, x + w, y + 8, ORANGE);
+            else if (hover) ctx.fill(x - 1, y - 1, x + w, y + 8, 0x40FF7A1E);
+            int col = sel ? 0xFF050505 : doomed ? FAINT : TEXT;
+            text(ctx, textRenderer, (sel ? "> " : "  ") + b.displayName().toLowerCase(Locale.ROOT).replace(' ', '_') + ".body", x, y, col, 0.75f);
+            String status = doomed ? "DESTROYED" : up ? "ABOVE HORIZON" : "BELOW HORIZON";
+            text(ctx, textRenderer, status, x + 120, y, sel ? 0xFF050505 : doomed ? RED_DIM : up ? OK : DIM, 0.7f);
+            final Body fb = b;
+            if (!doomed) hits.add(new Hit(x - 1, y - 1, w + 1, 9, () -> {
+                a0Pick = fb.ordinal();
+                armed = null;
+                ClientPackets.sendRemote(1, fb.ordinal());
+            }, true));
+            y += 10;
         }
+        y += 8;
+        Body pick = a0Pick >= 0 && a0Pick < Body.ALL.length ? Body.ALL[a0Pick] : null;
+        boolean canFire = pick != null && t.a0State == Ares0Entity.State.IDLE && (t.a0Visible & (1 << pick.ordinal())) != 0
+                && (t.a0Doomed & (1 << pick.ordinal())) == 0;
+        hits.add(cmd(ctx, textRenderer, isArmed("a0fire") ? "CONFIRM // COLLAPSE CORE" : "EXECUTE CORE COLLAPSE", x, y, ORANGE, canFire, mx, my, 1f,
+                () -> confirm("a0fire", () -> {
+                    ClientPackets.sendRemote(2, pick.ordinal());
+                    beginClose();
+                })));
+        y += 16;
+        String hint = pick == null ? "select a body" : !canFire ? (t.a0State != Ares0Entity.State.IDLE ? "array busy"
+                : "target below the horizon") : isArmed("a0fire") ? "press again. this cannot be undone." : "target acquired";
+        text(ctx, textRenderer, "> " + hint, x, y, isArmed("a0fire") ? RED : DIM, 0.7f);
     }
 
-    private int stateColor(RailgunState state, float time) {
+    // ---- orbital drop ---------------------------------------------------------------------------
+
+    private void drop(DrawContext ctx, float mx, float my, float time, int kind) {
+        TabletStatus t = st();
+        int x = PANE_X, y = 28, w = PANE_W;
+        int accent = kind == 0 ? RED : ORANGE;
+        section(ctx, textRenderer, "ORBITAL_DROP // " + (kind == 0 ? "ARES-9 RAILGUN POD" : "ARES-0 PLANET KILLER"), x, y, w, accent);
+        y += 12;
+        if (aimed == null) {
+            text(ctx, textRenderer, "no landing zone", x, y, RED, 0.75f);
+            y += 10;
+            para(ctx, textRenderer, "Aim at open ground, then raise the tablet again.", x, y, w, DIM, 0.75f);
+            return;
+        }
+        kv(ctx, textRenderer, "LANDING ZONE", String.format(Locale.ROOT, "%d %d %d", aimed.getX(), aimed.getY() + 1, aimed.getZ()), x, y, w, TEXT, 0.75f);
+        y += 10;
+        kv(ctx, textRenderer, "RANGE", distTo(aimed) + " m", x, y, w, TEXT, 0.75f);
+        y += 10;
+        TabletStatus.Survey sv = survey();
+        String surveyText = sv == null ? "SCANNING" + ".".repeat(1 + (ticks / 5) % 3) : sv.ok() ? "ZONE CLEAR" : "NO ROOM TO DEPLOY";
+        kv(ctx, textRenderer, "SITE SURVEY", surveyText, x, y, w, sv == null ? AMBER : sv.ok() ? OK : RED, 0.75f);
+        y += 10;
+        if (sv != null && !sv.ok()) {
+            y = para(ctx, textRenderer, Text.translatable("message.orbital_railgun.denied." + sv.reason()).getString(), x, y, w, 0xFFFF8A80, 0.7f);
+        } else if (sv != null) {
+            y = para(ctx, textRenderer, "obstructions will be flattened on touchdown", x, y, w, DIM, 0.7f);
+        }
+        // a small orbital track
+        int cx = x + w - 34, cy = CH - 52;
+        com.creedpdf.orbitalrailgun.client.ui.UiKit.ring(ctx, cx, cy, 20, 0x60E8382E, 64);
+        com.creedpdf.orbitalrailgun.client.ui.UiKit.ring(ctx, cx, cy, 3, accent, 12);
+        float orbit = time * 0.05f;
+        int sx = cx + (int) (MathHelper.cos(orbit) * 20), sy = cy + (int) (MathHelper.sin(orbit) * 20);
+        ctx.fill(sx - 1, sy - 1, sx + 2, sy + 2, accent);
+        y += 10;
+        boolean can = !t.pending && !onCooldown() && surveyOk() && available(kind == 0 ? Node.DROP_A9 : Node.DROP_A0);
+        hits.add(cmd(ctx, textRenderer, isArmed("drop" + kind) ? "CONFIRM // RELEASE POD" : "AUTHORIZE DROP", x, y, accent, can, mx, my, 1f,
+                () -> confirm("drop" + kind, () -> callDown(kind))));
+        y += 16;
+        String hint = t.pending ? "drop inbound" : onCooldown() ? "uplink recharging" : sv == null ? "awaiting survey" : sv.ok() ? "ready" : "choose another site";
+        text(ctx, textRenderer, "> " + hint, x, y, t.pending || onCooldown() ? AMBER : DIM, 0.7f);
+    }
+
+    // ---- misc -----------------------------------------------------------------------------------
+
+    private static String stateName(RailgunState state) {
+        return Text.translatable(state.translationKey()).getString().toUpperCase(Locale.ROOT);
+    }
+
+    private static int stateColor(RailgunState state, float time) {
         return switch (state) {
-            case IDLE -> GREEN;
+            case IDLE -> OK;
             case CHARGING -> ((int) (time / 3)) % 2 == 0 ? RED : AMBER;
             case FIRING -> 0xFFFFFFFF;
-            case COOLDOWN, TRANSFORMING, PANEL_OPEN, PACKING -> AMBER;
-            default -> MUTED;
+            case RIFT -> VIOLET;
+            case COOLDOWN, TRANSFORMING, PANEL_OPEN, PACKING, LAUNCHING -> AMBER;
+            default -> DIM;
         };
-    }
-
-    private static int lerpColor(int a, int b, float t) {
-        int ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
-        int br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
-        return 0xFF000000 | ((int) (ar + (br - ar) * t) << 16) | ((int) (ag + (bg - ag) * t) << 8) | (int) (ab + (bb - ab) * t);
     }
 
     private void play(net.minecraft.sound.SoundEvent sound, float pitch) {
         MinecraftClient.getInstance().getSoundManager().play(PositionedSoundInstance.master(sound, pitch));
-    }
-
-    // ---- Widgets -------------------------------------------------------------------------------
-
-    private static final class NumberField {
-        String text = "";
-    }
-
-    private final class Btn {
-        final int x, y, w, h;
-        final String label;
-        final int accent;
-        final BooleanSupplier enabled;
-        final Runnable action;
-        final boolean big;
-        final Page page;
-
-        Btn(int x, int y, int w, int h, String label, int accent, BooleanSupplier enabled, Runnable action, boolean big, Page page) {
-            this.x = x; this.y = y; this.w = w; this.h = h; this.label = label; this.accent = accent;
-            this.enabled = enabled; this.action = action; this.big = big; this.page = page;
-        }
-
-        boolean hit(float mx, float my) {
-            return mx >= x && mx < x + w && my >= y && my < y + h;
-        }
-
-        void render(DrawContext ctx, float mx, float my, float time) {
-            boolean on = enabled.getAsBoolean();
-            boolean hover = on && hit(mx, my);
-            float pulse = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
-            if (big) {
-                UiKit.chamfer(ctx, x, y, w, h, 10, on ? UiKit.alpha(accent, hover ? 0.6f : 0.22f + 0.15f * pulse) : 0x40202830, on ? accent : 0xFF2A333C);
-                for (int sx = x + 12; sx < x + w - 12; sx += 10) {
-                    ctx.fill(sx, y + 3, sx + 5, y + 5, on ? 0xE0D69614 : 0xFF2A2A2A);
-                    ctx.fill(sx + 3, y + h - 5, sx + 8, y + h - 3, on ? 0xE0D69614 : 0xFF2A2A2A);
-                }
-            } else {
-                UiKit.chamfer(ctx, x, y, w, h, 4, on ? (hover ? UiKit.alpha(accent, 0.45f) : 0xE0101A22) : 0xC00C1014, on ? accent : 0xFF2A2E36);
-            }
-            float scale = big ? 2.0f : 1.0f;
-            int color = on ? 0xFFFFFFFF : 0xFF5A626C;
-            float tw = UiKit.spacedWidth(textRenderer, label, big ? 2f : 1f, scale);
-            UiKit.spaced(ctx, textRenderer, label, x + (w - tw) / 2f, y + h / 2f - 4 * scale, color, big ? 2f : 1f, scale, big && on);
-        }
     }
 }

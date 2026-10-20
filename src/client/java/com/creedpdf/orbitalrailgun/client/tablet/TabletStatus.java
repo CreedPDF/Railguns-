@@ -22,6 +22,12 @@ public final class TabletStatus {
     public int loadout;
     public boolean arming;
 
+    // ARES-0
+    public boolean a0Found;
+    public com.creedpdf.orbitalrailgun.entity.Ares0Entity.State a0State = com.creedpdf.orbitalrailgun.entity.Ares0Entity.State.IDLE;
+    public int a0Target = -1, a0Ticks, a0Visible, a0Doomed;
+    public BlockPos a0Pos = BlockPos.ORIGIN;
+
     /** Last orbital site survey for the tablet's landing zone. */
     public static volatile Survey survey = null;
 
@@ -44,6 +50,19 @@ public final class TabletStatus {
             s.stateTicks = buf.readVarInt();
             s.loadout = buf.readVarInt();
             s.arming = buf.readBoolean();
+        }
+        if (buf.isReadable()) {
+            s.a0Found = buf.readBoolean();
+            if (s.a0Found) {
+                var states = com.creedpdf.orbitalrailgun.entity.Ares0Entity.State.values();
+                int st = buf.readVarInt();
+                s.a0State = states[Math.max(0, Math.min(states.length - 1, st))];
+                s.a0Target = buf.readVarInt();
+                s.a0Ticks = buf.readVarInt();
+                s.a0Pos = buf.readBlockPos();
+                s.a0Visible = buf.readVarInt();
+                s.a0Doomed = buf.readVarInt();
+            }
         }
         return s;
     }

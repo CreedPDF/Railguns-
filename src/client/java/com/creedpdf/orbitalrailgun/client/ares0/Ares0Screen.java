@@ -13,22 +13,35 @@ import net.minecraft.client.sound.PositionedSoundInstance;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** ARES-0 fire-control console: pick a planet above the horizon and fire. */
+import static com.creedpdf.orbitalrailgun.client.ui.Term.*;
+
+/** ARES-0 on-site terminal: pick a body above the horizon and collapse its core. */
 public class Ares0Screen extends Screen {
     private final Ares0Entity ares;
     private Body selected;
     private int ticks;
-    private static final int W = 360, H = 220;
+    private int armedUntil = -1;
+    private static final int W = 380, H = 220;
+    private final List<Hit> hits = new ArrayList<>();
+    private float ox, oy, sc = 1f;
 
     public Ares0Screen(Ares0Entity ares) {
         super(Text.literal("ARES-0"));
         this.ares = ares;
         this.selected = ares.getTarget();
+    }
+
+    @Override
+    protected void init() {
+        sc = Math.min(1.6f, Math.min((width - 20) / (float) W, (height - 20) / (float) H));
+        ox = (width - W * sc) / 2f;
+        oy = (height - H * sc) / 2f;
     }
 
     private List<Body> targets() {
@@ -49,76 +62,98 @@ public class Ares0Screen extends Screen {
     }
 
     @Override
-    public void render(DrawContext dc, int mx, int my, float pt) {
-        renderBackground(dc);
-        int x0 = (width - W) / 2, y0 = (height - H) / 2;
+    public void render(DrawContext dc, int mouseX, int mouseY, float pt) {
+        dc.fill(0, 0, width, height, 0x90000000);
         float time = ticks + pt;
-        UiKit.chamfer(dc, x0, y0, W, H, 12, UiKit.BG, 0xFF5070FF);
-        UiKit.scanlines(dc, x0, y0, W, H, time);
-        UiKit.spaced(dc, textRenderer, "ARES-0", x0 + 12, y0 + 10, 0xFFB0C8FF, 1.6f, 1.6f, false);
-        dc.drawText(textRenderer, "PLANETARY CORE-COLLAPSE ARRAY", x0 + 92, y0 + 15, 0xFF7088C0, false);
-        UiKit.glowLine(dc, x0 + 10, y0 + 30, x0 + W - 10, 0xFF5070FF);
-
-        // target list
-        int lx = x0 + 12, ly = y0 + 40;
-        dc.drawText(textRenderer, "TARGETS", lx, ly, 0xFF7088C0, false);
-        ly += 12;
-        for (Body b : targets()) {
-            boolean up = Ares0Entity.visible(ares.getWorld(), b);
-            float e = ClientPlanets.elapsed(b, pt);
-            boolean gone = e >= 0;
-            boolean hover = mx >= lx && mx < lx + 170 && my >= ly && my < ly + 22;
-            int edge = b == selected ? 0xFFB0C8FF : hover ? 0xFF6080D0 : 0xFF2A3A60;
-            UiKit.chamfer(dc, lx, ly, 170, 22, 5, b == selected ? 0xE0182850 : UiKit.PANEL, edge);
-            dc.drawText(textRenderer, b.displayName(), lx + 8, ly + 7, gone ? 0xFF706060 : 0xFFE0E8FF, false);
-            String st = gone ? (e < Blast.DETONATE ? "COLLAPSING" : "DESTROYED") : up ? "ABOVE HORIZON" : "BELOW HORIZON";
-            int col = gone ? 0xFFFF6050 : up ? 0xFF60FFA0 : 0xFF808898;
-            dc.drawText(textRenderer, st, lx + 162 - textRenderer.getWidth(st), ly + 7, col, false);
-            ly += 25;
-        }
-
-        // status + sky plot
-        int rx = x0 + 196, ry = y0 + 40;
-        UiKit.chamfer(dc, rx, ry, 152, 112, 8, UiKit.PANEL, 0xFF2A3A60);
-        int cx = rx + 76, cy = ry + 104;
-        for (int r = 30; r <= 90; r += 30) arcSemi(dc, cx, cy, r, 0x40607090);
-        dc.fill(rx + 4, cy, rx + 148, cy + 1, 0x80607090);
-        float sky = ares.getWorld().getSkyAngle(pt);
-        for (Body b : targets()) {
-            Vec3d d = b.skyDirection(sky);
-            if (d.y <= 0 || ClientPlanets.gone(b)) continue;
-            double az = Math.atan2(d.x, d.z), el = Math.asin(d.y);
-            int px = cx + (int) (az / Math.PI * 70), py = cy - (int) (el / (Math.PI / 2) * 95);
-            px = MathHelper.clamp(px, rx + 6, rx + 146);
-            py = MathHelper.clamp(py, ry + 6, cy - 2);
-            int col = b == selected ? 0xFFFFFFFF : 0xFF9FB8FF;
-            dc.fill(px - 2, py - 2, px + 3, py + 3, col);
-            dc.drawText(textRenderer, b.displayName().substring(0, Math.min(3, b.displayName().length())), px + 4, py - 3, col, false);
-        }
+        float mx = (mouseX - ox) / sc, my = (mouseY - oy) / sc;
+        hits.clear();
+        dc.getMatrices().push();
+        dc.getMatrices().translate(ox, oy, 0);
+        dc.getMatrices().scale(sc, sc, 1f);
+        backdrop(dc, W, H, time);
         String state = switch (ares.getState()) {
-            case IDLE -> selected == null ? "SELECT A TARGET" : "READY";
+            case IDLE -> selected == null ? "SELECT TARGET" : "READY";
             case CHARGING -> String.format(Locale.ROOT, "CHARGING %d%%", Math.min(100, ares.getStateTicks() * 100 / Ares0Entity.CHARGE_TICKS));
             case FIRING -> "FIRING";
             case COOLDOWN -> "COOLING";
             case DEPLOYING -> "DEPLOYING";
             default -> ares.getState().name();
         };
-        dc.drawText(textRenderer, state, rx + 8, ry + 8, ares.getState() == Ares0Entity.State.FIRING && (ticks / 4) % 2 == 0 ? 0xFFFF6050 : 0xFFE0E8FF, false);
+        header(dc, textRenderer, W, "~/ares-0/core_collapse", state, ares.getState() == Ares0Entity.State.FIRING
+                && (ticks / 4) % 2 == 0 ? RED : ORANGE, time);
 
-        // buttons
+        // target table
+        int x = 8, y = 30, w = 196;
+        section(dc, textRenderer, "TARGETS", x, y, w, ORANGE);
+        y += 12;
+        for (Body b : targets()) {
+            boolean up = Ares0Entity.visible(ares.getWorld(), b);
+            float e = ClientPlanets.elapsed(b, pt);
+            boolean gone = e >= 0;
+            boolean sel = b == selected;
+            boolean hover = !gone && mx >= x - 1 && mx < x + w && my >= y - 1 && my < y + 9;
+            if (sel) dc.fill(x - 1, y - 1, x + w, y + 9, ORANGE);
+            else if (hover) dc.fill(x - 1, y - 1, x + w, y + 9, 0x40FF7A1E);
+            int col = sel ? 0xFF050505 : gone ? FAINT : TEXT;
+            text(dc, textRenderer, (sel ? "> " : "  ") + b.displayName().toLowerCase(Locale.ROOT).replace(' ', '_') + ".body", x, y, col, 0.8f);
+            String st = gone ? (e < Blast.DETONATE ? "COLLAPSING" : "DESTROYED") : up ? "ABOVE HORIZON" : "BELOW HORIZON";
+            float sw = width(textRenderer, st, 0.7f);
+            text(dc, textRenderer, st, x + w - sw - 2, y + 1, sel ? 0xFF050505 : gone ? RED_DIM : up ? OK : DIM, 0.7f);
+            if (!gone) {
+                final Body fb = b;
+                hits.add(new Hit(x - 1, y - 1, w + 1, 10, () -> {
+                    selected = fb;
+                    armedUntil = -1;
+                    ClientPackets.sendAres0(ares.getId(), 0, fb.ordinal());
+                }, true));
+            }
+            y += 12;
+        }
+
+        // sky plot
+        int rx = 216, ry = 30, rw = W - rx - 8, rh = 110;
+        section(dc, textRenderer, "SKY", rx, ry, rw, ORANGE);
+        int cx = rx + rw / 2, cy = ry + rh;
+        for (int r = 30; r <= 90; r += 30) arcSemi(dc, cx, cy, r, 0x40FF7A1E);
+        hline(dc, rx, rx + rw, cy, RULE_HI);
+        float sky = ares.getWorld().getSkyAngle(pt);
+        for (Body b : targets()) {
+            Vec3d d = b.skyDirection(sky);
+            if (d.y <= 0 || ClientPlanets.gone(b)) continue;
+            double az = Math.atan2(d.x, d.z), el = Math.asin(d.y);
+            int px = MathHelper.clamp(cx + (int) (az / Math.PI * (rw / 2f - 6)), rx + 4, rx + rw - 4);
+            int py = MathHelper.clamp(cy - (int) (el / (Math.PI / 2) * (rh - 14)), ry + 12, cy - 2);
+            int col = b == selected ? 0xFFFFFFFF : ORANGE;
+            dc.fill(px - 1, py - 1, px + 2, py + 2, col);
+            if (b == selected) UiKit.brackets(dc, px - 4, py - 4, 9, 9, 2, col);
+            text(dc, textRenderer, b.displayName().substring(0, Math.min(3, b.displayName().length())).toLowerCase(Locale.ROOT), px + 4, py - 2, col, 0.6f);
+        }
+
+        // commands
+        int by = H - 48;
+        hline(dc, 8, W - 8, by - 8, RULE);
         boolean canFire = ares.getState() == Ares0Entity.State.IDLE && selected != null && !ClientPlanets.gone(selected)
                 && ClientPlanets.elapsed(selected, 0f) < 0 && Ares0Entity.visible(ares.getWorld(), selected);
-        button(dc, rx, y0 + 160, 152, 30, "FIRE", canFire, mx, my, 0xFFFF4A40);
-        button(dc, rx, y0 + 194, 152, 18, "RETURN TO ORBIT", ares.getState() == Ares0Entity.State.IDLE
-                || ares.getState() == Ares0Entity.State.COOLDOWN, mx, my, 0xFF7088C0);
-        super.render(dc, mx, my, pt);
-    }
-
-    private void button(DrawContext dc, int x, int y, int w, int h, String label, boolean on, int mx, int my, int col) {
-        boolean hover = on && mx >= x && mx < x + w && my >= y && my < y + h;
-        UiKit.chamfer(dc, x, y, w, h, 6, hover ? UiKit.alpha(col, 0.35f) : UiKit.PANEL, on ? col : 0xFF303848);
-        int tw = textRenderer.getWidth(label);
-        dc.drawText(textRenderer, label, x + (w - tw) / 2, y + (h - 8) / 2, on ? 0xFFFFFFFF : 0xFF505868, false);
+        boolean armed = ticks < armedUntil;
+        hits.add(cmd(dc, textRenderer, armed ? "CONFIRM // COLLAPSE CORE" : "EXECUTE CORE COLLAPSE", 8, by, ORANGE, canFire, mx, my, 1.1f, () -> {
+            if (ticks < armedUntil) {
+                ClientPackets.sendAres0(ares.getId(), 1, selected.ordinal());
+                close();
+            } else {
+                armedUntil = ticks + 60;
+                if (client != null) client.getSoundManager().play(PositionedSoundInstance.master(ModSounds.UI_COUNTDOWN_BEEP, 1.2f));
+            }
+        }));
+        hits.add(cmd(dc, textRenderer, "RETURN TO ORBIT", 230, by + 1, DIM, ares.getState() == Ares0Entity.State.IDLE
+                || ares.getState() == Ares0Entity.State.COOLDOWN, mx, my, 0.85f, () -> {
+            ClientPackets.sendAres0(ares.getId(), 2, -1);
+            close();
+        }));
+        text(dc, textRenderer, armed ? "> press again. this cannot be undone." : selected == null ? "> select a body" : "> target acquired",
+                8, by + 16, armed ? RED : DIM, 0.7f);
+        footer(dc, textRenderer, W, H, time, "ESC close");
+        corners(dc, 1, 1, W - 2, H - 2, 8, 0xFF6A2A0A);
+        dc.getMatrices().pop();
     }
 
     private static void arcSemi(DrawContext dc, int cx, int cy, int r, int col) {
@@ -130,32 +165,25 @@ public class Ares0Screen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mx, double my, int button) {
-        int x0 = (width - W) / 2, y0 = (height - H) / 2;
-        int lx = x0 + 12, ly = y0 + 52;
-        for (Body b : targets()) {
-            if (mx >= lx && mx < lx + 170 && my >= ly && my < ly + 22) {
-                selected = b;
-                ClientPackets.sendAres0(ares.getId(), 0, b.ordinal());
-                click(1.2f);
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        float mx = (float) ((mouseX - ox) / sc), my = (float) ((mouseY - oy) / sc);
+        for (Hit h : new ArrayList<>(hits)) {
+            if (h.in(mx, my)) {
+                click(h.enabled() ? 1.1f : 0.6f);
+                if (h.enabled()) h.action().run();
                 return true;
             }
-            ly += 25;
         }
-        int rx = x0 + 196;
-        if (mx >= rx && mx < rx + 152 && my >= y0 + 160 && my < y0 + 190 && selected != null) {
-            ClientPackets.sendAres0(ares.getId(), 1, selected.ordinal());
-            click(0.7f);
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             close();
             return true;
         }
-        if (mx >= rx && mx < rx + 152 && my >= y0 + 194 && my < y0 + 212) {
-            ClientPackets.sendAres0(ares.getId(), 2, -1);
-            click(1f);
-            close();
-            return true;
-        }
-        return super.mouseClicked(mx, my, button);
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private void click(float pitch) {
