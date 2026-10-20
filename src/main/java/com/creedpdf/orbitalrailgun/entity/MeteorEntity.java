@@ -35,8 +35,6 @@ public class MeteorEntity extends Entity {
     private static final TrackedData<Float> SIZE = DataTracker.registerData(MeteorEntity.class, TrackedDataHandlerRegistry.FLOAT);
     private static final TrackedData<Integer> BODY = DataTracker.registerData(MeteorEntity.class, TrackedDataHandlerRegistry.INTEGER);
 
-    private int age;
-
     public MeteorEntity(EntityType<? extends MeteorEntity> type, World world) {
         super(type, world);
         this.noClip = true;
@@ -83,7 +81,6 @@ public class MeteorEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        age++;
         Vec3d v = getVelocity().add(0, -0.04, 0);
         setVelocity(v);
         Vec3d pos = getPos();
