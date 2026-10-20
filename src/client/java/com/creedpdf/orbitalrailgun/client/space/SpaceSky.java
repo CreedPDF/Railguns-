@@ -80,7 +80,7 @@ public final class SpaceSky {
         if (starAlpha > 0.01f) {
             VertexConsumer vc = BUF.getBuffer(starAlpha >= 0.999f ? BeamRenderLayers.solid(STARS) : BeamRenderLayers.textured(STARS));
             Quaternionf sky = new Quaternionf(toLocal).mul(new Quaternionf().rotationX(0.42f).rotateZ(0.2f));
-            BodyDraw.sphere(vc, m, new Vector3f(), 50f, sky, 64, 128, (n, out) -> {
+            BodyDraw.sphere(vc, m, new Vector3f(), 50f, sky, com.creedpdf.orbitalrailgun.client.config.Quality.segs(64, 32), com.creedpdf.orbitalrailgun.client.config.Quality.segs(128, 64), (n, out) -> {
                 out[0] = starAlpha; out[1] = starAlpha; out[2] = starAlpha; out[3] = 1f;
             });
             slot(slot);
@@ -115,7 +115,7 @@ public final class SpaceSky {
                 BUF.draw();
                 continue;
             }
-            int seg = ang > 0.25f ? 384 : ang > 0.04f ? 192 : 96;
+            int seg = com.creedpdf.orbitalrailgun.client.config.Quality.segs(ang > 0.25f ? 384 : ang > 0.04f ? 192 : 96, 32);
             Vector3f impact = toLocal.transform(PlanetBlastFx.impactDir(b));
             BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, bodyAlpha, seg, impact);
             slot(slot++);

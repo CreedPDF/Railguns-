@@ -28,6 +28,9 @@ public final class RailgunModClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         RailgunMod.setClientBridge(new Bridge());
+        com.creedpdf.orbitalrailgun.client.config.Quality.load();
+        ClientTickEvents.END_CLIENT_TICK.register(com.creedpdf.orbitalrailgun.client.config.Quality::tick);
+        com.creedpdf.orbitalrailgun.client.config.QualityCommand.register();
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
         EntityRendererRegistry.register(RailgunMod.ARES0, com.creedpdf.orbitalrailgun.client.ares0.Ares0Renderer::new);

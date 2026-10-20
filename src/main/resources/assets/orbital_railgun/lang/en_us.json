@@ -159,5 +159,16 @@
   "subtitles.orbital_railgun.rift.portal": "The rift opens into space",
   "subtitles.orbital_railgun.meteor.fall": "Planetary debris screams down",
   "subtitles.orbital_railgun.meteor.impact": "Planetary debris impacts",
-  "entity.orbital_railgun.meteor": "Planetary Debris"
+  "entity.orbital_railgun.meteor": "Planetary Debris",
+  "config.orbital_railgun.title": "Orbital Railgun",
+  "config.orbital_railgun.graphics": "Graphics",
+  "config.orbital_railgun.quality": "Effects quality",
+  "config.orbital_railgun.quality.low": "Low",
+  "config.orbital_railgun.quality.medium": "Medium",
+  "config.orbital_railgun.quality.high": "High",
+  "config.orbital_railgun.quality.ultra": "Ultra",
+  "config.orbital_railgun.quality.tooltip": "Detail of planets, explosions, debris, flames and sky effects.\nLow/Medium also load space textures at half resolution.",
+  "config.orbital_railgun.adaptive": "Adaptive quality",
+  "config.orbital_railgun.adaptive.tooltip": "Steps effects down automatically while the frame rate is low.",
+  "command.orbital_railgun.quality": "Orbital Railgun effects: %s (adaptive %s, now running at %s)"
 }

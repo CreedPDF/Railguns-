@@ -95,7 +95,7 @@ public final class OverworldSky {
             if (alpha < 0.02f) continue;
             if (e >= Blast.DETONATE + Blast.DEBRIS_END && b != Body.MOON) alpha *= 0.7f;
             Vector3f impact = new Vector3f(c).negate().normalize();
-            BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, Math.min(alpha, 0.998f), 96, impact);
+            BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, Math.min(alpha, 0.998f), com.creedpdf.orbitalrailgun.client.config.Quality.segs(96, 32), impact);
             BUF.draw();
         }
         matrices.pop();
@@ -118,7 +118,7 @@ public final class OverworldSky {
             intensity = Math.max(intensity, Math.min(1f, since / 200f) * (1f - since / dur) * (b.gasGiant() ? 1f : 0.8f));
         }
         if (intensity <= 0) return;
-        int slots = (int) (90 * intensity) + 6;
+        int slots = com.creedpdf.orbitalrailgun.client.config.Quality.scale((int) (90 * intensity) + 6, 6);
         net.minecraft.util.math.random.Random rand = net.minecraft.util.math.random.Random.create();
         float[] col = new float[3];
         for (int i = 0; i < slots; i++) {

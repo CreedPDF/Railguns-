@@ -109,7 +109,7 @@ public class MeteorEntity extends Entity {
     private void trail(World w, Vec3d pos, Vec3d v) {
         Random r = w.random;
         float s = size();
-        int n = 4 + (int) (s * 4);
+        int n = com.creedpdf.orbitalrailgun.util.FxBudget.count(4 + (int) (s * 4), 2);
         for (int i = 0; i < n; i++) {
             double f = r.nextDouble();
             Vec3d p = pos.add(v.multiply(-f)).add((r.nextDouble() - 0.5) * s, (r.nextDouble() - 0.5) * s, (r.nextDouble() - 0.5) * s);
@@ -117,18 +117,20 @@ public class MeteorEntity extends Entity {
             if (i % 2 == 0) w.addParticle(ParticleTypes.LARGE_SMOKE, true, p.x, p.y, p.z, 0, 0.02, 0);
         }
         if (r.nextInt(3) == 0) w.addParticle(ParticleTypes.LAVA, true, pos.x, pos.y, pos.z, 0, 0, 0);
-        w.addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, pos.x, pos.y, pos.z, 0, 0.01, 0);
+        // long-lived smoke column: sparse, it lingers anyway
+        if (age % Math.max(2, Math.round(3 / Math.max(0.25f, com.creedpdf.orbitalrailgun.util.FxBudget.particles))) == 0)
+            w.addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, pos.x, pos.y, pos.z, 0, 0.01, 0);
     }
 
     private void impact(ServerWorld w, Vec3d at) {
         float s = size();
         Body b = body();
-        w.createExplosion(this, at.x, at.y, at.z, 2.5f + s * 2.4f, true, World.ExplosionSourceType.TNT);
+        w.createExplosion(this, at.x, at.y, at.z, Math.min(6.5f, 2.5f + s * 1.8f), true, World.ExplosionSourceType.TNT);
         w.playSound(null, at.x, at.y, at.z, ModSounds.METEOR_IMPACT, SoundCategory.WEATHER, 8f + s * 3f, 0.75f + 0.3f * w.random.nextFloat());
         w.spawnParticles(ModParticles.FLASH, at.x, at.y + 1, at.z, 1, 0, 0, 0, 0);
         w.spawnParticles(ModParticles.SHOCK_DUST, at.x, at.y + 1, at.z, 40, s * 2, 0.5, s * 2, 0.15);
-        w.spawnParticles(ParticleTypes.LAVA, at.x, at.y + 1, at.z, 30, s, 0.5, s, 0.1);
-        w.spawnParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE, at.x, at.y + 1, at.z, 24, s, 1, s, 0.02);
+        w.spawnParticles(ParticleTypes.LAVA, at.x, at.y + 1, at.z, 16, s, 0.5, s, 0.1);
+        w.spawnParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE, at.x, at.y + 1, at.z, 8, s, 1, s, 0.02);
         // a heap of alien rock in the crater
         Random r = w.random;
         BlockPos c = BlockPos.ofFloored(at);

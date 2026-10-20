@@ -30,7 +30,6 @@ public final class JetFlameFx {
     /** Smoothed thrust per player entity id (0..1), plus boost flag. */
     private static final Map<Integer, float[]> STATE = new HashMap<>();
 
-    private static final int AROUND = 28, ALONG = 20;
     /** Nozzle exit in the suit model (px): x = +-2.7, y = 8.3, 6.6 behind the body centre. */
     private static final float NOZZLE_X = 2.7f / 16f, NOZZLE_Y = 8.3f / 16f, NOZZLE_Z = 6.6f / 16f;
 
@@ -120,6 +119,7 @@ public final class JetFlameFx {
                               float cr, float cg, float cb, float a, float turbulence) {
         Vector3f u = new Vector3f(axis).cross(Math.abs(axis.y) < 0.9f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0)).normalize();
         Vector3f v = new Vector3f(axis).cross(u).normalize();
+        int AROUND = com.creedpdf.orbitalrailgun.client.config.Quality.segs(28, 12), ALONG = com.creedpdf.orbitalrailgun.client.config.Quality.segs(20, 8);
         Vector3f[][] p = new Vector3f[ALONG + 1][AROUND + 1];
         float[][] al = new float[ALONG + 1][AROUND + 1];
         for (int i = 0; i <= ALONG; i++) {
