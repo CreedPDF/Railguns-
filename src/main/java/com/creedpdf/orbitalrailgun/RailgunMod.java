@@ -87,6 +87,18 @@ public final class RailgunMod implements ModInitializer {
                     .fireImmune()
                     .build());
 
+    /** The ARES starship. */
+    public static final EntityType<com.creedpdf.orbitalrailgun.entity.ShipEntity> SHIP = Registry.register(
+            Registries.ENTITY_TYPE,
+            id("starship"),
+            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.entity.ShipEntity>create(SpawnGroup.MISC, com.creedpdf.orbitalrailgun.entity.ShipEntity::new)
+                    .dimensions(EntityDimensions.fixed(1.0f, 1.0f))
+                    .trackRangeChunks(24)
+                    .trackedUpdateRate(1)
+                    .forceTrackedVelocityUpdates(true)
+                    .fireImmune()
+                    .build());
+
     /** The see-through rift opening (Immersive Portals portal). */
     public static final EntityType<com.creedpdf.orbitalrailgun.space.RiftPortal> RIFT_PORTAL = Registry.register(
             Registries.ENTITY_TYPE, id("rift_portal"), com.creedpdf.orbitalrailgun.space.RiftPortal.TYPE);
@@ -117,6 +129,24 @@ public final class RailgunMod implements ModInitializer {
                     .suffocates((state, world, pos) -> false)
                     .blockVision((state, world, pos) -> false)));
 
+    /** The starship's flight console (placed in the cabin of a parked ship). */
+    public static final Block FLIGHT_CONSOLE = Registry.register(
+            Registries.BLOCK,
+            id("flight_console"),
+            new com.creedpdf.orbitalrailgun.block.FlightConsoleBlock(AbstractBlock.Settings.create()
+                    .strength(-1.0f, 3_600_000.0f)
+                    .dropsNothing()
+                    .nonOpaque()
+                    .luminance(state -> 9)
+                    .pistonBehavior(PistonBehavior.BLOCK)
+                    .sounds(BlockSoundGroup.METAL)));
+
+    public static final Item FLIGHT_CONSOLE_ITEM = Registry.register(Registries.ITEM, id("flight_console"),
+            new net.minecraft.item.BlockItem(FLIGHT_CONSOLE, new Item.Settings()));
+
+    public static final Item STARSHIP = Registry.register(Registries.ITEM, id("starship"),
+            new com.creedpdf.orbitalrailgun.item.StarshipItem(new Item.Settings().maxCount(1).fireproof().rarity(Rarity.EPIC)));
+
     public static final Item RAILGUN_REMOTE = Registry.register(
             Registries.ITEM,
             id("railgun_remote"),
@@ -129,12 +159,14 @@ public final class RailgunMod implements ModInitializer {
         ModPackets.registerServerReceivers();
 
         // Railguns+ has its own creative tab with everything in it. (The mod's only block is the
-        // invisible collision shell of a deployed railgun, which has no item.)
+        // invisible collision shell of a deployed railgun / parked ship, which has no item.)
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
                 .entries((context, entries) -> {
                     entries.add(RAILGUN_REMOTE);
+                    entries.add(STARSHIP);
+                    entries.add(FLIGHT_CONSOLE_ITEM);
                     entries.add(EVA_HELMET);
                     entries.add(EVA_CHESTPLATE);
                     entries.add(EVA_LEGGINGS);

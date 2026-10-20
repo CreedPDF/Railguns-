@@ -85,6 +85,10 @@ public final class ModSounds {
     public static final SoundEvent PLANET_EXPLODE = register("planet.explode");
     public static final SoundEvent RIFT_PORTAL = register("rift.portal");
     public static final SoundEvent METEOR_FALL = register("meteor.fall");
+    public static final SoundEvent SHIP_IGNITE = register("ship.ignite");
+    public static final SoundEvent SHIP_LAUNCH = register("ship.launch");
+    public static final SoundEvent SHIP_ENGINE = register("ship.engine");
+    public static final SoundEvent SHIP_LAND = register("ship.land");
     public static final SoundEvent METEOR_IMPACT = register("meteor.impact");
 
 

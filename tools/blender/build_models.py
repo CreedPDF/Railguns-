@@ -1294,6 +1294,144 @@ def build_suit(offset):
     return bones
 
 
+SHIP_RAMP_OPEN_DEG = 123.5   # hatch swing from closed (vertical) to resting on the ground
+
+
+def build_ship(offset):
+    """
+    ARES starship: a white-and-graphite shuttle about 20 blocks long. Tripod landing gear (one
+    leg under the cockpit, two at the back), a walk-in cabin (5 x 10 x 3 blocks) with a pilot
+    seat, wall consoles, benches and light strips, a rear hatch that drops into a ramp, two blue
+    engine nacelles on short pylons and stepped swept wings. Front = model +Z.
+
+    The cabin matches the collision the mod places around a parked ship (see ShipEntity): floor
+    top at 32 px, walls at x = +-40..56, roof 80..96, front wall z 88..104, back wall z -88..-72
+    with a 3 x 2 block door, so you can walk up the ramp and stand inside.
+    """
+    bones = {}
+
+    def bone(name, parent, pivot):
+        p = bones.get(parent)
+        bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None, offset=offset if p is None else Vector((0, 0, 0)))
+
+    bone("ship_root", None, [0, 48, 0])
+    bone("ship_hull", "ship_root", [0, 48, 0])
+    bone("ship_leg_front", "ship_root", [0, 14, 84])
+    bone("ship_leg_left", "ship_root", [-44, 14, -60])
+    bone("ship_leg_right", "ship_root", [44, 14, -60])
+    bone("ship_ramp", "ship_root", [0, 32, -88])
+    H = bones["ship_hull"]
+
+    # ---- fuselage shell (cabin) --------------------------------------------------------------
+    box(H, "steel", [-40, 28, -88], [80, 4, 192])                 # cabin floor
+    box(H, "dark", [-36, 32.05, -84], [72, 0.3, 140])             # floor grating
+    box(H, "hull", [-40, 12, -88], [80, 16, 192])                 # belly under the floor
+    box(H, "hull", [-56, 12, -88], [16, 20, 192], mirror=("x",))  # side skirts
+    box(H, "white", [-56, 32, -88], [16, 48, 192], mirror=("x",)) # side walls
+    box(H, "white", [-56, 80, -88], [112, 16, 192])               # roof
+    box(H, "white", [-40, 32, 88], [80, 48, 16])                  # front wall
+    box(H, "white", [-40, 32, -88], [16, 48, 16], mirror=("x",))  # back wall beside the door
+    box(H, "white", [-24, 64, -88], [48, 16, 16])                 # lintel
+    box(H, "hazard", [-26, 32, -88.5], [2, 32, 0.5], mirror=("x",))
+    box(H, "hazard", [-26, 64, -88.5], [52, 1.5, 0.5])
+    # hull detailing
+    box(H, "glow", [-56.5, 46, -84], [0.5, 2, 184], mirror=("x",))   # red racing stripe
+    box(H, "hull", [-56.4, 34, -84], [0.4, 8, 184], mirror=("x",))
+    box(H, "dark", [-30, 96, -70], [60, 3, 120])                    # dorsal spine
+    box(H, "hull", [-20, 99, -60], [40, 4, 70])
+    box(H, "glow", [-1, 103, -40], [2, 1, 30])
+    box(H, "dark", [-50, 96, -84], [8, 2, 176], mirror=("x",))
+    box(H, "amber", [-40, 96.5, 90], [3, 1, 3], mirror=("x",))
+    # side windows (outside and inside faces)
+    box(H, "glass", [-56.4, 56, 10], [0.4, 12, 60], mirror=("x",))
+    box(H, "glass", [-40.0, 56, 10], [0.4, 12, 60], mirror=("x",))
+
+    # ---- nose and cockpit --------------------------------------------------------------------
+    box(H, "white", [-52, 16, 104], [104, 64, 20])
+    box(H, "white", [-44, 20, 124], [88, 52, 20])
+    box(H, "white", [-32, 24, 144], [64, 38, 16])
+    box(H, "hull", [-20, 30, 160], [40, 24, 10])
+    box(H, "dark", [-10, 36, 170], [20, 12, 3])
+    box(H, "glow", [-56.5, 46, 104], [0.5, 2, 20], mirror=("x",))
+    # canopy, stepped down toward the nose
+    box(H, "glass", [-44, 80, 96], [88, 4, 16])
+    box(H, "glass", [-40, 72, 112], [80, 8, 12])
+    box(H, "glass", [-34, 62, 124], [68, 10, 12])
+    box(H, "glass", [-26, 52, 136], [52, 10, 8])
+    box(H, "glass", [-30, 50, 87.6], [60, 22, 0.4])                 # cockpit window, inside
+    box(H, "dark", [-2, 50, 87.5], [4, 22, 0.6])                    # window mullion
+
+    # ---- interior ----------------------------------------------------------------------------
+    # pilot seat (the flight console block stands just in front of it, at z 72..88)
+    box(H, "dark", [-8, 32, 56], [16, 8, 14])
+    box(H, "hull", [-9, 32.5, 52], [18, 26, 4])
+    box(H, "dark", [-6, 52, 51], [12, 6, 2])
+    box(H, "steel", [-10, 38, 56], [2, 3, 12], mirror=("x",))
+    box(H, "cyan", [-1, 39.5, 69.8], [2, 0.5, 0.4])
+    # wall consoles with screens
+    box(H, "steel", [-40, 32, 60], [10, 14, 26], mirror=("x",))
+    box(H, "screen", [-30.4, 40, 62], [0.4, 9, 22], mirror=("x",))
+    box(H, "cyan", [-30.5, 50, 62], [0.5, 0.6, 22], mirror=("x",))
+    # benches along the walls
+    box(H, "steel", [-40, 32, -64], [9, 8, 64], mirror=("x",))
+    box(H, "dark", [-40, 40, -64], [9, 1, 64], mirror=("x",))
+    box(H, "hull", [-40, 41, -64], [1.5, 16, 64], mirror=("x",))
+    # equipment racks and cargo
+    box(H, "hull", [-40, 32, -86], [12, 30, 12], mirror=("x",))
+    box(H, "amber", [-29, 52, -84], [0.4, 1.2, 8], mirror=("x",))
+    box(H, "hazard", [-24, 32, -60], [10, 10, 10])
+    box(H, "hazard", [16, 32, -40], [10, 8, 12])
+    # light strips: along the walls, across the ceiling
+    box(H, "cyan", [-40, 76, -84], [0.6, 1.2, 168], mirror=("x",))
+    box(H, "cyan", [-36, 32.4, -84], [1, 0.4, 140], mirror=("x",))
+    box(H, "white", [-16, 79.4, -80], [32, 0.6, 4], array=(8, [0, 0, 20]))
+    box(H, "cyan", [-14, 79.0, -79], [28, 0.4, 2], array=(8, [0, 0, 20]))
+    box(H, "dark", [-40, 64, -84], [1, 10, 164], mirror=("x",))     # upper wall panels
+
+    # ---- wings, pylons, engines ----------------------------------------------------------------
+    box(H, "white", [56, 36, -84], [40, 6, 104], mirror=("x",))
+    box(H, "white", [96, 36, -84], [30, 6, 72], mirror=("x",))
+    box(H, "white", [126, 36, -84], [24, 6, 40], mirror=("x",))
+    box(H, "dark", [56, 35.6, -88], [94, 6.8, 4], mirror=("x",))     # flaps
+    box(H, "hull", [56, 42, -40], [70, 1, 4], mirror=("x",))
+    box(H, "glow", [150, 36, -84], [1.2, 6, 40], mirror=("x",))      # wingtip lights
+    box(H, "white", [146, 42, -84], [4, 22, 30], mirror=("x",))      # winglets
+    box(H, "glow", [146.2, 60, -84], [3.6, 2, 30], mirror=("x",))
+    for sx in (-1, 1):
+        cx = sx * 78
+        box(H, "steel", [56 if sx > 0 else -66, 50, -110], [10, 14, 56])   # pylon
+        octagon_z(f"ship_nac{sx}", H, "hull", cx, 58, -150, -40, 38)
+        octagon_z(f"ship_nacw{sx}", H, "white", cx, 58, -120, -60, 40)
+        octagon_z(f"ship_intake{sx}", H, "dark", cx, 58, -40, -34, 32)
+        octagon_z(f"ship_noz{sx}", H, "dark", cx, 58, -160, -150, 34)
+        octagon_z(f"ship_glow{sx}", H, "cyan", cx, 58, -161, -159, 24)
+        ring_z(H, "steel", cx, 58, -153, -150, 17, 2)
+        box(H, "white", [cx - 2, 76, -150], [4, 34, 44])                  # tail fin
+        box(H, "glow", [cx - 2.2, 106, -150], [4.4, 3, 20])
+    # small manoeuvring thrusters
+    box(H, "dark", [-58, 70, 80], [4, 6, 6], mirror=("x",))
+    box(H, "cyan", [-58.4, 72, 82], [0.4, 2, 2], mirror=("x",))
+
+    # ---- landing gear (modelled extended; folded into the belly in flight) ---------------------
+    for name, x, z in (("ship_leg_front", 0, 84), ("ship_leg_left", -44, -60), ("ship_leg_right", 44, -60)):
+        L = bones[name]
+        box(L, "hull", [x - 6, 10, z - 6], [12, 4, 12])          # hip
+        box(L, "steel", [x - 3, 2, z - 2], [6, 10, 4])           # strut
+        box(L, "chrome", [x - 1.5, 3, z + 2], [3, 9, 1.5])       # piston
+        box(L, "dark", [x - 9, 0, z - 9], [18, 2, 18])           # foot pad
+        box(L, "hazard", [x - 7, 2, z - 7], [14, 0.6, 14])
+        box(L, "amber", [x - 1, 12, z - 6.4], [2, 1, 0.4])
+
+    # ---- rear hatch / ramp (closed = vertical, covering the door) ------------------------------
+    R = bones["ship_ramp"]
+    box(R, "hull", [-24, 32, -92], [48, 58, 4])
+    for k in range(5):
+        box(R, "hazard", [-20, 38 + k * 10, -88.0], [40, 3, 0.5])
+    box(R, "dark", [-24, 32, -92.5], [48, 3, 0.5])
+    box(R, "glow", [-22, 86, -92.4], [44, 1.5, 0.4])
+    return bones
+
+
 def export_empty_animation(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
@@ -2392,9 +2530,23 @@ def main():
     export_empty_animation(os.path.join(assets, "animations/eva_suit.animation.json"))
     print(f"[eva_suit] {len(su_boxes)} cubes, {su_tex}px atlas")
 
+    # ---------------- Starship ----------------
+    sh_off = Vector((200, 0, 0))
+    sh_bones = build_ship(sh_off)
+    sh_boxes = extract_boxes(sh_bones, offset=sh_off)
+    sh_tex = pack_faces(sh_boxes, texels_per_px=2, start_size=1024, pad=2)
+    sh_bake = build_bake_objects(sh_boxes, sh_bones, sh_tex, kinds, offset=sh_off)
+    sh_atlas, sh_glow = bake(sh_bake, sh_boxes, kinds, sh_tex, "ship", tpp=2, pad=2)
+    save_png(sh_atlas, os.path.join(assets, "textures/entity/ship.png"))
+    save_png(sh_glow, os.path.join(assets, "textures/entity/ship_glowmask.png"))
+    export_geo(sh_bones, sh_boxes, sh_tex, os.path.join(assets, "geo/ship.geo.json"), identifier="geometry.ship", bounds=(26, 12, 3))
+    export_empty_animation(os.path.join(assets, "animations/ship.animation.json"))
+    print(f"[ship] {len(sh_boxes)} cubes, {sh_tex}px atlas")
+
     # ---------------- Preview materials + renders ----------------
     for objs, atlas, glow, name in ((rg_bake, rg_atlas, rg_glow, "rg"), (rm_bake, rm_atlas, rm_glow, "rm"),
-                                    (a0_bake, a0_atlas, a0_glow, "a0"), (su_bake, su_atlas, su_glow, "su")):
+                                    (a0_bake, a0_atlas, a0_glow, "a0"), (su_bake, su_atlas, su_glow, "su"),
+                                    (sh_bake, sh_atlas, sh_glow, "sh")):
         mat = preview_material(f"preview_{name}", atlas, glow)
         for o in objs:
             o.data.materials.clear()
@@ -2407,6 +2559,7 @@ def main():
         set_visible(rm_bake, False)
         set_visible(a0_bake, False)
         set_visible(su_bake, False)
+        set_visible(sh_bake, False)
         render_option_icons(rg_bake, rg_bones, cam, target, ground, assets)
         # Preview renders show one sample loadout (in game only installed parts are shown).
         sample = ("opt_shroud", "opt_sunburst", "opt_capacitor", "opt_shield__a", "opt_shield__b",
@@ -2479,6 +2632,37 @@ def main():
         a0_bones["mast"].location = Vector(a0_bones["mast"]["rest_location"])
         ground.scale = (1, 1, 1)
         set_visible(a0_bake, False)
+        # ---- Starship previews + item icon
+        set_visible(sh_bake, True)
+        ground.location = (200, 0, -0.01)
+        ground.scale = (2, 2, 1)
+        ramp = sh_bones["ship_ramp"]
+        ramp.rotation_euler = (math.radians(-SHIP_RAMP_OPEN_DEG), 0, 0)
+        render(os.path.join(out, "ship_parked.png"), cam, target, (200 + 30, -24, 12), (200, 0, 3), 1200, lens=26)
+        render(os.path.join(out, "ship_rear.png"), cam, target, (200 - 10, 26, 5), (200, 4, 2.5), 1100, lens=28)
+        render(os.path.join(out, "ship_cabin.png"), cam, target, (200 + 0.6, 4.6, 3.2), (200, -4, 2.4), 1000, lens=18)
+        ramp.rotation_euler = (0, 0, 0)
+        for n, a in (("ship_leg_front", 90), ("ship_leg_left", -90), ("ship_leg_right", -90)):
+            sh_bones[n].rotation_euler = (math.radians(a), 0, 0)
+        root = sh_bones["ship_root"]
+        root.location = Vector(root["rest_location"]) + mc_to_b([0, 120, 0])
+        root.rotation_euler = (math.radians(-12), 0, math.radians(35))
+        render(os.path.join(out, "ship_flight.png"), cam, target, (200 + 28, -26, 16), (200, 0, 10), 1200, lens=28)
+        scene = bpy.context.scene
+        scene.render.film_transparent = True
+        scene.render.image_settings.color_mode = "RGBA"
+        ground.hide_render = True
+        root.location = Vector(root["rest_location"])
+        root.rotation_euler = (0, 0, math.radians(35))
+        render(os.path.join(assets, "textures/item/starship.png"), cam, target, (200 + 22, -22, 14), (200, 0, 3), 64, samples=24, lens=40)
+        scene.render.film_transparent = False
+        scene.render.image_settings.color_mode = "RGB"
+        ground.hide_render = False
+        root.rotation_euler = (0, 0, 0)
+        for n in ("ship_leg_front", "ship_leg_left", "ship_leg_right"):
+            sh_bones[n].rotation_euler = (0, 0, 0)
+        ground.scale = (1, 1, 1)
+        set_visible(sh_bake, False)
         # ---- EVA suit previews + item icons
         set_visible(su_bake, True)
         ground.location = (0, 200, -0.01)

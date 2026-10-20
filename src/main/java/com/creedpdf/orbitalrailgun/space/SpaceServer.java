@@ -98,6 +98,13 @@ public final class SpaceServer {
             // floating in space / riding the jetpack is not "flying" for the anti-cheat
             if (space || EvaSuit.jetpack(p)) p.networkHandler.floatingTicks = 0;
 
+            // inside the starship: pressurised cabin, and the flight is scripted
+            if (p.getVehicle() instanceof com.creedpdf.orbitalrailgun.entity.ShipEntity) {
+                p.setAir(p.getMaxAir());
+                p.fallDistance = 0;
+                p.networkHandler.floatingTicks = 0;
+                continue;
+            }
             // ---- life support
             if (airless && !p.isCreative() && !p.isSpectator()) {
                 if (EvaSuit.full(p)) {

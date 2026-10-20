@@ -189,6 +189,28 @@ platform on touchdown. The drop is refused if the zone holds unbreakable blocks,
 away under too much of the footprint, the landing block is liquid, another railgun is too close,
 or the site is buried too deep. The tablet shows the survey live before you call it down.
 
+## ARES Starship
+A flyable ship, about 20 blocks long, built in Blender: white-and-graphite hull, stepped swept
+wings, two blue-burning engine nacelles, a canopy over the cockpit and the classic **tripod
+landing gear** (one leg under the nose, two at the back).
+
+* **Getting one:** craft the *ARES Starship* (tinted glass, iron blocks, beacon, netherite,
+  elytra) and use it on open ground. The ship comes down from orbit on its engines, unfolds its
+  legs and lands facing away from you.
+* **Walk in:** the rear hatch drops into a ramp. The cabin is real: invisible collision walls,
+  floor and roof are placed around it so you can walk up the ramp and move around inside
+  (pilot seat, wall consoles, benches, light strips). At the front stands a real **Flight
+  Console** block.
+* **Fly:** use the console, pick a destination (Moon, Mars, Venus, Europa, or Earth from
+  anywhere else), confirm LAUNCH. Then it is a film:
+  1. ignition: hatch closes, engines spool up, the ship lifts off its pad (low ground camera);
+  2. ascent: legs fold, the nose pitches up and it climbs out of the sky (chase camera);
+  3. deep space: a slow orbit around the ship while the destination grows ahead;
+  4. landing: it glides in from above, flares, deploys its legs and settles; the hatch drops.
+  Letterbox bars, fades across the world changes and a terminal caption with altitude / ETA.
+  You cannot step out mid-flight; the cabin is pressurised.
+* Flying back to Earth lands you on the pad you left from. Stow the ship from the console.
+
 ## Uplink terminal
 The tablet (and the railgun's own field terminal and the ARES-0 console) is a classified command
 terminal: a file tree on the left, the open file on the right, small bracketed text commands

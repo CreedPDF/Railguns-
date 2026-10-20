@@ -1090,6 +1090,54 @@ def meteor_impact():
     return room(mband_sat(x, (3.0, 2.0, 1.4)), 3.8, 0.5)
 
 
+def ship_ignite():
+    """Starship engines lighting: turbine spool, igniter clicks, a rising roar."""
+    d = 5.0
+    x = canvas(d)
+    t = t_axis(4.5)
+    spool = unison(glide(80, 420, 4.5, 0.7), 4.5, 5, 0.01, "saw")
+    place(x, sweep(spool, "lowpass", 300, 3000) * (t / 4.5) * 0.35, 0.0)
+    for k in range(6):
+        place(x, zap(0.06, 0.6), 0.2 + k * 0.18)
+    place(x, filt(brown(4.0), "lowpass", 260) * (0.2 + 0.8 * (t_axis(4.0) / 4.0)) * 1.2, 1.0)
+    place(x, sweep(white(3.0), "bandpass", 400, 2400) * env(3.0, 1.0, 0.2, 0.8, 0.6) * 0.5, 1.5)
+    return room(sat(x, 1.8), 2.0, 0.3)
+
+
+def ship_launch():
+    """Lift-off: a crushing, crackling rocket roar that slowly recedes."""
+    d = 12.0
+    x = canvas(d)
+    place(x, kick(50, 20, 4.0, 1.6, 0.8) * 1.6, 0.0)
+    place(x, filt(brown(11.0), "lowpass", 180) * decay(11.0, 5.5) * 2.0, 0.0)
+    place(x, filt(white(11.0), "bandpass", [120, 2600]) * decay(11.0, 4.0) * 1.0, 0.0)
+    place(x, crackle(11.0, 140, 0.002, 1200, decay(11.0, 5.0)) * 0.9, 0.05)
+    return room(mband_sat(x, (3.0, 2.0, 1.4)), 4.0, 0.5)
+
+
+def ship_engine():
+    """Sustained engine burn (played every couple of seconds in flight)."""
+    d = 3.0
+    x = canvas(d)
+    place(x, filt(brown(3.0), "lowpass", 220) * env(3.0, 0.3, 0.2, 0.9, 0.8) * 1.3, 0.0)
+    place(x, filt(white(3.0), "bandpass", [200, 1800]) * env(3.0, 0.3, 0.2, 0.8, 0.8) * 0.5, 0.0)
+    place(x, crackle(3.0, 60, 0.002, 1500, env(3.0, 0.3, 0.2, 0.8, 0.8)) * 0.4, 0.0)
+    return room(sat(x, 1.6), 2.2, 0.3)
+
+
+def ship_land():
+    """Touchdown: gear thump, hydraulics settling, engines spooling down."""
+    d = 5.0
+    x = canvas(d)
+    place(x, kick(90, 30, 1.2, 0.4, 1.0) * 1.4, 0.0)
+    place(x, clank(1.0, 140, 0.4), 0.05)
+    place(x, hydraulic(1.4, 2600, 0.7), 0.3)
+    place(x, steam(1.6, 0.6), 0.5)
+    spool = unison(glide(380, 60, 3.5, 1.2), 3.5, 4, 0.01, "saw")
+    place(x, sweep(spool, "lowpass", 2400, 200) * env(3.5, 0.01, 0.2, 0.7, 2.0) * 0.3, 0.4)
+    return room(x, 1.8, 0.3)
+
+
 def rift_portal():
     """The hole in the sky clears into real space: a deep inhale and a glassy ring."""
     d = 5.0
@@ -1549,6 +1597,10 @@ LOADOUT_SOUNDS = {
     "planet_explode": planet_explode,
     "meteor_fall": meteor_fall,
     "meteor_impact": meteor_impact,
+    "ship_ignite": ship_ignite,
+    "ship_launch": ship_launch,
+    "ship_engine": ship_engine,
+    "ship_land": ship_land,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
@@ -1562,7 +1614,7 @@ LOUD_EVENTS = {"ammo_", "muzzle_", "drone_descent", "module_seismic", "module_th
 
 def _event_id(file):
     """ammo_tungsten_fire -> ammo.tungsten.fire, module_shield_block -> module.shield_block."""
-    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_", "space_", "jetpack_", "suit_", "ares0_", "planet_", "meteor_"):
+    for pre in ("ui_", "drone_", "scan_", "rift_", "railgun_", "muzzle_", "module_", "space_", "jetpack_", "suit_", "ares0_", "planet_", "meteor_", "ship_"):
         if file.startswith(pre):
             return pre[:-1] + "." + file[len(pre):]
     if file.startswith("ammo_"):
@@ -1620,7 +1672,7 @@ EVENTS = {
 
 
 for _f in LOADOUT_SOUNDS:
-    _dist = 320 if _f.startswith(("ammo_", "muzzle_", "ares0_fire", "planet_", "meteor_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster", "ares0_")) else 48
+    _dist = 320 if _f.startswith(("ammo_", "muzzle_", "ares0_fire", "planet_", "meteor_", "ship_")) else 160 if _f.startswith(("drone_", "scan_pulse", "rift_", "module_seismic", "module_thruster", "ares0_")) else 48
     EVENTS[_event_id(_f)] = (_f, {} if _f.startswith("ui_") else {"attenuation_distance": _dist})
 
 
