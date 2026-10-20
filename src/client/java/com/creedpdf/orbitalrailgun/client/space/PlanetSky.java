@@ -99,7 +99,7 @@ public final class PlanetSky {
     private static void dome(Matrix4f m, Vector3f sun, float day, float doom, float hr, float hg, float hb, float zr, float zg, float zb, boolean blueSun) {
         VertexConsumer vc = BUF.getBuffer(BeamRenderLayers.solid(WHITE));
         Vector3f s = new Vector3f(sun).normalize();
-        BodyDraw.sphere(vc, m, new Vector3f(), 40f, new Quaternionf(), 24, 48, (n, out) -> {
+        BodyDraw.sphere(vc, m, new Vector3f(), 40f, new Quaternionf(), 48, 96, (n, out) -> {
             float up = MathHelper.clamp(n.y, 0f, 1f);
             float h = (float) Math.pow(1f - up, 2.5);
             float r = MathHelper.lerp(h, zr, hr), g = MathHelper.lerp(h, zg, hg), bl = MathHelper.lerp(h, zb, hb);

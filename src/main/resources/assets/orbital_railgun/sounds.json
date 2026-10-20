@@ -674,6 +674,24 @@
       }
     ]
   },
+  "meteor.fall": {
+    "subtitle": "subtitles.orbital_railgun.meteor.fall",
+    "sounds": [
+      {
+        "name": "orbital_railgun:meteor_fall",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "meteor.impact": {
+    "subtitle": "subtitles.orbital_railgun.meteor.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:meteor_impact",
+        "attenuation_distance": 320
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

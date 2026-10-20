@@ -308,7 +308,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
     /** Warnings to anyone in space before the rift closes (ticks before RIFT_COLLAPSE). */
     public static final int[] RIFT_WARNINGS = {1200, 600, 200};
     public static final int RIFT_COOLDOWN = 1200;
-    public static final double RIFT_HEIGHT = 120.0, RIFT_RADIUS = 22.0, VORTEX_RADIUS = 34.0, LIFT_RADIUS = 5.5;
+    public static final double RIFT_HEIGHT = 160.0, RIFT_RADIUS = 26.0, VORTEX_RADIUS = 40.0, LIFT_RADIUS = 5.5;
     private int riftReadyAge;
     private int riftSwallowed;
 
@@ -363,7 +363,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             }
         }
         if (t == RIFT_OPENED) {
-            com.creedpdf.orbitalrailgun.space.RiftPortals.open(world, this, RIFT_RADIUS * 0.94, RIFT_SNAP - RIFT_OPENED + 40);
+            com.creedpdf.orbitalrailgun.space.RiftPortals.open(world, this, RIFT_RADIUS * 0.9, RIFT_SNAP - RIFT_OPENED + 40);
             world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_PORTAL, SoundCategory.BLOCKS, 24f, 1f);
         }
         if (t >= RIFT_OPENED && t < RIFT_COLLAPSE) {
@@ -374,7 +374,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
             if (t == RIFT_COLLAPSE - w) warnSpace(world, w / 20);
         }
         if (t >= RIFT_COLLAPSE && t < RIFT_SNAP && t % 4 == 0) {
-            com.creedpdf.orbitalrailgun.space.RiftPortals.resize(world, this, riftRadius(t) * 0.94);
+            com.creedpdf.orbitalrailgun.space.RiftPortals.resize(world, this, riftRadius(t) / RIFT_RADIUS);
         }
         if (t == RIFT_COLLAPSE) world.playSound(null, rift.x, rift.y, rift.z, ModSounds.RIFT_CHARGE, SoundCategory.BLOCKS, 20f, 0.55f);
         if (t == RIFT_SNAP) {

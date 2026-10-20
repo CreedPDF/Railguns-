@@ -1099,90 +1099,122 @@ def build_ares0(offset):
     bone("halo", "pitch", [0, Y, A0_MUZZLE - 6])
     B = bones
 
-    # ---- foundation ---------------------------------------------------------------------------
+    G = "orange"      # ARES-0 runs hot: every light is molten orange
+    # ---- foundation: a black, armoured octagon with clawed pylons --------------------------------
     b = B["base"]
-    octagon("a0_foot", b, "dark", 0, 156, 6)
-    octagon("a0_haz", b, "hazard", 6, 150, 2)
-    octagon("a0_body", b, "hull", 8, 140, 18)
-    octagon("a0_band", b, "cyan", 15, 141, 1.2)
-    octagon("a0_cap", b, "steel", 26, 128, 4)
-    for sx in (-1, 1):
-        for sz in (-1, 1):
-            cx, cz = sx * 46, sz * 46
-            box(b, "dark", [cx - 12, 8, cz - 12], [24, 30, 24])
-            box(b, "white", [cx - 12.5, 22, cz - 12.5], [25, 10, 25])
-            box(b, "cyan", [cx - 10, 33, cz - 12.6], [20, 1.2, 0.4])
-            box(b, "cyan", [cx - 10, 33, cz + 12.2], [20, 1.2, 0.4])
-            box(b, "vent", [cx - 9, 38, cz - 9], [18, 1, 18])
-            box(b, "amber", [cx - 1, 38.5, cz - 1], [2, 1.5, 2])
-    # ---- legs (modelled pointing north; the runtime/animation swings each mount) ---------------
+    octagon("a0_foot", b, "dark", 0, 164, 6)
+    octagon("a0_haz", b, "hazard", 6, 158, 2)
+    octagon("a0_body", b, "hull", 8, 146, 18)
+    octagon("a0_band", b, G, 14, 147, 1.4)
+    octagon("a0_band2", b, G, 22, 147, 0.8)
+    octagon("a0_cap", b, "dark", 26, 132, 5)
+    for k in range(8):
+        ang = 22.5 + k * 45
+        a = math.radians(ang)
+        cx, cz = 62 * math.cos(a), 62 * math.sin(a)
+        # leaning pylon: stacked, shrinking blocks rotated to face outward
+        for j, (w, h, y0) in enumerate(((20, 14, 8), (16, 12, 22), (11, 10, 34), (6, 9, 44))):
+            rbox(b, "dark" if j % 2 == 0 else "hull", [cx - w / 2 + math.cos(a) * j * 2.5, y0, cz - w / 2 + math.sin(a) * j * 2.5],
+                 [w, h, w], [cx, y0, cz], "y", -ang + 45)
+        rbox(b, G, [cx - 4, 30, cz - 10.6], [8, 1.5, 0.6], [cx, 30, cz], "y", -ang + 90)
+        box(b, "amber", [cx - 1, 53, cz - 1], [2, 2, 2])
+    # ---- legs: long clawed stabilisers (modelled north, swung into place at runtime) -------------
     for i in range(6):
         L = B[f"leg_{i}"]
-        box(L, "steel", [-5, 14, -110], [10, 10, 52])          # strut
-        box(L, "white", [-6, 23, -104], [12, 3.5, 42])         # armour cover
-        box(L, "hazard", [-6.2, 23.2, -66], [12.4, 3.4, 3])
-        box(L, "chrome", [-3, 6, -96], [6, 8, 32])             # hydraulic ram
-        box(L, "dark", [-7, 4, -118], [14, 22, 14])            # knee
-        box(L, "steel", [-12, 0, -140], [24, 6, 34])           # foot
-        box(L, "hazard", [-11, 6, -138], [22, 1, 4])
-        box(L, "cyan", [-8, 6, -126], [16, 0.8, 1.2])
-        box(L, "dark", [-4, 0, -146], [8, 4, 6])               # toe spike
-    # ---- turret: turntable + yoke towers -------------------------------------------------------
+        box(L, "dark", [-6, 14, -116], [12, 12, 58])           # strut
+        box(L, "hull", [-7, 25, -110], [14, 4, 48])            # armour
+        box(L, "hazard", [-7.2, 25.2, -66], [14.4, 3.8, 3])
+        box(L, G, [-7.4, 20, -104], [0.4, 1.2, 36], mirror=("x",))
+        box(L, "chrome", [-3, 6, -100], [6, 8, 36])            # hydraulic ram
+        box(L, "dark", [-8, 2, -124], [16, 26, 16])            # knee
+        box(L, "steel", [-13, 0, -146], [26, 6, 36])           # foot
+        box(L, "hazard", [-12, 6, -144], [24, 1, 4])
+        # claw talons digging in
+        for tx in (-9, 0, 9):
+            box(L, "dark", [tx - 2.5, -2, -156], [5, 5, 12])
+            box(L, "dark", [tx - 1.5, -3, -164], [3, 4, 8])
+        box(L, G, [-9, 6, -132], [18, 0.8, 1.4])
+    # ---- turret: turntable + horned yoke towers --------------------------------------------------
     yw = B["yaw"]
-    octagon("a0_turn", yw, "dark", 30, 104, 8)
-    octagon("a0_turnband", yw, "cyan", 34, 105, 1)
-    box(yw, "steel", [-30, 38, -22], [60, 20, 44])
+    octagon("a0_turn", yw, "dark", 30, 110, 8)
+    octagon("a0_turnband", yw, G, 34, 111, 1)
+    box(yw, "hull", [-34, 38, -24], [68, 22, 48])
+    box(yw, G, [-30, 48, -24.4], [60, 1, 0.5])
     for sx in (-1, 1):
-        x0 = 30 if sx > 0 else -46
-        box(yw, "hull", [x0, 38, -22], [16, 82, 44])                       # tower
-        box(yw, "white", [x0 + (14 if sx > 0 else -1.5), 50, -18], [3.5, 62, 36])  # outer armour
-        box(yw, "cyan", [x0 + (17.5 if sx > 0 else -2), 56, -1], [0.6, 50, 2])
-        box(yw, "dark", [x0 - 1, 120, -24], [18, 6, 48])                   # cap
-        box(yw, "chrome", [(24 if sx > 0 else -32), Y - 12, -12], [8, 24, 24])  # trunnion bearing
-        box(yw, "vent", [x0 + 2, 40, 22.2], [12, 70, 1])
-        box(yw, "amber", [x0 + 6, 126, -2], [4, 2, 4])
+        x0 = 32 if sx > 0 else -50
+        box(yw, "dark", [x0, 38, -26], [18, 96, 52])                        # tower
+        # angled armour fins down the outside of each tower
+        fx = x0 + (18 if sx > 0 else 0)
+        for k, y0 in enumerate((48, 72, 96)):
+            rbox(yw, "hull", [fx - 2, y0, -24], [4, 20, 48], [fx, y0, 0], "z", -sx * 18.0)
+            box(yw, G, [fx + (2.2 if sx > 0 else -2.6), y0 + 8, -18], [0.4, 1.4, 36])
+        # horns
+        hx = x0 + 9
+        for j, (w, h) in enumerate(((14, 10), (10, 10), (7, 10), (4, 9))):
+            rbox(yw, "dark" if j % 2 == 0 else "hull", [hx - w / 2 + sx * j * 2.5, 134 + j * 10, -w / 2 - 14], [w, h, w],
+                 [hx, 134 + j * 10, -14], "z", -sx * (8 + j * 6))
+            rbox(yw, "dark" if j % 2 == 0 else "hull", [hx - w / 2 + sx * j * 2.5, 134 + j * 10, -w / 2 + 14], [w, h, w],
+                 [hx, 134 + j * 10, 14], "z", -sx * (8 + j * 6))
+        box(yw, G, [x0 + 4, 124, -26.6], [10, 2, 0.6])                      # slit "eyes"
+        box(yw, G, [x0 + 4, 118, -26.6], [10, 1.2, 0.6])
+        box(yw, "chrome", [(26 if sx > 0 else -34), Y - 13, -13], [8, 26, 26])  # trunnion
+        box(yw, "vent", [x0 + 2, 40, 26.2], [14, 80, 1])
     # ---- sensor mast + dish --------------------------------------------------------------------
     m = B["mast"]
-    box(m, "steel", [-22, 38, 34], [4, 100, 4])
-    box(m, "dark", [-25, 136, 31], [10, 4, 10])
+    box(m, "dark", [-22, 38, 36], [4, 104, 4])
+    box(m, "hull", [-25, 140, 33], [10, 4, 10])
     d = B["a0_dish"]
-    box(d, "chrome", [-30, 140, 30], [20, 2, 12])
-    box(d, "white", [-27, 142, 33], [14, 2, 6])
-    box(d, "amber", [-21, 144, 35], [2, 3, 2])
-    # ---- accelerator ---------------------------------------------------------------------------
+    box(d, "steel", [-30, 144, 30], [20, 2, 12])
+    box(d, "dark", [-27, 146, 33], [14, 2, 6])
+    box(d, G, [-21, 148, 35], [2, 3, 2])
+    # ---- accelerator: black rails, serrated fins, a three-fanged maw ------------------------------
     pt = B["pitch"]
-    octagon_z("a0_breech", pt, "hull", 0, Y, 10, 70, 56)
-    octagon_z("a0_breech_cap", pt, "dark", 0, Y, 70, 78, 46)
-    for i, z in enumerate((18, 32, 46, 60)):
-        octagon_z(f"a0_breech_fin{i}", pt, "steel", 0, Y, z, z + 3, 62)
-    box(pt, "dark", [-14, Y + 24, 10], [28, 12, 50])
-    box(pt, "cyan", [-10, Y + 36, 16], [20, 0.6, 38])
-    box(pt, "amber", [-12, Y + 36, 62], [3, 2, 3])
+    octagon_z("a0_breech", pt, "hull", 0, Y, 10, 76, 60)
+    octagon_z("a0_breech_cap", pt, "dark", 0, Y, 76, 86, 48)
+    for i, z in enumerate((18, 34, 50, 66)):
+        octagon_z(f"a0_breech_fin{i}", pt, "dark", 0, Y, z, z + 4, 68)
+    octagon_z("a0_breech_glow", pt, G, 0, Y, 86, 87, 30)
+    box(pt, "dark", [-15, Y + 26, 10], [30, 14, 56])
+    box(pt, G, [-11, Y + 40, 16], [22, 0.6, 44])
     for ang in (90, 210, 330):
         a = math.radians(ang)
         rx, ry = 20 * math.cos(a), Y + 20 * math.sin(a)
-        box(pt, "steel", [rx - 5, ry - 5, A0_MUZZLE], [10, 10, 10 - A0_MUZZLE])
+        box(pt, "dark", [rx - 5, ry - 5, A0_MUZZLE], [10, 10, 10 - A0_MUZZLE])
         gx, gy = rx * 0.66, Y + (ry - Y) * 0.66
-        box(pt, "cyan", [gx - 1, gy - 1, A0_MUZZLE + 6], [2, 2, -A0_MUZZLE - 6 - 4])
+        box(pt, G, [gx - 1, gy - 1, A0_MUZZLE + 6], [2, 2, -A0_MUZZLE - 6 - 4])
         for k in range(8):
             z0 = -44 - k * 56
-            box(pt, "white", [rx - 6, ry - 6, z0 - 30], [12, 12, 30])
-    box(pt, "cyan", [-1.5, Y - 1.5, A0_MUZZLE + 10], [3, 3, -A0_MUZZLE - 10 - 20])
+            box(pt, "hull", [rx - 6.5, ry - 6.5, z0 - 30], [13, 13, 30])
+            box(pt, G, [rx - 6.7, ry - 0.5, z0 - 26], [13.4, 1, 3])
+    # serrated radial fins between the rails (rotated about the barrel axis)
+    for ang in (30, 150, 270):
+        for k in range(10):
+            z0 = -40 - k * 44
+            ln = 30 - (k % 2) * 10
+            h = 10 + (k % 3) * 4
+            rbox(pt, "dark", [-1.5, Y + 24, z0 - ln], [3, h, ln], [0, Y, z0 - ln / 2], "z", ang - 90)
+            rbox(pt, G, [-0.4, Y + 24 + h - 1.2, z0 - ln + 2], [0.8, 1.2, ln - 4], [0, Y, z0 - ln / 2], "z", ang - 90)
+    box(pt, G, [-2, Y - 2, A0_MUZZLE + 10], [4, 4, -A0_MUZZLE - 10 - 20])
     for sx in (-1, 1):
-        box(pt, "vent", [(26 if sx > 0 else -30), Y - 8, -210], [4, 16, 150])
-    octagon_z("a0_muzzle", pt, "dark", 0, Y, A0_MUZZLE - 10, A0_MUZZLE + 6, 66)
-    octagon_z("a0_emitter", pt, "cyan", 0, Y, A0_MUZZLE - 11, A0_MUZZLE - 10, 34)
+        box(pt, "vent", [(27 if sx > 0 else -31), Y - 8, -220], [4, 16, 160])
+    octagon_z("a0_muzzle", pt, "dark", 0, Y, A0_MUZZLE - 12, A0_MUZZLE + 6, 72)
+    octagon_z("a0_emitter", pt, G, 0, Y, A0_MUZZLE - 13, A0_MUZZLE - 12, 40)
     for k, z in enumerate(zs):
         rb = B[f"ring_{k}"]
-        ring_z(rb, "dark", 0, Y, z - 3, z + 3, 28, 4)
-        ring_z(rb, "cyan", 0, Y, z - 1, z + 1, 25, 2)
+        ring_z(rb, "dark", 0, Y, z - 3.5, z + 3.5, 29, 5)
+        ring_z(rb, G, 0, Y, z - 1, z + 1, 26, 2)
+        for t in range(6):
+            rbox(rb, "hull", [-2, Y + 33, z - 2.5], [4, 6, 5], [0, Y, z], "z", t * 60.0 + (k % 2) * 30.0)
     h = B["halo"]
     hz = A0_MUZZLE - 6
-    ring_z(h, "white", 0, Y, hz - 16, hz - 12, 40, 3)
+    ring_z(h, "dark", 0, Y, hz - 18, hz - 12, 42, 4)
+    ring_z(h, G, 0, Y, hz - 16, hz - 14, 39, 1.5)
     for ang in (90, 210, 330):
-        a = math.radians(ang)
-        box(h, "steel", [40 * math.cos(a) - 2, Y + 40 * math.sin(a) - 2, hz - 40], [4, 4, 26])
-        box(h, "cyan", [40 * math.cos(a) - 1, Y + 40 * math.sin(a) - 1, hz - 42], [2, 2, 2])
+        # three fangs: long, stepped inward toward the tip
+        for j, (rad, w, ln, zo) in enumerate(((40, 7, 30, 0), (34, 5, 22, 30), (28, 3, 16, 52))):
+            a = math.radians(ang)
+            box(h, "dark" if j % 2 == 0 else "hull", [rad * math.cos(a) - w / 2, Y + rad * math.sin(a) - w / 2, hz - 14 - zo - ln], [w, w, ln])
+        box(h, G, [28 * math.cos(a) - 1, Y + 28 * math.sin(a) - 1, hz - 84], [2, 2, 2])
     return bones
 
 

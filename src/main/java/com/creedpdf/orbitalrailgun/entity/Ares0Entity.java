@@ -267,16 +267,13 @@ public class Ares0Entity extends Entity implements GeoEntity {
             notifyOwner(world, Text.translatable("message.orbital_railgun.ares0.lost").formatted(Formatting.RED));
             return;
         }
-        if (t % 10 == 0) RailgunFx.burst(world, ModParticles.ENERGY_MOTE, getMuzzlePos(1f), 12, 1.2, 1.2, 0.05);
+        if (t % 10 == 0) RailgunFx.burst(world, ModParticles.EMBER, getMuzzlePos(1f), 12, 1.2, 1.2, 0.05);
         if (t >= CHARGE_TICKS) {
             setState(State.FIRING);
             Vec3d m = getMuzzlePos(1f);
             world.playSound(null, m.x, m.y, m.z, ModSounds.ARES0_FIRE, SoundCategory.BLOCKS, 40f, 1f);
             RailgunFx.burst(world, ModParticles.FLASH, m, 2, 0.5, 0.5, 0);
             PlanetState.get(world.getServer()).start(world.getServer(), b, world.getTime());
-            for (ServerPlayerEntity p : world.getServer().getPlayerManager().getPlayerList()) {
-                p.sendMessage(Text.translatable("message.orbital_railgun.ares0.firing", b.displayName()).formatted(Formatting.RED), false);
-            }
         }
     }
 
@@ -322,7 +319,7 @@ public class Ares0Entity extends Entity implements GeoEntity {
             for (int i = 0; i < 2 + (int) (6 * f); i++) {
                 Vec3d p = m.add((r.nextDouble() - 0.5) * 8, (r.nextDouble() - 0.5) * 8, (r.nextDouble() - 0.5) * 8);
                 Vec3d v = m.subtract(p).multiply(0.12);
-                w.addParticle(ModParticles.ENERGY_MOTE, p.x, p.y, p.z, v.x, v.y, v.z);
+                w.addParticle(ModParticles.EMBER, p.x, p.y, p.z, v.x, v.y, v.z);
             }
         }
         if (getState() == State.FALLING && r.nextInt(2) == 0) {

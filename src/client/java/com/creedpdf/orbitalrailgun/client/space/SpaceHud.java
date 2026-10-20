@@ -33,6 +33,7 @@ public final class SpaceHud {
         float time = w.getTime() + pt;
 
         flash(dc, w, pt, sw, sh);
+        Banner.render(dc, pt);
         ReentryFx.hud(dc, pt);
 
         boolean airless = SpaceDims.isAirless(w);

@@ -6,7 +6,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import qouteall.imm_ptl.core.api.PortalAPI;
-import qouteall.imm_ptl.core.portal.PortalManipulation;
+import qouteall.imm_ptl.core.portal.GeometryPortalShape;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,11 +42,21 @@ public final class RiftPortals {
         RiftPortal front = RiftPortal.TYPE.create(world);
         if (front == null) return;
         front.setOriginPos(c);
+        // the tear's own jagged outline (same seed the client uses for the glowing rim)
+        float[][] pts = RiftShape.outline(seed(rg), (float) radius);
+        float[] ext = RiftShape.extent(pts);
+        double w = ext[0] * 2.02, h = ext[1] * 2.02;
         // axisW x axisH = -Y: the portal faces down, so it is seen and entered from below
-        front.setOrientationAndSize(new Vec3d(1, 0, 0), new Vec3d(0, 0, 1), radius * 2, radius * 2);
+        front.setOrientationAndSize(new Vec3d(1, 0, 0), new Vec3d(0, 0, 1), w, h);
         front.setDestinationDimension(SpaceDims.SPACE);
         front.setDestination(exit);
-        PortalManipulation.makePortalRound(front, 64);
+        GeometryPortalShape shape = new GeometryPortalShape();
+        shape.triangles = new java.util.ArrayList<>();
+        for (int i = 0; i < pts.length; i++) {
+            float[] a = pts[i], b = pts[(i + 1) % pts.length];
+            shape.triangles.add(new GeometryPortalShape.TriangleInPlane(0, 0, a[0], a[1], b[0], b[1]));
+        }
+        front.specialShape = shape;
         front.specialShape.normalize(front.width, front.height);
         front.expireAt = world.getTime() + lifetime;
 
@@ -58,15 +68,25 @@ public final class RiftPortals {
         OPEN.put(rg.getUuid(), new Pair(front.getUuid(), back.getUuid()));
     }
 
-    public static void resize(ServerWorld world, RailgunEntity rg, double radius) {
+    /** Seed shared with the client so the rim drawn around the portal matches its outline. */
+    public static long seed(RailgunEntity rg) {
+        return rg.getUuid().getMostSignificantBits() ^ 0x5EED_0F_A215L;
+    }
+
+    /** @param scale fraction of the full size (the shape's proportions never change) */
+    public static void resize(ServerWorld world, RailgunEntity rg, double scale) {
         Pair p = OPEN.get(rg.getUuid());
         if (p == null) return;
         ServerWorld space = world.getServer().getWorld(SpaceDims.SPACE);
         for (Entity e : new Entity[]{world.getEntity(p.front), space == null ? null : space.getEntity(p.back)}) {
             if (e instanceof RiftPortal portal) {
-                double d = Math.max(0.5, radius * 2);
-                portal.setWidth(d);
-                portal.setHeight(d);
+                if (portal.baseWidth <= 0) {
+                    portal.baseWidth = portal.width;
+                    portal.baseHeight = portal.height;
+                }
+                double k = Math.max(0.02, scale);
+                portal.setWidth(portal.baseWidth * k);
+                portal.setHeight(portal.baseHeight * k);
                 portal.reloadAndSyncToClient();
             }
         }

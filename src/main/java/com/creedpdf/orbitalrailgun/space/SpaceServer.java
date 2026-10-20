@@ -126,6 +126,7 @@ public final class SpaceServer {
             if (!ps.doomed(b)) continue;
             long e = now - ps.blastStart(b);
             if (e == Blast.EJECT) evacuate(server, b);
+            if (b.destroyable()) MeteorShower.tick(server, b, e);
         }
     }
 
