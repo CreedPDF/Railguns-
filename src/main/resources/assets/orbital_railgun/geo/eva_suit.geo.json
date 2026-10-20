@@ -16,6 +16,14 @@
    },
    "bones": [
     {
+     "name": "suit_root",
+     "pivot": [
+      0,
+      0,
+      0
+     ]
+    },
+    {
      "name": "armorHead",
      "pivot": [
       0,

@@ -83,6 +83,16 @@ for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glo
     print(f"{extra}: {n} lit pixels")
     if n == 0:
         errors.append(f"{extra}: no visible pixels (GeckoLib would crash)")
+# every geo bone's parent must be defined (GeckoLib aborts the whole resource reload otherwise)
+import json as _json
+for geo in sorted((ASSETS / "geo").glob("*.geo.json")):
+    bones = _json.loads(geo.read_text())["minecraft:geometry"][0]["bones"]
+    names = {b["name"] for b in bones}
+    for b in bones:
+        if "parent" in b and b["parent"] not in names:
+            errors.append(f"{geo.name}: bone {b['name']} has undefined parent {b['parent']}")
+    print(f"{geo.name}: {len(bones)} bones ok")
+
 if errors:
     for e in errors:
         print(f"::error title=Asset validation::{e}")

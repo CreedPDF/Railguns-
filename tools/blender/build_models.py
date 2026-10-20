@@ -1202,6 +1202,7 @@ def build_suit(offset):
     piv = {"armorHead": [0, 24, 0], "armorBody": [0, 24, 0], "armorRightArm": [-5, 22, 0], "armorLeftArm": [5, 22, 0],
            "armorRightLeg": [-1.9, 12, 0], "armorLeftLeg": [1.9, 12, 0], "armorRightBoot": [-1.9, 12, 0], "armorLeftBoot": [1.9, 12, 0]}
     root = make_bone("suit_root", None, [0, 0, 0], None, offset=offset)
+    bones["suit_root"] = root          # exported too: every bone's parent must exist in the geo file
     for n, p in piv.items():
         bones[n] = make_bone(n, root, p, [0, 0, 0])
     H = bones["armorHead"]
