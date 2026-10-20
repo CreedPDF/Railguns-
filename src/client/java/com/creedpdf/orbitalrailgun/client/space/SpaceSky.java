@@ -156,13 +156,12 @@ public final class SpaceSky {
 
     private static void drawSun(Matrix4f m, Vector3f dir, float scale, float clarity) {
         Vector3f c = new Vector3f(dir).mul(55f);
-        VertexConsumer g = BeamRenderer.glow(BUF);
         float core = 0.34f * scale;
-        // soft glare that scales with how clear the sky is
+        // (always re-fetch the consumer: switching layers on the shared buffer invalidates the old one)
         PlanetBlastFx.billboard(BUF.getBuffer(BeamRenderLayers.textured(SUN_GLARE)), m, c, 12f * scale * (0.5f + 0.5f * clarity), 0f, 1f, 0.97f, 0.92f, 1f);
-        PlanetBlastFx.glowBall(g, m, c, core * 2.4f, 1f, 0.95f, 0.85f, 0.35f);
+        PlanetBlastFx.glowBall(BeamRenderer.glow(BUF), m, c, core * 2.4f, 1f, 0.95f, 0.85f, 0.35f);
         BeamRenderer.texSphere(BeamRenderer.tex(BUF, SUN), m, c, core, 1f, 0.98f, 0.94f, 1f, 0f, 0f);
-        PlanetBlastFx.glowBall(g, m, c, core * 1.08f, 1f, 1f, 1f, 1f);
+        PlanetBlastFx.glowBall(BeamRenderer.glow(BUF), m, c, core * 1.08f, 1f, 1f, 1f, 1f);
     }
 
     private static void starPoint(Matrix4f m, Vector3f c, float r, Body b, Vector3f sun, float alpha) {

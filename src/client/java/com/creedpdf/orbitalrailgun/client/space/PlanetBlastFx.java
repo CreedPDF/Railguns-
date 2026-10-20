@@ -201,41 +201,48 @@ public final class PlanetBlastFx {
         float hr = 1f, hg = Math.max(0.05f, 0.95f - 1.4f * cool), hb = Math.max(0f, 0.8f - 2.2f * cool);
         float hot = Math.max(0.12f, 1f - 0.85f * cool);
         Quaternionf q = BodyDraw.spin(b, time - d);
-        VertexConsumer rock = cp.getBuffer(alpha >= 0.999f ? BeamRenderLayers.solid(BodyDraw.albedo(b)) : BeamRenderLayers.translucent(BodyDraw.albedo(b)));
-        VertexConsumer glow = cp.getBuffer(BeamRenderLayers.GLOW);
-        Vector3f tmp = new Vector3f();
-        for (Shard s : shards(b)) {
-            float dist = r * (s.speed * (0.25f + 6.5f * ease) + drift * s.speed * 40f);
-            Vector3f centre = new Vector3f(s.dir).mul(r + dist).add(c);
-            Quaternionf rot = new Quaternionf().rotationAxis(s.spin * d * 0.0035f, s.axis.x, s.axis.y, s.axis.z).mul(q);
-            Vector3f apexLocal = new Vector3f(s.dir).mul(-0.62f * r);
-            for (Vector3f[] t : s.tris) {
-                Vector3f[] p = new Vector3f[3];
-                float[] uu = new float[3], vv = new float[3];
-                for (int k = 0; k < 3; k++) {
-                    tmp.set(t[k]).mul(r).sub(new Vector3f(s.dir).mul(r));
-                    p[k] = rot.transform(new Vector3f(tmp)).add(centre);
-                    uu[k] = (float) (Math.atan2(t[k].z, t[k].x) / MathHelper.TAU);
-                    if (uu[k] < 0) uu[k] += 1f;
-                    vv[k] = (float) (Math.acos(MathHelper.clamp(t[k].y, -1, 1)) / MathHelper.PI);
-                }
-                if (Math.abs(uu[0] - uu[1]) > 0.5f || Math.abs(uu[0] - uu[2]) > 0.5f) {
-                    for (int k = 0; k < 3; k++) if (uu[k] < 0.5f) uu[k] += 1f;
-                }
-                Vector3f nrm = rot.transform(new Vector3f(t[0]).add(t[1]).add(t[2]).normalize());
-                float k = BodyDraw.lit(nrm, l, 0.03f);
-                for (int v = 0; v < 4; v++) {
-                    int idx = Math.min(v, 2);
-                    rock.vertex(m, p[idx].x, p[idx].y, p[idx].z).color(k, k, k, alpha).texture(uu[idx], vv[idx]).light(LIGHT).normal(0, 1, 0).next();
-                }
+        // two passes (rock faces, then molten glow): one shared buffer can only hold one layer at a time
+        for (int pass = 0; pass < 2; pass++) {
+            VertexConsumer vc = pass == 0
+                    ? cp.getBuffer(alpha >= 0.999f ? BeamRenderLayers.solid(BodyDraw.albedo(b)) : BeamRenderLayers.translucent(BodyDraw.albedo(b)))
+                    : cp.getBuffer(BeamRenderLayers.GLOW);
+            Vector3f tmp = new Vector3f();
+            for (Shard s : shards(b)) {
+                float dist = r * (s.speed * (0.25f + 6.5f * ease) + drift * s.speed * 40f);
+                Vector3f centre = new Vector3f(s.dir).mul(r + dist).add(c);
+                Quaternionf rot = new Quaternionf().rotationAxis(s.spin * d * 0.0035f, s.axis.x, s.axis.y, s.axis.z).mul(q);
+                Vector3f apexLocal = new Vector3f(s.dir).mul(-0.62f * r);
                 Vector3f apex = rot.transform(new Vector3f(apexLocal)).add(centre);
-                for (int e2 = 0; e2 < 3; e2++) {
-                    Vector3f a = p[e2], bb = p[(e2 + 1) % 3];
-                    float ga = hot * alpha;
-                    glow.vertex(m, a.x, a.y, a.z).color(hr, hg, hb, ga * 0.6f).next();
-                    glow.vertex(m, bb.x, bb.y, bb.z).color(hr, hg, hb, ga * 0.6f).next();
-                    glow.vertex(m, apex.x, apex.y, apex.z).color(hr, hg * 1.05f, hb + 0.1f, ga).next();
-                    glow.vertex(m, apex.x, apex.y, apex.z).color(hr, hg * 1.05f, hb + 0.1f, ga).next();
+                for (Vector3f[] t : s.tris) {
+                    Vector3f[] p = new Vector3f[3];
+                    float[] uu = new float[3], vv = new float[3];
+                    for (int k = 0; k < 3; k++) {
+                        tmp.set(t[k]).mul(r).sub(new Vector3f(s.dir).mul(r));
+                        p[k] = rot.transform(new Vector3f(tmp)).add(centre);
+                        uu[k] = (float) (Math.atan2(t[k].z, t[k].x) / MathHelper.TAU);
+                        if (uu[k] < 0) uu[k] += 1f;
+                        vv[k] = (float) (Math.acos(MathHelper.clamp(t[k].y, -1, 1)) / MathHelper.PI);
+                    }
+                    if (pass == 0) {
+                        if (Math.abs(uu[0] - uu[1]) > 0.5f || Math.abs(uu[0] - uu[2]) > 0.5f) {
+                            for (int k = 0; k < 3; k++) if (uu[k] < 0.5f) uu[k] += 1f;
+                        }
+                        Vector3f nrm = rot.transform(new Vector3f(t[0]).add(t[1]).add(t[2]).normalize());
+                        float k = BodyDraw.lit(nrm, l, 0.03f);
+                        for (int v = 0; v < 4; v++) {
+                            int idx = Math.min(v, 2);
+                            vc.vertex(m, p[idx].x, p[idx].y, p[idx].z).color(k, k, k, alpha).texture(uu[idx], vv[idx]).light(LIGHT).normal(0, 1, 0).next();
+                        }
+                    } else {
+                        float ga = hot * alpha;
+                        for (int e2 = 0; e2 < 3; e2++) {
+                            Vector3f a = p[e2], bb = p[(e2 + 1) % 3];
+                            vc.vertex(m, a.x, a.y, a.z).color(hr, hg, hb, ga * 0.6f).next();
+                            vc.vertex(m, bb.x, bb.y, bb.z).color(hr, hg, hb, ga * 0.6f).next();
+                            vc.vertex(m, apex.x, apex.y, apex.z).color(hr, hg * 1.05f, hb + 0.1f, ga).next();
+                            vc.vertex(m, apex.x, apex.y, apex.z).color(hr, hg * 1.05f, hb + 0.1f, ga).next();
+                        }
+                    }
                 }
             }
         }

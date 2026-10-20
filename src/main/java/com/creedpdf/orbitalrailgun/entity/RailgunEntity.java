@@ -369,7 +369,6 @@ public class RailgunEntity extends Entity implements GeoEntity {
         if (t >= RIFT_OPENED && t < RIFT_COLLAPSE) {
             vortex(world, rift, t);
             liftPlayers(world, rift, t);
-            if (t % 40 == 7) groundStrike(world, rift);
         }
         for (int w : RIFT_WARNINGS) {
             if (t == RIFT_COLLAPSE - w) warnSpace(world, w / 20);
