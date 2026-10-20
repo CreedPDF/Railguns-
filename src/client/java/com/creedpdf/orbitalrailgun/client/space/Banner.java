@@ -22,10 +22,24 @@ public final class Banner {
     private static String title, sub;
     private static int color = 0xFFFFFFFF;
     private static long start = -1000;
+    private static float titleScale = 2.6f, subScale = 1f;
+    private static boolean glitch;
     private static final int LENGTH = 110;
     private static RegistryKey<World> lastWorld;
 
     public static void show(String t, String s, int argb) {
+        show(t, s, argb, 2.6f, 1f, false);
+    }
+
+    /** A planet just died: a smaller, flickering two-line alert. */
+    public static void planetDestroyed(Body b) {
+        show("GRAVITATIONAL BINDING FAILED", "CELLULAR DISRUPTION IMMINENT", 0xFFFF5A3A, 1.7f, 0.85f, true);
+    }
+
+    public static void show(String t, String s, int argb, float tScale, float sScale, boolean flicker) {
+        titleScale = tScale;
+        subScale = sScale;
+        glitch = flicker;
         MinecraftClient mc = MinecraftClient.getInstance();
         title = t;
         sub = s;
@@ -70,10 +84,16 @@ public final class Banner {
         if (a <= 0.02f) return;
         TextRenderer tr = mc.textRenderer;
         int w = dc.getScaledWindowWidth();
-        float scale = 2.6f, spacing = 3.2f;
+        float scale = titleScale, spacing = 3.2f * titleScale / 2.6f;
+        if (glitch) {
+            // an unstable signal: brief dropouts and a jitter for the first second
+            int k = (int) t;
+            if (t < 26 && (k * 7919 % 5 == 0)) a *= 0.25f;
+        }
         float tw = UiKit.spacedWidth(tr, title, spacing, scale);
         float y = 22;
-        UiKit.spaced(dc, tr, title, (w - tw) / 2f, y, UiKit.alpha(color, a), spacing, scale, true);
+        float jx = glitch && t < 20 && ((int) t) % 3 == 0 ? (((int) t * 31) % 5 - 2) : 0;
+        UiKit.spaced(dc, tr, title, (w - tw) / 2f + jx, y, UiKit.alpha(color, a), spacing, scale, true);
         // the rule draws itself out from the centre
         float lineW = (tw + 40) * MathHelper.clamp((t - 6) / 22f, 0f, 1f);
         int ly = (int) (y + 9 * scale + 6);
@@ -81,8 +101,9 @@ public final class Banner {
         dc.fill(x0, ly, x1, ly + 1, UiKit.alpha(color, a * 0.9f));
         dc.fill(x0 + (int) (lineW * 0.3f), ly + 2, x1 - (int) (lineW * 0.3f), ly + 3, UiKit.alpha(color, a * 0.35f));
         if (sub != null) {
-            float sw = UiKit.spacedWidth(tr, sub, 1.6f, 1f);
-            UiKit.spaced(dc, tr, sub, (w - sw) / 2f, ly + 7, UiKit.alpha(color, a * 0.8f * MathHelper.clamp((t - 16) / 14f, 0f, 1f)), 1.6f, 1f, true);
+            float ss = subScale, sp = 1.6f * ss;
+            float sw = UiKit.spacedWidth(tr, sub, sp, ss);
+            UiKit.spaced(dc, tr, sub, (w - sw) / 2f, ly + 7, UiKit.alpha(color, a * 0.8f * MathHelper.clamp((t - 16) / 14f, 0f, 1f)), sp, ss, true);
         }
     }
 }

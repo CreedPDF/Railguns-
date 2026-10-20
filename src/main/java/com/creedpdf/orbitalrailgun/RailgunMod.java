@@ -128,14 +128,19 @@ public final class RailgunMod implements ModInitializer {
         ModParticles.init();
         ModPackets.registerServerReceivers();
 
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.TOOLS).register(entries -> entries.add(RAILGUN_REMOTE));
-        ItemGroupEvents.modifyEntriesEvent(ItemGroups.COMBAT).register(entries -> {
-            entries.add(RAILGUN_REMOTE);
-            entries.add(EVA_HELMET);
-            entries.add(EVA_CHESTPLATE);
-            entries.add(EVA_LEGGINGS);
-            entries.add(EVA_BOOTS);
-        });
+        // Railguns+ has its own creative tab with everything in it. (The mod's only block is the
+        // invisible collision shell of a deployed railgun, which has no item.)
+        Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
+                .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
+                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
+                .entries((context, entries) -> {
+                    entries.add(RAILGUN_REMOTE);
+                    entries.add(EVA_HELMET);
+                    entries.add(EVA_CHESTPLATE);
+                    entries.add(EVA_LEGGINGS);
+                    entries.add(EVA_BOOTS);
+                })
+                .build());
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> DeploymentScheduler.clear());
@@ -155,7 +160,7 @@ public final class RailgunMod implements ModInitializer {
         net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 !(source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && com.creedpdf.orbitalrailgun.space.EvaSuit.boots(entity)));
 
-        LOGGER.info("Orbital Railgun online. Uplink established.");
+        LOGGER.info("Railguns+ online. Uplink established.");
     }
 
     public static Identifier id(String path) {

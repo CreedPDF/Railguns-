@@ -232,7 +232,7 @@ public final class SpaceClient {
             if (e < 0 || last < 0 && e > 40) continue;
             if (last < Blast.DETONATE && e >= Blast.DETONATE && !(w.getRegistryKey() == World.OVERWORLD
                     ? com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(w, b) : SpaceDims.isAirless(w))) {
-                Banner.show(b.displayName() + " HAS BEEN " + Banner.verb(b), null, 0xFFFF9A50);
+                Banner.planetDestroyed(b);
             }
             boolean visible = w.getRegistryKey() == World.OVERWORLD ? com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(w, b)
                     : SpaceDims.isAirless(w);
@@ -241,7 +241,7 @@ public final class SpaceClient {
             if (last < Blast.CRACK_END - 30 && e >= Blast.CRACK_END - 30) p.playSound(ModSounds.PLANET_COLLAPSE, 2f, 0.9f);
             if (last < Blast.DETONATE && e >= Blast.DETONATE) {
                 p.playSound(ModSounds.PLANET_EXPLODE, 3f, 0.85f);
-                Banner.show(b.displayName() + " HAS BEEN " + Banner.verb(b), null, 0xFFFF9A50);
+                Banner.planetDestroyed(b);
                 RailgunHud.shake(SpaceDims.isAirless(w) ? 2.4f : 1.2f);
             }
         }

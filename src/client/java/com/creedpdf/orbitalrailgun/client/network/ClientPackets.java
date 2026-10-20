@@ -65,6 +65,14 @@ public final class ClientPackets {
         });
     }
 
+    /** Uplink remote control: 0 recall ARES-9, 1 ARES-0 select, 2 ARES-0 fire, 3 ARES-0 recall. */
+    public static void sendRemote(int action, int body) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(action);
+        buf.writeVarInt(body);
+        ClientPlayNetworking.send(ModPackets.TABLET_REMOTE, buf);
+    }
+
     public static void sendRift() {
         ClientPlayNetworking.send(ModPackets.TABLET_RIFT, PacketByteBufs.create());
     }

@@ -66,6 +66,8 @@ public final class ModPackets {
     public static final Identifier TABLET_RIFT = RailgunMod.id("tablet_rift");
     public static final Identifier RIFT_BOLT = RailgunMod.id("rift_bolt");
     public static final Identifier ARES0_ACTION = RailgunMod.id("ares0_action");
+    /** Uplink tablet remote control: varint action (0 recall ARES-9, 1 ARES-0 select, 2 ARES-0 fire, 3 ARES-0 recall), varint body. */
+    public static final Identifier TABLET_REMOTE = RailgunMod.id("tablet_remote");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -78,6 +80,14 @@ public final class ModPackets {
             int action = buf.readVarInt();
             int body = buf.readVarInt();
             server.execute(() -> handleAres0(player, entityId, action, body));
+        });
+        ServerPlayNetworking.registerGlobalReceiver(TABLET_REMOTE, (server, player, handler, buf, sender) -> {
+            int action = buf.readVarInt();
+            int body = buf.readVarInt();
+            server.execute(() -> {
+                handleRemote(player, action, body);
+                sendTabletInfo(player);
+            });
         });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_STATUS, (server, player, handler, buf, sender) ->
                 server.execute(() -> sendTabletInfo(player)));
@@ -176,6 +186,41 @@ public final class ModPackets {
                 }
             }
             case 2 -> ares.beginLeave();
+            default -> {}
+        }
+    }
+
+    /** Remote control from the uplink tablet, at any distance and from any dimension. */
+    private static void handleRemote(ServerPlayerEntity player, int action, int bodyIdx) {
+        com.creedpdf.orbitalrailgun.space.Body body = bodyIdx >= 0 && bodyIdx < com.creedpdf.orbitalrailgun.space.Body.ALL.length
+                ? com.creedpdf.orbitalrailgun.space.Body.ALL[bodyIdx] : null;
+        if (action == 0) {
+            RailgunEntity railgun = owned(player);
+            if (railgun == null) { deny(player, "no_railgun"); return; }
+            if (!railgun.remoteRecall()) { deny(player, "busy"); return; }
+            player.sendMessage(Text.translatable("message.orbital_railgun.remote.recall").formatted(Formatting.RED), true);
+            player.playSound(ModSounds.UI_TARGET_LOCK, SoundCategory.PLAYERS, 1.0f, 0.7f);
+            return;
+        }
+        java.util.List<com.creedpdf.orbitalrailgun.entity.Ares0Entity> list =
+                com.creedpdf.orbitalrailgun.entity.Ares0Entity.owned(player.getServer(), player.getUuid());
+        if (list.isEmpty()) { deny(player, "no_ares0"); return; }
+        com.creedpdf.orbitalrailgun.entity.Ares0Entity ares = list.get(0);
+        switch (action) {
+            case 1 -> { if (body != null) ares.select(body); }
+            case 2 -> {
+                if (body == null) return;
+                if (!ares.tryFire(player, body)) {
+                    deny(player, com.creedpdf.orbitalrailgun.space.PlanetState.get(player.getServer()).doomed(body) ? "ares0_gone"
+                            : !com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(ares.getWorld(), body) ? "ares0_horizon" : "busy");
+                } else {
+                    player.playSound(ModSounds.UI_TARGET_LOCK, SoundCategory.PLAYERS, 1.0f, 0.5f);
+                }
+            }
+            case 3 -> {
+                ares.beginLeave();
+                player.sendMessage(Text.translatable("message.orbital_railgun.remote.recall").formatted(Formatting.RED), true);
+            }
             default -> {}
         }
     }
@@ -318,6 +363,27 @@ public final class ModPackets {
             buf.writeVarInt(railgun.getStateTicks());
             buf.writeVarInt(railgun.getLoadout().raw());
             buf.writeBoolean(railgun.getState() == com.creedpdf.orbitalrailgun.entity.RailgunState.ARMING);
+        }
+        // ARES-0 block: boolean found, [varint state, varint target body (-1 none), varint stateTicks,
+        // BlockPos pos, varint visible mask, varint doomed mask]
+        java.util.List<com.creedpdf.orbitalrailgun.entity.Ares0Entity> a0 =
+                com.creedpdf.orbitalrailgun.entity.Ares0Entity.owned(player.getServer(), player.getUuid());
+        buf.writeBoolean(!a0.isEmpty());
+        if (!a0.isEmpty()) {
+            com.creedpdf.orbitalrailgun.entity.Ares0Entity ares = a0.get(0);
+            buf.writeVarInt(ares.getState().ordinal());
+            com.creedpdf.orbitalrailgun.space.Body tb = ares.getTarget();
+            buf.writeVarInt(tb == null ? -1 : tb.ordinal());
+            buf.writeVarInt(ares.getStateTicks());
+            buf.writeBlockPos(ares.getBlockPos());
+            int vis = 0, doom = 0;
+            com.creedpdf.orbitalrailgun.space.PlanetState ps = com.creedpdf.orbitalrailgun.space.PlanetState.get(player.getServer());
+            for (com.creedpdf.orbitalrailgun.space.Body b : com.creedpdf.orbitalrailgun.space.Body.ALL) {
+                if (com.creedpdf.orbitalrailgun.entity.Ares0Entity.visible(ares.getWorld(), b)) vis |= 1 << b.ordinal();
+                if (ps.doomed(b)) doom |= 1 << b.ordinal();
+            }
+            buf.writeVarInt(vis);
+            buf.writeVarInt(doom);
         }
         ServerPlayNetworking.send(player, TABLET_INFO, buf);
     }

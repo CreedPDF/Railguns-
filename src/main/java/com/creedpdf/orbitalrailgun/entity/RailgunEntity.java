@@ -717,7 +717,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 RailgunFx.burst(world, ModParticles.SHOCK_DUST, getPos().add(sx * rad * 0.7071, 0.3, sz * rad * 0.7071), 3, 0.5, 0.05, 0.06);
             }
         }
-        if (t >= RailgunConfig.PACK_TICKS) setState(RailgunState.POD_READY);
+        if (t >= RailgunConfig.PACK_TICKS) {
+            setState(RailgunState.POD_READY);
+            if (remoteRecall) {
+                remoteRecall = false;
+                setState(RailgunState.LAUNCHING);
+            }
+        }
     }
 
     private void tickLaunching(int t) {
@@ -1247,6 +1253,35 @@ public class RailgunEntity extends Entity implements GeoEntity {
     /** Panel actions sent from the zoomed-in panel UI (validated by ModPackets). */
     public enum PanelAction { DEPLOY, RETRACT, RETURN }
 
+    /** Set by a remote recall: once packed, the pod launches back to orbit without anyone at the panel. */
+    private boolean remoteRecall;
+
+    /**
+     * Uplink-tablet recall from any distance: packs the emplacement up and sends the pod back to
+     * orbit. Returns false while it is busy (charging, firing, scanning, rift, arming...).
+     */
+    public boolean remoteRecall() {
+        RailgunState s = getState();
+        switch (s) {
+            case IDLE, COOLDOWN -> {
+                remoteRecall = true;
+                setState(RailgunState.PACKING);
+                return true;
+            }
+            case POD, POD_READY -> {
+                setState(RailgunState.LAUNCHING);
+                return true;
+            }
+            case PACKING -> {
+                remoteRecall = true;
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
     public boolean handlePanelAction(PlayerEntity player, PanelAction action) {
         if (!(getWorld() instanceof ServerWorld world)) return false;
         if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 2.0) return false;
@@ -1559,6 +1594,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
     protected void readCustomDataFromNbt(NbtCompound nbt) {
         setState(RailgunState.byId(nbt.getInt("State")));
         stateTicks = nbt.getInt("StateTicks");
+        remoteRecall = nbt.getBoolean("RemoteRecall");
         setCharge(nbt.getFloat("Charge"));
         if (nbt.getBoolean("HasTarget")) setTarget(BlockPos.fromLong(nbt.getLong("Target")));
         setOwnerUuid(nbt.containsUuid("Owner") ? nbt.getUuid("Owner") : null);
@@ -1575,6 +1611,7 @@ public class RailgunEntity extends Entity implements GeoEntity {
     protected void writeCustomDataToNbt(NbtCompound nbt) {
         nbt.putInt("State", getState().ordinal());
         nbt.putInt("StateTicks", stateTicks);
+        nbt.putBoolean("RemoteRecall", remoteRecall);
         nbt.putFloat("Charge", getCharge());
         nbt.putBoolean("HasTarget", hasTarget());
         nbt.putLong("Target", getTarget().asLong());
