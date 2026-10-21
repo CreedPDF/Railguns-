@@ -174,8 +174,8 @@
   "itemGroup.orbital_railgun.main": "Railguns+",
   "message.orbital_railgun.remote.recall": "RECALL ORDER SENT // ASSET RETURNING TO ORBIT",
   "message.orbital_railgun.denied.no_ares0": "No ARES-0 deployed.",
-  "item.orbital_railgun.starship": "ARES Starship",
-  "item.orbital_railgun.starship.tooltip": "Use on open ground: the ship lands from orbit. Walk up the ramp and use the flight console.",
+  "item.orbital_railgun.starship": "ARES Starship Command Key",
+  "item.orbital_railgun.starship.tooltip": "Use to commission the starship: it waits in orbit and is called from your uplink tablet (~/hangar/starship).",
   "block.orbital_railgun.flight_console": "Flight Console",
   "entity.orbital_railgun.starship": "ARES Starship",
   "message.orbital_railgun.ship.none": "No starship docked to this console.",
@@ -186,5 +186,16 @@
   "subtitles.orbital_railgun.ship.ignite": "Starship engines ignite",
   "subtitles.orbital_railgun.ship.launch": "Starship launches",
   "subtitles.orbital_railgun.ship.engine": "Starship engines roar",
-  "subtitles.orbital_railgun.ship.land": "Starship touches down"
+  "subtitles.orbital_railgun.ship.land": "Starship touches down",
+  "message.orbital_railgun.ship.linked": "STARSHIP COMMISSIONED // HOLDING IN ORBIT // CALL IT FROM ~/hangar/starship ON YOUR UPLINK",
+  "message.orbital_railgun.ship.already": "You already command a starship.",
+  "message.orbital_railgun.denied.no_ship": "No starship commissioned. Use an ARES Starship Command Key.",
+  "message.orbital_railgun.denied.ship_deployed": "Your starship is already down. Recall it first.",
+  "message.orbital_railgun.denied.ship_surface": "The starship can only land on a planet's surface.",
+  "message.orbital_railgun.denied.ship_not_found": "Starship not in range of the uplink (its area is not loaded).",
+  "subtitles.orbital_railgun.ship.hyper_charge": "Jump drive charges",
+  "subtitles.orbital_railgun.ship.hyper_jump": "Starship jumps",
+  "subtitles.orbital_railgun.ship.whoosh": "Starship screams past",
+  "subtitles.orbital_railgun.ship.scan": "Landing scanner hums",
+  "subtitles.orbital_railgun.ship.laser": "Levelling laser burns"
 }

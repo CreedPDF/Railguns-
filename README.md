@@ -190,26 +190,36 @@ away under too much of the footprint, the landing block is liquid, another railg
 or the site is buried too deep. The tablet shows the survey live before you call it down.
 
 ## ARES Starship
-A flyable ship, about 20 blocks long, built in Blender: white-and-graphite hull, stepped swept
-wings, two blue-burning engine nacelles, a canopy over the cockpit and the classic **tripod
-landing gear** (one leg under the nose, two at the back).
+A flyable gunship about 22 blocks long, built in Blender: dark gunmetal hull with red running
+lights, a long stepped nose under a smoked canopy, armoured chines, low swept wings with
+down-turned fins, two **tilting VTOL nacelles** and twin dorsal main engines, all burning with
+**3D red flames**. Tripod landing gear (one leg under the nose, two aft) and a rear hatch that
+drops into a ramp.
 
-* **Getting one:** craft the *ARES Starship* (tinted glass, iron blocks, beacon, netherite,
-  elytra) and use it on open ground. The ship comes down from orbit on its engines, unfolds its
-  legs and lands facing away from you.
-* **Walk in:** the rear hatch drops into a ramp. The cabin is real: invisible collision walls,
-  floor and roof are placed around it so you can walk up the ramp and move around inside
-  (pilot seat, wall consoles, benches, light strips). At the front stands a real **Flight
-  Console** block.
-* **Fly:** use the console, pick a destination (Moon, Mars, Venus, Europa, or Earth from
-  anywhere else), confirm LAUNCH. Then it is a film:
-  1. ignition: hatch closes, engines spool up, the ship lifts off its pad (low ground camera);
-  2. ascent: legs fold, the nose pitches up and it climbs out of the sky (chase camera);
-  3. deep space: a slow orbit around the ship while the destination grows ahead;
-  4. landing: it glides in from above, flares, deploys its legs and settles; the hatch drops.
-  Letterbox bars, fades across the world changes and a terminal caption with altitude / ETA.
-  You cannot step out mid-flight; the cabin is pressurised.
-* Flying back to Earth lands you on the pad you left from. Stow the ship from the console.
+* **Commission it:** craft the *ARES Starship Command Key* (tinted glass, iron blocks, beacon,
+  netherite, elytra) and use it. The ship is now yours and waits in orbit.
+* **Call it:** on the uplink tablet open `~/hangar/starship`, aim at the ground first, then
+  *CALL TO LANDING ZONE*. It comes in fast, converts to VTOL and stops in a hover; a holographic
+  scan sweeps the zone and, if the ground is uneven, a wide laser burns it level row by row
+  (cutting trees and bumps, filling holes); then it lowers itself on its thrusters, the gear
+  takes the weight and the ramp drops.
+* **Walk in:** the cabin is real (collision walls, floor and roof around it): pilot seat, wall
+  consoles, benches, light strips and a real **Flight Console** block at the front.
+* **Fly:** use the console, pick a destination (Moon, Mars, Venus, Europa, or Earth), confirm.
+  The flight is a film with letterbox bars and a terminal caption:
+  1. VTOL lift-off from a low ground camera, nacelles swinging aft in a close tracking shot;
+  2. a **fly-by**: a fixed camera beside the climb-out, the ship screaming past it;
+  3. a chase into the sky, then the **jump**: the drive charges, the stars stretch into streaks,
+     a sharp sci-fi *zip*, a flash, cut;
+  4. deep space: out of the jump, a slow orbit around the ship, a front shot, a low side pass,
+     and the next jump toward the destination;
+  5. arrival: a dive into the sky, a second fly-by, a wide ground shot of the VTOL conversion,
+     the scan and laser, and the touchdown on the tripod gear.
+  Flight is a smooth physical model (integrated thrust and climb profiles, curved approach,
+  banking into turns, flare, suspension settling on contact). The cabin is pressurised and you
+  can't step out mid-flight.
+* **Send it back:** *RETURN TO ORBIT* on the console or in the hangar: anyone aboard is put down
+  beside it in a flash, the hatch closes and it lifts off and flies away.
 
 ## Uplink terminal
 The tablet (and the railgun's own field terminal and the ARES-0 console) is a classified command

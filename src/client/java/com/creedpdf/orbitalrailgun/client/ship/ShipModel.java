@@ -4,17 +4,19 @@ import com.creedpdf.orbitalrailgun.RailgunMod;
 import com.creedpdf.orbitalrailgun.entity.ShipEntity;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import software.bernie.geckolib.core.animatable.model.CoreGeoBone;
 import software.bernie.geckolib.core.animation.AnimationState;
 import software.bernie.geckolib.model.GeoModel;
 
-/** The starship (Blender-built GeckoLib model), posed in code: heading, pitch, bank, gear and hatch. */
+/**
+ * The starship (Blender-built GeckoLib model), posed in code from the entity's flight model:
+ * yaw and pitch on the root, roll on the bank bone, VTOL nacelles tilting nozzle-down to hover,
+ * tripod gear folding, rear hatch dropping into a ramp, engine rumble on the pad.
+ */
 public class ShipModel extends GeoModel<ShipEntity> {
     private static final Identifier MODEL = RailgunMod.id("geo/ship.geo.json");
     private static final Identifier TEXTURE = RailgunMod.id("textures/entity/ship.png");
     private static final Identifier ANIMATION = RailgunMod.id("animations/ship.animation.json");
-    /** Hatch swing from closed to resting on the ground (matches the Blender preview). */
     private static final float RAMP_OPEN = (float) Math.toRadians(123.5);
 
     @Override
@@ -37,24 +39,25 @@ public class ShipModel extends GeoModel<ShipEntity> {
         super.setCustomAnimations(e, instanceId, state);
         float pt = state.getPartialTick();
         float t = e.getPhaseTicks() + pt;
+        float[] pose = e.pose(t);
         CoreGeoBone root = bone("ship_root");
         if (root != null) {
-            Vec3d h = ShipCinematic.noseDirection(e, pt);
-            double horiz = Math.sqrt(h.x * h.x + h.z * h.z);
-            float yaw = (float) Math.atan2(-h.x, -h.z);
-            float pitch = (float) Math.atan2(h.y, horiz);
-            root.setRotY(yaw);
-            root.setRotX(-pitch);
-            // engine rumble on the pad
+            root.setRotY(pose[0]);
+            root.setRotX(-pose[1]);
             float th = e.thrust(t);
-            if (e.getPhase() == ShipEntity.Phase.IGNITION || (e.getPhase() == ShipEntity.Phase.ASCENT && t < 60)) {
-                float time = e.age + pt;
-                root.setPosX(0.15f * th * MathHelper.sin(time * 2.7f));
-                root.setPosZ(0.15f * th * MathHelper.sin(time * 3.3f + 1f));
-            } else {
-                root.setPosX(0f);
-                root.setPosZ(0f);
-            }
+            boolean pad = e.getPhase() == ShipEntity.Phase.IGNITION || (e.getPhase() == ShipEntity.Phase.ASCENT && t < 50)
+                    || e.getPhase() == ShipEntity.Phase.TOUCHDOWN || (e.getPhase() == ShipEntity.Phase.DEPARTING && t < 50);
+            float time = e.age + pt;
+            float rumble = pad ? 0.12f * th : 0f;
+            root.setPosX(rumble * MathHelper.sin(time * 2.7f));
+            root.setPosZ(rumble * MathHelper.sin(time * 3.3f + 1f));
+        }
+        CoreGeoBone bank = bone("ship_bank");
+        if (bank != null) bank.setRotZ(pose[2]);
+        float vt = e.vtol(t);
+        for (String n : new String[]{"ship_eng_l", "ship_eng_r"}) {
+            CoreGeoBone eng = bone(n);
+            if (eng != null) eng.setRotX(-MathHelper.HALF_PI * vt);
         }
         float fold = e.legFold(t);
         CoreGeoBone front = bone("ship_leg_front");

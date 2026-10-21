@@ -74,7 +74,7 @@ public class TabletScreen extends Screen {
 
     private float ox, oy, s = 1f;
 
-    private enum Node { A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL, A0_TARGETS, A0_RECALL, DROP_A9, DROP_A0 }
+    private enum Node { A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL, A0_TARGETS, A0_RECALL, DROP_A9, DROP_A0, SHIP }
 
     public TabletScreen(@Nullable BlockPos aimed) {
         super(Text.translatable("item.orbital_railgun.railgun_remote"));
@@ -133,6 +133,7 @@ public class TabletScreen extends Screen {
             case A0_TARGETS, A0_RECALL -> a0();
             case DROP_A9 -> !a9();
             case DROP_A0 -> !a0();
+            case SHIP -> true;
         };
     }
 
@@ -419,6 +420,7 @@ public class TabletScreen extends Screen {
             case A0_RECALL -> "~/ares-0/recall";
             case DROP_A9 -> "~/orbital_drop/ares-9.pod";
             case DROP_A0 -> "~/orbital_drop/ares-0.pod";
+            case SHIP -> "~/hangar/starship";
         };
     }
 
@@ -428,7 +430,7 @@ public class TabletScreen extends Screen {
         text(ctx, textRenderer, "~/", x, y, DIM, 0.75f);
         y += 10;
         node(ctx, textRenderer, "ares-9", x, y, w, 1, false, false, true, true, a9() ? "ONLINE" : "--", a9() ? OK : FAINT, mx, my, null);
-        y += 10;
+        y += 9;
         Object[][] a9n = {{"status", Node.A9_STATUS}, {"fire_control", Node.A9_FIRE}, {"scan", Node.A9_SCAN}, {"rift", Node.A9_RIFT}, {"recall", Node.A9_RECALL}};
         for (int i = 0; i < a9n.length; i++) {
             Node n = (Node) a9n[i][1];
@@ -447,14 +449,21 @@ public class TabletScreen extends Screen {
             y += 10;
         }
         y += 2;
-        node(ctx, textRenderer, "orbital_drop", x, y, w, 1, true, false, true, true, t.pending ? "INBOUND" : null, AMBER, mx, my, null);
+        node(ctx, textRenderer, "orbital_drop", x, y, w, 1, false, false, true, true, t.pending ? "INBOUND" : null, AMBER, mx, my, null);
         y += 10;
         add(node(ctx, textRenderer, "ares-9.pod", x, y, w, 2, false, node == Node.DROP_A9, available(Node.DROP_A9), false,
                 null, 0, mx, my, () -> select(Node.DROP_A9)));
         y += 10;
         add(node(ctx, textRenderer, "ares-0.pod", x, y, w, 2, true, node == Node.DROP_A0, available(Node.DROP_A0), false,
                 null, 0, mx, my, () -> select(Node.DROP_A0)));
-        y += 14;
+        y += 12;
+        String[] sst = {"--", "ORBIT", "DOCKED", "FLIGHT"};
+        int ss = Math.max(0, Math.min(3, t.shipState));
+        node(ctx, textRenderer, "hangar", x, y, w, 1, true, false, true, true, sst[ss], ss == 0 ? FAINT : ss == 3 ? AMBER : OK, mx, my, null);
+        y += 10;
+        add(node(ctx, textRenderer, "starship", x, y, w, 2, true, node == Node.SHIP, true, false,
+                null, 0, mx, my, () -> select(Node.SHIP)));
+        y += 12;
         // tiny live readout under the tree
         if (a9()) {
             text(ctx, textRenderer, "A9 " + stateName(t.state), x, y, stateColor(t.state, time), 0.6f);
@@ -488,6 +497,7 @@ public class TabletScreen extends Screen {
                     st().a0State == Ares0Entity.State.IDLE || st().a0State == Ares0Entity.State.COOLDOWN, 3);
             case DROP_A9 -> drop(ctx, mx, my, time, 0);
             case DROP_A0 -> drop(ctx, mx, my, time, 1);
+            case SHIP -> hangar(ctx, mx, my, time);
         }
     }
 
@@ -727,6 +737,58 @@ public class TabletScreen extends Screen {
         y += 16;
         String hint = t.pending ? "drop inbound" : onCooldown() ? "uplink recharging" : sv == null ? "awaiting survey" : sv.ok() ? "ready" : "choose another site";
         text(ctx, textRenderer, "> " + hint, x, y, t.pending || onCooldown() ? AMBER : DIM, 0.7f);
+    }
+
+    // ---- hangar -----------------------------------------------------------------------------------
+
+    private void hangar(DrawContext ctx, float mx, float my, float time) {
+        TabletStatus t = st();
+        int x = PANE_X, y = 28, w = PANE_W;
+        section(ctx, textRenderer, "HANGAR // ARES STARSHIP", x, y, w, RED);
+        y += 12;
+        String[] names = {"NOT COMMISSIONED", "HOLDING IN ORBIT", "DOCKED", "IN FLIGHT"};
+        int ss = Math.max(0, Math.min(3, t.shipState));
+        kv(ctx, textRenderer, "STATUS", names[ss], x, y, w, ss == 0 ? DIM : ss == 3 ? AMBER : OK, 0.75f);
+        y += 10;
+        if (ss >= 2) {
+            kv(ctx, textRenderer, "POSITION", String.format(Locale.ROOT, "%d %d %d", t.shipPos.getX(), t.shipPos.getY(), t.shipPos.getZ()), x, y, w, TEXT, 0.75f);
+            y += 10;
+            kv(ctx, textRenderer, "WORLD", t.shipDim.isEmpty() ? "?" : t.shipDim, x, y, w, TEXT, 0.75f);
+            y += 10;
+        }
+        if (ss == 0) {
+            para(ctx, textRenderer, "Use an ARES Starship Command Key to commission a ship. It waits in orbit until you call it.", x, y + 4, w, DIM, 0.7f);
+            return;
+        }
+        y += 4;
+        if (aimed != null) {
+            kv(ctx, textRenderer, "LANDING ZONE", String.format(Locale.ROOT, "%d %d %d", aimed.getX(), aimed.getY() + 1, aimed.getZ()), x, y, w, TEXT, 0.75f);
+            y += 10;
+            kv(ctx, textRenderer, "RANGE", distTo(aimed) + " m", x, y, w, TEXT, 0.75f);
+            y += 10;
+        } else {
+            text(ctx, textRenderer, "no landing zone // aim at the ground and raise the tablet", x, y, DIM, 0.65f);
+            y += 10;
+        }
+        y = para(ctx, textRenderer, "The ship scans the zone before it lands and levels uneven ground with its laser.", x, y + 2, w, DIM, 0.65f) + 8;
+        boolean canCall = ss == 1 && aimed != null;
+        int facing = 0;
+        if (client != null && client.player != null) {
+            facing = com.creedpdf.orbitalrailgun.entity.ShipEntity.facingOf(client.player.getHorizontalFacing());
+        }
+        final int f = facing;
+        hits.add(cmd(ctx, textRenderer, isArmed("shipcall") ? "CONFIRM // CALL STARSHIP" : "CALL TO LANDING ZONE", x, y, RED, canCall, mx, my, 1f,
+                () -> confirm("shipcall", () -> {
+                    ClientPackets.sendHangar(0, aimed, f);
+                    beginClose();
+                })));
+        y += 16;
+        hits.add(cmd(ctx, textRenderer, isArmed("shiprecall") ? "CONFIRM // RETURN TO ORBIT" : "RETURN TO ORBIT", x, y, AMBER, ss == 2, mx, my, 0.85f,
+                () -> confirm("shiprecall", () -> ClientPackets.sendHangar(1, BlockPos.ORIGIN, 0))));
+        y += 14;
+        String hint = ss == 3 ? "ship in flight" : ss == 2 ? "anyone aboard is set down beside it before it lifts off"
+                : aimed == null ? "aim at open ground first" : "ready";
+        text(ctx, textRenderer, "> " + hint, x, y, DIM, 0.7f);
     }
 
     // ---- misc -----------------------------------------------------------------------------------

@@ -112,13 +112,13 @@ PALETTE = {
     "hull": ("#2f343c", "#4c535e", "#68717e"),
     "dark": ("#101215", "#1c1f24", "#2a2e35"),
     "vent": ("#0c0d10", "#181a1f", "#25282e"),
-    "glass": ("#0a0f16", "#142030", "#25364c"),
+    "glass": ("#0b0b0d", "#18181c", "#2c2a2e"),       # smoked, neutral (no blue anywhere)
     "hazard": ("#2a2000", "#c89a14", "#e2b628"),
     "glow": ("#5a0000", "#c8120c", "#ff4a30"),
     "amber": ("#5a3000", "#d68a10", "#ffc040"),
-    "screen": ("#020407", "#07121c", "#0e2436"),   # display glass; UI painted by paint_faces
+    "screen": ("#050303", "#120808", "#241010"),   # display glass; UI painted by paint_faces
     # loadout attachments, supply capsule, tablet
-    "cyan": ("#003a4a", "#10b8e0", "#8af0ff"),
+    "cyan": ("#4a0a02", "#e8341c", "#ff9a78"),        # historic name: now an ember red accent light
     "violet": ("#25003a", "#8a30e0", "#d8a0ff"),
     "lime": ("#203a00", "#88d820", "#e0ff90"),
     "orange": ("#4a1400", "#e0600c", "#ffb060"),
@@ -1299,14 +1299,16 @@ SHIP_RAMP_OPEN_DEG = 123.5   # hatch swing from closed (vertical) to resting on 
 
 def build_ship(offset):
     """
-    ARES starship: a white-and-graphite shuttle about 20 blocks long. Tripod landing gear (one
-    leg under the cockpit, two at the back), a walk-in cabin (5 x 10 x 3 blocks) with a pilot
-    seat, wall consoles, benches and light strips, a rear hatch that drops into a ramp, two blue
-    engine nacelles on short pylons and stepped swept wings. Front = model +Z.
+    ARES Kestrel-class starship (original design): a dark gunmetal gunship about 22 blocks long.
+    Long stepped wedge nose with a smoked canopy, armoured chines along the cabin, a dorsal spine
+    with radiator fins, low swept wings with down-turned fins, two tilting VTOL nacelles at the
+    wing roots (bones ship_eng_l / ship_eng_r: horizontal for flight, pointing down to hover), a
+    dorsal main-engine pod with twin nozzles and canted tail fins, red running lights and red
+    engine glow. Tripod landing gear (one under the nose, two aft) and a rear hatch-ramp.
 
-    The cabin matches the collision the mod places around a parked ship (see ShipEntity): floor
-    top at 32 px, walls at x = +-40..56, roof 80..96, front wall z 88..104, back wall z -88..-72
-    with a 3 x 2 block door, so you can walk up the ramp and stand inside.
+    Front = model +Z. The cabin matches the collision the mod places around a parked ship: floor
+    top 32 px, walls x +-40..56, roof 80..96, front wall z 88..104, back wall z -88..-72 with a
+    3 x 2 block door. Bones: ship_root (yaw / pitch) > ship_bank (roll) > everything else.
     """
     bones = {}
 
@@ -1315,120 +1317,159 @@ def build_ship(offset):
         bones[name] = make_bone(name, p, pivot, p["pivot_mc"] if p else None, offset=offset if p is None else Vector((0, 0, 0)))
 
     bone("ship_root", None, [0, 48, 0])
-    bone("ship_hull", "ship_root", [0, 48, 0])
-    bone("ship_leg_front", "ship_root", [0, 14, 84])
-    bone("ship_leg_left", "ship_root", [-44, 14, -60])
-    bone("ship_leg_right", "ship_root", [44, 14, -60])
-    bone("ship_ramp", "ship_root", [0, 32, -88])
+    bone("ship_bank", "ship_root", [0, 48, 0])
+    bone("ship_hull", "ship_bank", [0, 48, 0])
+    bone("ship_leg_front", "ship_bank", [0, 14, 96])
+    bone("ship_leg_left", "ship_bank", [-44, 14, -60])
+    bone("ship_leg_right", "ship_bank", [44, 14, -60])
+    bone("ship_ramp", "ship_bank", [0, 32, -88])
+    bone("ship_eng_l", "ship_bank", [-100, 50, -20])
+    bone("ship_eng_r", "ship_bank", [100, 50, -20])
     H = bones["ship_hull"]
+    LT = "glow"      # running lights / engine glow: red
+    AC = "cyan"      # interior accent lights (now ember red, see PALETTE)
 
-    # ---- fuselage shell (cabin) --------------------------------------------------------------
-    box(H, "steel", [-40, 28, -88], [80, 4, 192])                 # cabin floor
-    box(H, "dark", [-36, 32.05, -84], [72, 0.3, 140])             # floor grating
-    box(H, "hull", [-40, 12, -88], [80, 16, 192])                 # belly under the floor
-    box(H, "hull", [-56, 12, -88], [16, 20, 192], mirror=("x",))  # side skirts
-    box(H, "white", [-56, 32, -88], [16, 48, 192], mirror=("x",)) # side walls
-    box(H, "white", [-56, 80, -88], [112, 16, 192])               # roof
-    box(H, "white", [-40, 32, 88], [80, 48, 16])                  # front wall
-    box(H, "white", [-40, 32, -88], [16, 48, 16], mirror=("x",))  # back wall beside the door
-    box(H, "white", [-24, 64, -88], [48, 16, 16])                 # lintel
+    # ---- cabin shell -----------------------------------------------------------------------------
+    box(H, "steel", [-40, 28, -88], [80, 4, 192])
+    box(H, "dark", [-36, 32.05, -84], [72, 0.3, 150])
+    box(H, "hull", [-40, 12, -88], [80, 16, 192])
+    box(H, "hull", [-56, 12, -88], [16, 20, 192], mirror=("x",))
+    box(H, "hull", [-56, 32, -88], [16, 48, 192], mirror=("x",))
+    box(H, "hull", [-56, 80, -88], [112, 16, 192])
+    box(H, "hull", [-40, 32, 88], [80, 48, 16])
+    box(H, "hull", [-40, 32, -88], [16, 48, 16], mirror=("x",))
+    box(H, "hull", [-24, 64, -88], [48, 16, 16])
     box(H, "hazard", [-26, 32, -88.5], [2, 32, 0.5], mirror=("x",))
     box(H, "hazard", [-26, 64, -88.5], [52, 1.5, 0.5])
-    # hull detailing
-    box(H, "glow", [-56.5, 46, -84], [0.5, 2, 184], mirror=("x",))   # red racing stripe
-    box(H, "hull", [-56.4, 34, -84], [0.4, 8, 184], mirror=("x",))
-    box(H, "dark", [-30, 96, -70], [60, 3, 120])                    # dorsal spine
-    box(H, "hull", [-20, 99, -60], [40, 4, 70])
-    box(H, "glow", [-1, 103, -40], [2, 1, 30])
-    box(H, "dark", [-50, 96, -84], [8, 2, 176], mirror=("x",))
-    box(H, "amber", [-40, 96.5, 90], [3, 1, 3], mirror=("x",))
-    # side windows (outside and inside faces)
-    box(H, "glass", [-56.4, 56, 10], [0.4, 12, 60], mirror=("x",))
-    box(H, "glass", [-40.0, 56, 10], [0.4, 12, 60], mirror=("x",))
+    box(H, LT, [-2, 66.5, -88.6], [4, 1.5, 0.4])
+    # armoured chines: angled plates along the flanks, lighter panel inserts, a red pin-stripe
+    for sx in (-1, 1):
+        x0 = 56 if sx > 0 else -62
+        rbox(H, "steel", [x0, 22, -84], [6, 44, 176], [56 * sx, 66, 0], "z", -16 * sx, name="chine")
+        box(H, "paint", [sx * 56.2 - (0.4 if sx > 0 else 0), 70, -60], [0.4, 8, 120] if sx > 0 else [0.4, 8, 120])
+        box(H, LT, [56.6 if sx > 0 else -57, 74.5, -60], [0.4, 1, 120])
+        box(H, "dark", [56.4 if sx > 0 else -57.2, 40, -80], [0.8, 6, 40])           # vents
+        box(H, "vent", [56.5 if sx > 0 else -57.3, 41, -78], [0.8, 4, 36])
+    # dorsal spine, radiator fins, sensor mast
+    box(H, "steel", [-14, 96, -84], [28, 8, 176])
+    box(H, "dark", [-8, 104, -70], [16, 4, 140])
+    box(H, "hull", [-1.5, 108, -60], [3, 7, 4], array=(9, [0, 0, 14]))
+    box(H, LT, [-1.6, 113, -60], [3.2, 1, 4], array=(9, [0, 0, 14]))
+    box(H, "steel", [-2, 104, 70], [4, 22, 4])
+    box(H, LT, [-2.2, 126, 70], [4.4, 2, 4.4])
+    box(H, "paint", [-54, 96, -84], [26, 1, 150], mirror=("x",))                     # roof panels
+    # side windows, inside faces too
+    box(H, "glass", [-56.4, 56, 4], [0.4, 10, 64], mirror=("x",))
+    box(H, "glass", [-40.0, 56, 4], [0.4, 10, 64], mirror=("x",))
 
-    # ---- nose and cockpit --------------------------------------------------------------------
-    box(H, "white", [-52, 16, 104], [104, 64, 20])
-    box(H, "white", [-44, 20, 124], [88, 52, 20])
-    box(H, "white", [-32, 24, 144], [64, 38, 16])
-    box(H, "hull", [-20, 30, 160], [40, 24, 10])
-    box(H, "dark", [-10, 36, 170], [20, 12, 3])
-    box(H, "glow", [-56.5, 46, 104], [0.5, 2, 20], mirror=("x",))
-    # canopy, stepped down toward the nose
-    box(H, "glass", [-44, 80, 96], [88, 4, 16])
-    box(H, "glass", [-40, 72, 112], [80, 8, 12])
-    box(H, "glass", [-34, 62, 124], [68, 10, 12])
-    box(H, "glass", [-26, 52, 136], [52, 10, 8])
-    box(H, "glass", [-30, 50, 87.6], [60, 22, 0.4])                 # cockpit window, inside
-    box(H, "dark", [-2, 50, 87.5], [4, 22, 0.6])                    # window mullion
+    # ---- nose: a long stepped wedge with a chin sensor and a smoked canopy ---------------------
+    box(H, "hull", [-52, 18, 104], [104, 66, 18])
+    box(H, "hull", [-46, 20, 122], [92, 58, 18])
+    box(H, "steel", [-40, 22, 140], [80, 48, 18])
+    box(H, "hull", [-32, 24, 158], [64, 38, 16])
+    box(H, "steel", [-24, 27, 174], [48, 28, 14])
+    box(H, "hull", [-16, 30, 188], [32, 18, 12])
+    box(H, "dark", [-8, 33, 200], [16, 10, 10])
+    box(H, LT, [-2, 36, 210], [4, 4, 1])
+    box(H, "paint", [-46.2, 50, 122], [0.4, 4, 54], mirror=("x",))
+    box(H, LT, [-52.4, 52, 104], [0.4, 1.5, 18], mirror=("x",))
+    box(H, "dark", [-18, 14, 130], [36, 8, 40])                                       # chin sensor
+    box(H, AC, [-6, 13.6, 160], [12, 0.4, 6])
+    # canopy (stepped, smoked) with a red frame line
+    box(H, "glass", [-42, 84, 96], [84, 4, 26])
+    box(H, "glass", [-38, 78, 122], [76, 6, 18])
+    box(H, "glass", [-32, 70, 140], [64, 8, 16])
+    box(H, "glass", [-26, 62, 156], [52, 8, 12])
+    box(H, "dark", [-43, 88, 96], [86, 1, 2])
+    box(H, LT, [-43.2, 83, 121], [0.4, 1, 2], mirror=("x",))
+    box(H, "glass", [-30, 50, 87.6], [60, 22, 0.4])                                   # cockpit window, inside
+    box(H, "dark", [-2, 50, 87.5], [4, 22, 0.6])
+    # canards
+    box(H, "hull", [52, 44, 150], [34, 4, 18], mirror=("x",))
+    box(H, "hull", [86, 44, 150], [8, 4, 10], mirror=("x",))
+    box(H, LT, [93.6, 44.5, 150], [0.6, 3, 4], mirror=("x",))
 
-    # ---- interior ----------------------------------------------------------------------------
-    # pilot seat (the flight console block stands just in front of it, at z 72..88)
+    # ---- interior --------------------------------------------------------------------------------
     box(H, "dark", [-8, 32, 56], [16, 8, 14])
     box(H, "hull", [-9, 32.5, 52], [18, 26, 4])
     box(H, "dark", [-6, 52, 51], [12, 6, 2])
     box(H, "steel", [-10, 38, 56], [2, 3, 12], mirror=("x",))
-    box(H, "cyan", [-1, 39.5, 69.8], [2, 0.5, 0.4])
-    # wall consoles with screens
+    box(H, AC, [-1, 39.5, 69.8], [2, 0.5, 0.4])
     box(H, "steel", [-40, 32, 60], [10, 14, 26], mirror=("x",))
     box(H, "screen", [-30.4, 40, 62], [0.4, 9, 22], mirror=("x",))
-    box(H, "cyan", [-30.5, 50, 62], [0.5, 0.6, 22], mirror=("x",))
-    # benches along the walls
+    box(H, AC, [-30.5, 50, 62], [0.5, 0.6, 22], mirror=("x",))
     box(H, "steel", [-40, 32, -64], [9, 8, 64], mirror=("x",))
     box(H, "dark", [-40, 40, -64], [9, 1, 64], mirror=("x",))
     box(H, "hull", [-40, 41, -64], [1.5, 16, 64], mirror=("x",))
-    # equipment racks and cargo
     box(H, "hull", [-40, 32, -86], [12, 30, 12], mirror=("x",))
     box(H, "amber", [-29, 52, -84], [0.4, 1.2, 8], mirror=("x",))
     box(H, "hazard", [-24, 32, -60], [10, 10, 10])
     box(H, "hazard", [16, 32, -40], [10, 8, 12])
-    # light strips: along the walls, across the ceiling
-    box(H, "cyan", [-40, 76, -84], [0.6, 1.2, 168], mirror=("x",))
-    box(H, "cyan", [-36, 32.4, -84], [1, 0.4, 140], mirror=("x",))
-    box(H, "white", [-16, 79.4, -80], [32, 0.6, 4], array=(8, [0, 0, 20]))
-    box(H, "cyan", [-14, 79.0, -79], [28, 0.4, 2], array=(8, [0, 0, 20]))
-    box(H, "dark", [-40, 64, -84], [1, 10, 164], mirror=("x",))     # upper wall panels
+    box(H, AC, [-40, 76, -84], [0.6, 1.2, 168], mirror=("x",))
+    box(H, AC, [-36, 32.4, -84], [1, 0.4, 150], mirror=("x",))
+    box(H, "paint", [-16, 79.4, -80], [32, 0.6, 4], array=(8, [0, 0, 20]))
+    box(H, AC, [-14, 79.0, -79], [28, 0.4, 2], array=(8, [0, 0, 20]))
+    box(H, "dark", [-40, 64, -84], [1, 10, 164], mirror=("x",))
 
-    # ---- wings, pylons, engines ----------------------------------------------------------------
-    box(H, "white", [56, 36, -84], [40, 6, 104], mirror=("x",))
-    box(H, "white", [96, 36, -84], [30, 6, 72], mirror=("x",))
-    box(H, "white", [126, 36, -84], [24, 6, 40], mirror=("x",))
-    box(H, "dark", [56, 35.6, -88], [94, 6.8, 4], mirror=("x",))     # flaps
-    box(H, "hull", [56, 42, -40], [70, 1, 4], mirror=("x",))
-    box(H, "glow", [150, 36, -84], [1.2, 6, 40], mirror=("x",))      # wingtip lights
-    box(H, "white", [146, 42, -84], [4, 22, 30], mirror=("x",))      # winglets
-    box(H, "glow", [146.2, 60, -84], [3.6, 2, 30], mirror=("x",))
+    # ---- wings: low, swept, with down-turned fins --------------------------------------------------
+    box(H, "hull", [56, 26, -104], [36, 8, 110], mirror=("x",))
+    box(H, "hull", [92, 26, -104], [34, 7, 84], mirror=("x",))
+    box(H, "steel", [126, 26, -104], [30, 6, 56], mirror=("x",))
+    box(H, "hull", [156, 26, -104], [18, 5, 30], mirror=("x",))
+    box(H, "paint", [60, 34, -60], [60, 0.6, 50], mirror=("x",))
+    box(H, "dark", [56, 25.6, -108], [118, 7, 4], mirror=("x",))                  # flaps
+    box(H, "steel", [170, 4, -104], [6, 28, 30], mirror=("x",))                   # down-turned tip fins
+    box(H, LT, [175.6, 6, -104], [0.6, 4, 30], mirror=("x",))
+    box(H, LT, [170, 31, -76], [6, 1, 2], mirror=("x",))
+
+    # ---- dorsal main-engine pod -------------------------------------------------------------------
+    P = H
+    box(P, "hull", [-40, 96, -150], [80, 30, 66])
+    box(P, "steel", [-34, 126, -146], [68, 4, 56])
     for sx in (-1, 1):
-        cx = sx * 78
-        box(H, "steel", [56 if sx > 0 else -66, 50, -110], [10, 14, 56])   # pylon
-        octagon_z(f"ship_nac{sx}", H, "hull", cx, 58, -150, -40, 38)
-        octagon_z(f"ship_nacw{sx}", H, "white", cx, 58, -120, -60, 40)
-        octagon_z(f"ship_intake{sx}", H, "dark", cx, 58, -40, -34, 32)
-        octagon_z(f"ship_noz{sx}", H, "dark", cx, 58, -160, -150, 34)
-        octagon_z(f"ship_glow{sx}", H, "cyan", cx, 58, -161, -159, 24)
-        ring_z(H, "steel", cx, 58, -153, -150, 17, 2)
-        box(H, "white", [cx - 2, 76, -150], [4, 34, 44])                  # tail fin
-        box(H, "glow", [cx - 2.2, 106, -150], [4.4, 3, 20])
-    # small manoeuvring thrusters
-    box(H, "dark", [-58, 70, 80], [4, 6, 6], mirror=("x",))
-    box(H, "cyan", [-58.4, 72, 82], [0.4, 2, 2], mirror=("x",))
+        cx = sx * 20
+        octagon_z(f"ship_main{sx}", P, "hull", cx, 111, -166, -150, 28)
+        octagon_z(f"ship_mainn{sx}", P, "dark", cx, 111, -172, -166, 30)
+        ring_z(P, "steel", cx, 111, -174, -171, 13, 2)
+        octagon_z(f"ship_mainglow{sx}", P, LT, cx, 111, -173, -171, 20)
+        box(P, "steel", [cx - 2, 130, -150], [4, 34, 40])                           # canted tail fins
+        box(P, LT, [cx - 2.2, 160, -150], [4.4, 2, 16])
+    box(P, "vent", [-30, 96.5, -151], [60, 26, 1])
 
-    # ---- landing gear (modelled extended; folded into the belly in flight) ---------------------
-    for name, x, z in (("ship_leg_front", 0, 84), ("ship_leg_left", -44, -60), ("ship_leg_right", 44, -60)):
+    # ---- VTOL nacelles (horizontal in flight; rotate nozzle-down to hover) -------------------------
+    # tilt shafts: fixed stubs out of the flanks; the nacelles turn about them
+    box(H, "steel", [56, 43, -28], [26, 14, 16], mirror=("x",))
+    box(H, "dark", [80, 45, -26], [3, 10, 12], mirror=("x",))
+    for name, sx in (("ship_eng_l", -1), ("ship_eng_r", 1)):
+        E = bones[name]
+        cx = sx * 100
+        octagon_z(f"ship_nac{sx}", E, "hull", cx, 50, -84, 26, 36)
+        octagon_z(f"ship_nacp{sx}", E, "steel", cx, 50, -60, -10, 38)
+        octagon_z(f"ship_intake{sx}", E, "dark", cx, 50, 26, 32, 32)
+        ring_z(E, "steel", cx, 50, 30, 33, 15, 2)
+        octagon_z(f"ship_noz{sx}", E, "dark", cx, 50, -92, -84, 34)
+        ring_z(E, "steel", cx, 50, -94, -91, 16, 2)
+        octagon_z(f"ship_nglow{sx}", E, LT, cx, 50, -93, -91, 24)
+        box(E, LT, [cx - 1, 68.5, -40], [2, 1, 30])
+        box(E, "paint", [cx - 18.2 if sx < 0 else cx + 17.8, 46, -50], [0.4, 8, 60])
+
+    # ---- landing gear (extended; folded into the belly in flight) ---------------------------------
+    for name, x, z in (("ship_leg_front", 0, 96), ("ship_leg_left", -44, -60), ("ship_leg_right", 44, -60)):
         L = bones[name]
-        box(L, "hull", [x - 6, 10, z - 6], [12, 4, 12])          # hip
-        box(L, "steel", [x - 3, 2, z - 2], [6, 10, 4])           # strut
-        box(L, "chrome", [x - 1.5, 3, z + 2], [3, 9, 1.5])       # piston
-        box(L, "dark", [x - 9, 0, z - 9], [18, 2, 18])           # foot pad
-        box(L, "hazard", [x - 7, 2, z - 7], [14, 0.6, 14])
-        box(L, "amber", [x - 1, 12, z - 6.4], [2, 1, 0.4])
+        box(L, "hull", [x - 7, 10, z - 7], [14, 4, 14])
+        box(L, "steel", [x - 3.5, 2, z - 2.5], [7, 10, 5])
+        box(L, "chrome", [x - 1.5, 3, z + 2.5], [3, 9, 1.5])
+        box(L, "dark", [x - 10, 0, z - 10], [20, 2, 20])
+        box(L, "hazard", [x - 8, 2, z - 8], [16, 0.6, 16])
+        box(L, LT, [x - 1, 12, z - 7.4], [2, 1, 0.4])
 
-    # ---- rear hatch / ramp (closed = vertical, covering the door) ------------------------------
+    # ---- rear hatch / ramp (closed = vertical, covering the door) ---------------------------------
     R = bones["ship_ramp"]
     box(R, "hull", [-24, 32, -92], [48, 58, 4])
     for k in range(5):
         box(R, "hazard", [-20, 38 + k * 10, -88.0], [40, 3, 0.5])
     box(R, "dark", [-24, 32, -92.5], [48, 3, 0.5])
-    box(R, "glow", [-22, 86, -92.4], [44, 1.5, 0.4])
+    box(R, LT, [-22, 86, -92.4], [44, 1.5, 0.4])
     return bones
 
 
@@ -1655,14 +1696,15 @@ def paint_screen(R, w, h, seed=0):
     faces just a dark display with a scanline glow.
     """
     r = np.random.default_rng(seed)
-    bg = np.array([0.02, 0.05, 0.08])
+    bg = np.array([0.05, 0.025, 0.02])
     R[:] = bg
     yy, xx = np.mgrid[0:h, 0:w]
     R[yy % 2 == 0] *= 0.8
     if w < 6 or h < 6:
-        R[h // 2, :] = [0.1, 0.55, 0.7]
+        R[h // 2, :] = [0.75, 0.18, 0.1]
         return
-    cyan, red, amber, green = (np.array(c) for c in ([0.25, 0.85, 1.0], [1.0, 0.25, 0.15], [1.0, 0.7, 0.15], [0.3, 1.0, 0.5]))
+    # warm terminal palette (no blue): "cyan" = ember red, "green" = orange
+    cyan, red, amber, green = (np.array(c) for c in ([1.0, 0.36, 0.24], [1.0, 0.18, 0.1], [1.0, 0.7, 0.15], [1.0, 0.5, 0.18]))
     R[0, :] = R[-1, :] = R[:, 0] = R[:, -1] = cyan * 0.6
     hb = max(1, h // 8)
     R[1:1 + hb, 1:-1] = cyan * 0.35
@@ -1700,9 +1742,9 @@ def paint_screen(R, w, h, seed=0):
 # Clean, modern base colours (sRGB) per kind. The paint pass below builds everything else.
 CLEAN = {
     "paint": "#d9dde2", "steel": "#4b525b", "hull": "#2f353d", "dark": "#17191d", "vent": "#101215",
-    "glass": "#0f1b27", "concrete": "#9a9ea3", "chrome": "#b8c1cb", "brass": "#b28b3e", "white": "#eef1f4",
+    "glass": "#1a191c", "concrete": "#9a9ea3", "chrome": "#b8c1cb", "brass": "#b28b3e", "white": "#eef1f4",
     "hazard": "#e8a317",
-    "glow": "#ff3a24", "amber": "#ffad2a", "cyan": "#35dcff", "violet": "#b46cff", "lime": "#b4ff4a", "orange": "#ff7a1c",
+    "glow": "#ff3a24", "amber": "#ffad2a", "cyan": "#ff4a2e", "violet": "#b46cff", "lime": "#b4ff4a", "orange": "#ff7a1c",
 }
 def _smoothstep(e0, e1, x):
     t = np.clip((x - e0) / (e1 - e0), 0, 1)
@@ -2647,7 +2689,17 @@ def main():
         root = sh_bones["ship_root"]
         root.location = Vector(root["rest_location"]) + mc_to_b([0, 120, 0])
         root.rotation_euler = (math.radians(-12), 0, math.radians(35))
-        render(os.path.join(out, "ship_flight.png"), cam, target, (200 + 28, -26, 16), (200, 0, 10), 1200, lens=28)
+        render(os.path.join(out, "ship_flight.png"), cam, target, (200 + 30, -28, 16), (200, 0, 10), 1200, lens=28)
+        # hovering in VTOL mode: nacelles nozzle-down, gear coming down
+        root.rotation_euler = (0, 0, math.radians(-25))
+        root.location = Vector(root["rest_location"]) + mc_to_b([0, 90, 0])
+        for n in ("ship_eng_l", "ship_eng_r"):
+            sh_bones[n].rotation_euler = (math.radians(-90), 0, 0)
+        for n, a in (("ship_leg_front", 40), ("ship_leg_left", -40), ("ship_leg_right", -40)):
+            sh_bones[n].rotation_euler = (math.radians(a), 0, 0)
+        render(os.path.join(out, "ship_vtol.png"), cam, target, (200 + 26, -22, 4), (200, 0, 7), 1200, lens=28)
+        for n in ("ship_eng_l", "ship_eng_r"):
+            sh_bones[n].rotation_euler = (0, 0, 0)
         scene = bpy.context.scene
         scene.render.film_transparent = True
         scene.render.image_settings.color_mode = "RGBA"

@@ -82,6 +82,15 @@ public final class ClientPackets {
         ClientPlayNetworking.send(ModPackets.SHIP_ACTION, buf);
     }
 
+    /** Hangar: 0 call the starship to {@code ground}, 1 send it back to orbit. */
+    public static void sendHangar(int action, BlockPos ground, int facing) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(action);
+        buf.writeBlockPos(ground);
+        buf.writeVarInt(facing);
+        ClientPlayNetworking.send(ModPackets.TABLET_SHIP, buf);
+    }
+
     public static void sendRift() {
         ClientPlayNetworking.send(ModPackets.TABLET_RIFT, PacketByteBufs.create());
     }
