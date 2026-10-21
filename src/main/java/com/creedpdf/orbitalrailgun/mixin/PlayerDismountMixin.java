@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /** No stepping out of the starship mid-flight (sneak would dismount you into the sky or vacuum). */
 @Mixin(PlayerEntity.class)
 public abstract class PlayerDismountMixin {
-    @Inject(method = "shouldDismount", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "shouldDismount", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$stayInShip(CallbackInfoReturnable<Boolean> cir) {
         PlayerEntity self = (PlayerEntity) (Object) this;
         if (self.getVehicle() instanceof ShipEntity ship && ship.inFlight()) cir.setReturnValue(false);
