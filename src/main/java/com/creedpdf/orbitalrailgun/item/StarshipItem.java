@@ -1,66 +1,60 @@
 package com.creedpdf.orbitalrailgun.item;
 
-import com.creedpdf.orbitalrailgun.RailgunMod;
-import com.creedpdf.orbitalrailgun.entity.ShipEntity;
-import com.creedpdf.orbitalrailgun.space.SpaceDims;
+import com.creedpdf.orbitalrailgun.space.ShipRegistry;
+import net.minecraft.client.item.TooltipContext;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.item.ItemUsageContext;
-import net.minecraft.server.world.ServerWorld;
+import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
+import net.minecraft.util.Hand;
+import net.minecraft.util.TypedActionResult;
+import net.minecraft.world.World;
+import org.jetbrains.annotations.Nullable;
 
-/** Calls the ARES starship down from orbit onto the block you use it on; it lands facing away from you. */
+import java.util.List;
+
+/**
+ * The ARES starship's command key. Using it commissions the ship: it is parked in orbit and linked
+ * to your uplink tablet, from which you call it down ({@code ~/hangar/starship}) and send it back.
+ */
 public class StarshipItem extends Item {
     public StarshipItem(Settings settings) {
         super(settings);
     }
 
     @Override
-    public ActionResult useOnBlock(ItemUsageContext ctx) {
-        if (!(ctx.getWorld() instanceof ServerWorld world)) return ActionResult.SUCCESS;
-        if (SpaceDims.isSpace(world)) {
-            deny(ctx, "space");
-            return ActionResult.FAIL;
-        }
-        BlockPos ground = ctx.getBlockPos().up();
-        Direction face = ctx.getHorizontalPlayerFacing();
-        int f = ShipEntity.facingOf(face);
-        // needs room: count solid blocks in the hull volume
-        int solid = 0;
-        for (int lx = -4; lx <= 4; lx++) {
-            for (int ly = 1; ly <= 6; ly++) {
-                for (int lz = -9; lz <= 9; lz++) {
-                    BlockPos p = ShipEntity.cellPos(ground, f, lx, ly, lz);
-                    if (!world.getBlockState(p).getCollisionShape(world, p).isEmpty()) solid++;
-                }
-            }
-        }
-        if (solid > 14) {
-            deny(ctx, "room");
-            return ActionResult.FAIL;
-        }
-        ShipEntity ship = new ShipEntity(RailgunMod.SHIP, world);
-        ship.dropIn(world, ground, f);
-        world.spawnEntity(ship);
-        if (ctx.getPlayer() != null && !ctx.getPlayer().isCreative()) ctx.getStack().decrement(1);
-        if (ctx.getPlayer() != null) {
-            ctx.getPlayer().sendMessage(Text.translatable("message.orbital_railgun.ship.inbound").formatted(Formatting.AQUA), true);
-        }
-        return ActionResult.CONSUME;
+    public TypedActionResult<ItemStack> use(World world, PlayerEntity user, Hand hand) {
+        ItemStack stack = user.getStackInHand(hand);
+        if (world.isClient || !(user instanceof ServerPlayerEntity sp)) return TypedActionResult.success(stack);
+        return link(sp, stack) ? TypedActionResult.consume(stack) : TypedActionResult.fail(stack);
     }
 
     @Override
-    public void appendTooltip(net.minecraft.item.ItemStack stack, @org.jetbrains.annotations.Nullable net.minecraft.world.World world,
-                              java.util.List<Text> tooltip, net.minecraft.client.item.TooltipContext context) {
-        tooltip.add(Text.translatable("item.orbital_railgun.starship.tooltip").formatted(Formatting.GRAY));
+    public ActionResult useOnBlock(ItemUsageContext ctx) {
+        if (ctx.getPlayer() == null) return ActionResult.PASS;
+        if (ctx.getWorld().isClient) return ActionResult.SUCCESS;
+        return link((ServerPlayerEntity) ctx.getPlayer(), ctx.getStack()) ? ActionResult.CONSUME : ActionResult.FAIL;
     }
 
-    private static void deny(ItemUsageContext ctx, String why) {
-        if (ctx.getPlayer() != null) {
-            ctx.getPlayer().sendMessage(Text.translatable("message.orbital_railgun.ship.deny." + why).formatted(Formatting.RED), true);
+    private static boolean link(ServerPlayerEntity p, ItemStack stack) {
+        ShipRegistry reg = ShipRegistry.get(p.getServer());
+        if (reg.entry(p.getUuid()).state != ShipRegistry.NONE) {
+            p.sendMessage(Text.translatable("message.orbital_railgun.ship.already").formatted(Formatting.RED), true);
+            return false;
         }
+        reg.setOrbit(p.getUuid());
+        if (!p.isCreative()) stack.decrement(1);
+        p.sendMessage(Text.translatable("message.orbital_railgun.ship.linked").formatted(Formatting.RED), false);
+        p.playSound(com.creedpdf.orbitalrailgun.registry.ModSounds.UI_TARGET_LOCK, net.minecraft.sound.SoundCategory.PLAYERS, 1f, 0.6f);
+        return true;
+    }
+
+    @Override
+    public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
+        tooltip.add(Text.translatable("item.orbital_railgun.starship.tooltip").formatted(Formatting.GRAY));
     }
 }

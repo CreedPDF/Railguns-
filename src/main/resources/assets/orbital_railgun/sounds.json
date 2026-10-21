@@ -728,6 +728,51 @@
       }
     ]
   },
+  "ship.hyper_charge": {
+    "subtitle": "subtitles.orbital_railgun.ship.hyper_charge",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_hyper_charge",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.hyper_jump": {
+    "subtitle": "subtitles.orbital_railgun.ship.hyper_jump",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_hyper_jump",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.whoosh": {
+    "subtitle": "subtitles.orbital_railgun.ship.whoosh",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_whoosh",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.scan": {
+    "subtitle": "subtitles.orbital_railgun.ship.scan",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_scan",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.laser": {
+    "subtitle": "subtitles.orbital_railgun.ship.laser",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_laser",
+        "attenuation_distance": 320
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

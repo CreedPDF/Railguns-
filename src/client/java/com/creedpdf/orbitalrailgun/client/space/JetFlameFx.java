@@ -19,9 +19,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The jetpack's exhaust: two small 3D blue flames, one under each nozzle. Each flame is a
- * revolved, flickering teardrop mesh in three nested shells (deep blue envelope, bright blue body,
- * blue-white core) with shock diamonds when boosting, so it reads as a solid plume from any angle.
+ * The jetpack's exhaust: two small 3D red flames, one under each nozzle. Each flame is a
+ * revolved, flickering teardrop mesh in three nested shells (deep red envelope, red-orange body,
+ * yellow-white core) with shock diamonds when boosting, so it reads as a solid plume from any angle.
  */
 public final class JetFlameFx {
     private JetFlameFx() {}
@@ -99,23 +99,23 @@ public final class JetFlameFx {
         Vector3f axis = new Vector3f(back).mul(0.18f).add(0, -1, 0).normalize();
         VertexConsumer g = BUF.getBuffer(BeamRenderLayers.GLOW);
         // envelope, body, core
-        shell(g, m, nozzle, axis, len, r0 * 1.35f, time, 0.10f, 0.28f, 1.00f, 0.40f, 1.0f);
-        shell(g, m, nozzle, axis, len * 0.8f, r0, time * 1.3f, 0.25f, 0.6f, 1.00f, 0.75f, 0.7f);
-        shell(g, m, nozzle, axis, len * 0.42f, r0 * 0.55f, time * 1.7f, 0.80f, 0.93f, 1.00f, 1.00f, 0.4f);
+        shell(g, m, nozzle, axis, len, r0 * 1.35f, time, 0.75f, 0.06f, 0.02f, 0.40f, 1.0f);
+        shell(g, m, nozzle, axis, len * 0.8f, r0, time * 1.3f, 1.00f, 0.28f, 0.06f, 0.75f, 0.7f);
+        shell(g, m, nozzle, axis, len * 0.42f, r0 * 0.55f, time * 1.7f, 1.00f, 0.85f, 0.6f, 1.00f, 0.4f);
         // shock diamonds
         if (boost) {
             for (int k = 1; k <= 3; k++) {
                 float s = k * 0.2f;
                 Vector3f c = new Vector3f(axis).mul(len * s).add(nozzle);
-                diamond(g, m, c, axis, r0 * (0.75f - 0.12f * k), len * 0.07f, 0.7f, 0.85f, 1f, 0.8f - 0.18f * k);
+                diamond(g, m, c, axis, r0 * (0.75f - 0.12f * k), len * 0.07f, 1f, 0.7f, 0.4f, 0.8f - 0.18f * k);
             }
         }
         // the hot nozzle mouth
-        com.creedpdf.orbitalrailgun.client.space.PlanetBlastFx.glowBall(g, m, nozzle, r0 * 1.6f, 0.35f, 0.6f, 1f, 0.5f * thrust);
+        com.creedpdf.orbitalrailgun.client.space.PlanetBlastFx.glowBall(g, m, nozzle, r0 * 1.6f, 1f, 0.3f, 0.1f, 0.5f * thrust);
     }
 
     /** Revolved flame shell: round shoulder at the nozzle, tapering to a wavering tip. */
-    private static void shell(VertexConsumer g, Matrix4f m, Vector3f base, Vector3f axis, float len, float radius, float time,
+    public static void shell(VertexConsumer g, Matrix4f m, Vector3f base, Vector3f axis, float len, float radius, float time,
                               float cr, float cg, float cb, float a, float turbulence) {
         Vector3f u = new Vector3f(axis).cross(Math.abs(axis.y) < 0.9f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0)).normalize();
         Vector3f v = new Vector3f(axis).cross(u).normalize();
@@ -155,7 +155,7 @@ public final class JetFlameFx {
     }
 
     /** A bright double-cone ring (Mach disk) on the flame axis. */
-    private static void diamond(VertexConsumer g, Matrix4f m, Vector3f c, Vector3f axis, float r, float h, float cr, float cg, float cb, float a) {
+    public static void diamond(VertexConsumer g, Matrix4f m, Vector3f c, Vector3f axis, float r, float h, float cr, float cg, float cb, float a) {
         Vector3f u = new Vector3f(axis).cross(Math.abs(axis.y) < 0.9f ? new Vector3f(0, 1, 0) : new Vector3f(1, 0, 0)).normalize();
         Vector3f v = new Vector3f(axis).cross(u).normalize();
         Vector3f top = new Vector3f(axis).mul(-h).add(c), bot = new Vector3f(axis).mul(h).add(c);

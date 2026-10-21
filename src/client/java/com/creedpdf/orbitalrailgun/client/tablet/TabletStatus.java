@@ -28,6 +28,11 @@ public final class TabletStatus {
     public int a0Target = -1, a0Ticks, a0Visible, a0Doomed;
     public BlockPos a0Pos = BlockPos.ORIGIN;
 
+    // starship: 0 none, 1 in orbit, 2 parked, 3 flying
+    public int shipState;
+    public BlockPos shipPos = BlockPos.ORIGIN;
+    public String shipDim = "";
+
     /** Last orbital site survey for the tablet's landing zone. */
     public static volatile Survey survey = null;
 
@@ -63,6 +68,11 @@ public final class TabletStatus {
                 s.a0Visible = buf.readVarInt();
                 s.a0Doomed = buf.readVarInt();
             }
+        }
+        if (buf.isReadable()) {
+            s.shipState = buf.readVarInt();
+            s.shipPos = buf.readBlockPos();
+            s.shipDim = buf.readString();
         }
         return s;
     }

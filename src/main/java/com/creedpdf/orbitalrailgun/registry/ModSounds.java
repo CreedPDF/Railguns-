@@ -89,6 +89,11 @@ public final class ModSounds {
     public static final SoundEvent SHIP_LAUNCH = register("ship.launch");
     public static final SoundEvent SHIP_ENGINE = register("ship.engine");
     public static final SoundEvent SHIP_LAND = register("ship.land");
+    public static final SoundEvent SHIP_HYPER_CHARGE = register("ship.hyper_charge");
+    public static final SoundEvent SHIP_HYPER_JUMP = register("ship.hyper_jump");
+    public static final SoundEvent SHIP_WHOOSH = register("ship.whoosh");
+    public static final SoundEvent SHIP_SCAN = register("ship.scan");
+    public static final SoundEvent SHIP_LASER = register("ship.laser");
     public static final SoundEvent METEOR_IMPACT = register("meteor.impact");
 
 

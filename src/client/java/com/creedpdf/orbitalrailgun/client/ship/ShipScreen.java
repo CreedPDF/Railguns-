@@ -98,7 +98,7 @@ public class ShipScreen extends Screen {
         kv(dc, textRenderer, "TARGET", selected == null ? "--" : selected.displayName(), rx, ry, rw, selected == null ? DIM : RED, 0.7f);
         ry += 10;
         kv(dc, textRenderer, "FLIGHT TIME", String.format(Locale.ROOT, "%ds", (ShipEntity.IGNITION_TICKS + ShipEntity.ASCENT_TICKS
-                + ShipEntity.CRUISE_TICKS + ShipEntity.DESCENT_TICKS) / 20), rx, ry, rw, TEXT, 0.7f);
+                + ShipEntity.CRUISE_TICKS + ShipEntity.DESCENT_PILOTED + ShipEntity.LANDING_TICKS) / 20), rx, ry, rw, TEXT, 0.7f);
         ry += 10;
         kv(dc, textRenderer, "CABIN", "PRESSURISED", rx, ry, rw, OK, 0.7f);
         ry += 14;
@@ -117,7 +117,7 @@ public class ShipScreen extends Screen {
             }
         }));
         boolean sArmed = ticks < stowArmed;
-        hits.add(cmd(dc, textRenderer, sArmed ? "CONFIRM // STOW SHIP" : "STOW SHIP", 200, by + 1, DIM, true, mx, my, 0.85f, () -> {
+        hits.add(cmd(dc, textRenderer, sArmed ? "CONFIRM // RETURN TO ORBIT" : "RETURN TO ORBIT", 200, by + 1, DIM, true, mx, my, 0.85f, () -> {
             if (ticks < stowArmed) {
                 ClientPackets.sendShip(ship.getId(), 1, -1);
                 close();

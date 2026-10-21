@@ -70,6 +70,8 @@ public final class ModPackets {
     public static final Identifier TABLET_REMOTE = RailgunMod.id("tablet_remote");
     /** Starship terminal: varint entity id, varint action (0 launch, 1 stow), varint destination body. */
     public static final Identifier SHIP_ACTION = RailgunMod.id("ship_action");
+    /** Uplink hangar: varint action (0 call to BlockPos, 1 recall to orbit), BlockPos ground, varint facing. */
+    public static final Identifier TABLET_SHIP = RailgunMod.id("tablet_ship");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -101,10 +103,19 @@ public final class ModPackets {
                 boolean ok = switch (action) {
                     case 0 -> body >= 0 && body < com.creedpdf.orbitalrailgun.space.Body.ALL.length
                             && ship.launch(player, com.creedpdf.orbitalrailgun.space.Body.ALL[body]);
-                    case 1 -> ship.stow(player);
+                    case 1 -> ship.depart(player);
                     default -> false;
                 };
                 if (!ok) deny(player, "busy");
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(TABLET_SHIP, (server, player, handler, buf, sender) -> {
+            int action = buf.readVarInt();
+            BlockPos ground = buf.readBlockPos();
+            int facing = buf.readVarInt();
+            server.execute(() -> {
+                handleHangar(player, action, ground, facing);
+                sendTabletInfo(player);
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_STATUS, (server, player, handler, buf, sender) ->
@@ -241,6 +252,44 @@ public final class ModPackets {
             }
             default -> {}
         }
+    }
+
+    /** Hangar: call the starship down from orbit to {@code ground}, or send it back up. */
+    private static void handleHangar(ServerPlayerEntity player, int action, BlockPos ground, int facing) {
+        com.creedpdf.orbitalrailgun.space.ShipRegistry reg = com.creedpdf.orbitalrailgun.space.ShipRegistry.get(player.getServer());
+        com.creedpdf.orbitalrailgun.space.ShipRegistry.Entry e = reg.entry(player.getUuid());
+        com.creedpdf.orbitalrailgun.entity.ShipEntity ship = findShip(player.getServer(), e);
+        if (action == 0) {
+            if (e.state == com.creedpdf.orbitalrailgun.space.ShipRegistry.NONE) { deny(player, "no_ship"); return; }
+            if (ship != null) { deny(player, "ship_deployed"); return; }
+            ServerWorld world = (ServerWorld) player.getWorld();
+            boolean surface = world.getRegistryKey() == net.minecraft.world.World.OVERWORLD
+                    || com.creedpdf.orbitalrailgun.space.SpaceDims.planetOf(world.getRegistryKey()) != null;
+            if (!surface) { deny(player, "ship_surface"); return; }
+            if (player.getBlockPos().getSquaredDistance(ground) > 400 * 400 || !world.isChunkLoaded(ground)) { deny(player, "out_of_range"); return; }
+            int gy = com.creedpdf.orbitalrailgun.entity.ShipEntity.groundAt(world, ground);
+            com.creedpdf.orbitalrailgun.entity.ShipEntity.call(world, player, new BlockPos(ground.getX(), gy, ground.getZ()), facing);
+            player.sendMessage(Text.translatable("message.orbital_railgun.ship.inbound").formatted(Formatting.RED), true);
+            player.playSound(ModSounds.UI_TARGET_LOCK, SoundCategory.PLAYERS, 1.0f, 0.6f);
+        } else if (action == 1) {
+            if (ship == null) {
+                if (e.state == com.creedpdf.orbitalrailgun.space.ShipRegistry.DEPLOYED) reg.setOrbit(player.getUuid());
+                deny(player, "ship_not_found");
+                return;
+            }
+            if (!ship.depart(player)) { deny(player, "busy"); return; }
+            player.sendMessage(Text.translatable("message.orbital_railgun.remote.recall").formatted(Formatting.RED), true);
+        }
+    }
+
+    @org.jetbrains.annotations.Nullable
+    public static com.creedpdf.orbitalrailgun.entity.ShipEntity findShip(net.minecraft.server.MinecraftServer server,
+                                                                        com.creedpdf.orbitalrailgun.space.ShipRegistry.Entry e) {
+        if (e.state != com.creedpdf.orbitalrailgun.space.ShipRegistry.DEPLOYED || e.ship == null) return null;
+        for (ServerWorld w : server.getWorlds()) {
+            if (w.getEntity(e.ship) instanceof com.creedpdf.orbitalrailgun.entity.ShipEntity s && s.isAlive()) return s;
+        }
+        return null;
     }
 
     private static void handleDeployRequest(ServerPlayerEntity player, BlockPos target) {
@@ -403,6 +452,14 @@ public final class ModPackets {
             buf.writeVarInt(vis);
             buf.writeVarInt(doom);
         }
+        // Starship block: varint state (0 none, 1 orbit, 2 parked, 3 flying), BlockPos, string dim
+        com.creedpdf.orbitalrailgun.space.ShipRegistry.Entry se = com.creedpdf.orbitalrailgun.space.ShipRegistry.get(player.getServer()).entry(player.getUuid());
+        com.creedpdf.orbitalrailgun.entity.ShipEntity sh = findShip(player.getServer(), se);
+        int shipState = se.state == com.creedpdf.orbitalrailgun.space.ShipRegistry.NONE ? 0
+                : sh == null ? (se.state == com.creedpdf.orbitalrailgun.space.ShipRegistry.DEPLOYED ? 2 : 1) : sh.inFlight() ? 3 : 2;
+        buf.writeVarInt(shipState);
+        buf.writeBlockPos(sh != null ? sh.getBlockPos() : se.pos);
+        buf.writeString(sh != null ? sh.getWorld().getRegistryKey().getValue().getPath() : se.dim);
         ServerPlayNetworking.send(player, TABLET_INFO, buf);
     }
 }

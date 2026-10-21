@@ -1138,6 +1138,74 @@ def ship_land():
     return room(x, 1.8, 0.3)
 
 
+def ship_hyper_charge():
+    """Jump drive spooling: a rising, throbbing whine with a growing sub hum."""
+    d = 3.2
+    x = canvas(d)
+    t = t_axis(1.1 + 1.9)
+    T = 3.0
+    whine = unison(glide(220, 1800, T, 2.2), T, 4, 0.006, "saw")
+    whine = sweep(whine, "lowpass", 600, 7000) * (t / T) ** 1.5 * 0.3
+    throb = 0.6 + 0.4 * np.sin(2 * np.pi * (2 + 10 * (t / T) ** 2) * t)
+    place(x, whine * throb, 0.0)
+    place(x, osc(glide(40, 70, T, 1.0), T) * (t / T) * 0.6, 0.0)
+    place(x, sweep(white(T), "bandpass", 800, 6000) * (t / T) ** 3 * 0.25, 0.0)
+    return room(sat(x, 1.6), 1.6, 0.25)
+
+
+def ship_hyper_jump():
+    """The jump: a sharp sci-fi zip (a chirp shot up the spectrum), a crack and a deep thump."""
+    d = 3.0
+    x = canvas(d)
+    zip_ = osc(glide(300, 9000, 0.22, 0.4), 0.22) * env(0.22, 0.002, 0.05, 0.8, 0.08) * 0.8
+    place(x, zip_, 0.0)
+    place(x, unison(glide(1800, 120, 0.5, 0.5), 0.5, 5, 0.02, "saw") * env(0.5, 0.002, 0.1, 0.6, 0.3) * 0.35, 0.05)
+    place(x, sweep(white(0.6), "highpass", 9000, 300) * env(0.6, 0.001, 0.08, 0.4, 0.4) * 0.9, 0.12)
+    place(x, kick(90, 25, 1.6, 0.6, 0.9) * 1.3, 0.14)
+    place(x, filt(brown(2.4), "lowpass", 200) * decay(2.4, 0.9) * 0.9, 0.15)
+    return room(mband_sat(x, (2.6, 1.8, 1.3)), 2.6, 0.45)
+
+
+def ship_whoosh():
+    """A starship screaming past: roar swelling in, a Doppler drop, then receding."""
+    d = 3.2
+    x = canvas(d)
+    t = t_axis(3.0)
+    pk = 1.1
+    amp = 1.0 / (1.0 + ((t - pk) / 0.22) ** 2)
+    roar = filt(white(3.0), "bandpass", [200, 3000]) * amp * 1.1
+    place(x, roar, 0.0)
+    whine = osc(np.where(t < pk, 1400.0, 700.0) * (1 + 0.15 * np.tanh((pk - t) * 6)), 3.0) * amp * 0.18
+    place(x, whine, 0.0)
+    place(x, filt(brown(3.0), "lowpass", 160) * amp * 1.2, 0.0)
+    return room(sat(x, 1.8), 1.8, 0.25)
+
+
+def ship_scan():
+    """Holographic landing scanner: a soft hum with sweeping digital chirps."""
+    d = 2.6
+    x = canvas(d)
+    place(x, osc(110, 2.4) * env(2.4, 0.3, 0.2, 0.8, 0.6) * 0.25, 0.0)
+    place(x, osc(165, 2.4) * env(2.4, 0.3, 0.2, 0.8, 0.6) * 0.12, 0.0)
+    for i in range(8):
+        f0 = 900 + 120 * i
+        place(x, osc(glide(f0, f0 * 1.6, 0.12, 1.0), 0.12) * env(0.12, 0.004, 0.03, 0.6, 0.05) * 0.18, 0.15 + i * 0.26)
+    place(x, sweep(white(2.4), "bandpass", 1500, 5000) * env(2.4, 0.4, 0.2, 0.5, 0.6) * 0.06, 0.0)
+    return room(x, 1.4, 0.3)
+
+
+def ship_laser():
+    """Wide levelling laser: an angry buzzing beam, sizzling and cracking rock."""
+    d = 2.2
+    x = canvas(d)
+    buzz = unison(120, 2.0, 5, 0.01, "saw")
+    buzz = sweep(buzz, "lowpass", 2500, 1400) * env(2.0, 0.05, 0.2, 0.9, 0.3) * 0.35
+    place(x, buzz, 0.0)
+    place(x, crackle(2.0, 180, 0.0015, 2500, env(2.0, 0.05, 0.2, 0.9, 0.3)) * 0.6, 0.0)
+    place(x, filt(white(2.0), "highpass", 4000) * env(2.0, 0.05, 0.2, 0.7, 0.3) * 0.15, 0.0)
+    return room(sat(x, 2.0), 1.2, 0.2)
+
+
 def rift_portal():
     """The hole in the sky clears into real space: a deep inhale and a glassy ring."""
     d = 5.0
@@ -1601,6 +1669,11 @@ LOADOUT_SOUNDS = {
     "ship_launch": ship_launch,
     "ship_engine": ship_engine,
     "ship_land": ship_land,
+    "ship_hyper_charge": ship_hyper_charge,
+    "ship_hyper_jump": ship_hyper_jump,
+    "ship_whoosh": ship_whoosh,
+    "ship_scan": ship_scan,
+    "ship_laser": ship_laser,
     "module_shield": module_shield,
     "module_shield_block": module_shield_block,
     "module_sentry": module_sentry,
