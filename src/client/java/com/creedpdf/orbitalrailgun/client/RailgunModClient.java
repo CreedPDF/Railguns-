@@ -35,6 +35,9 @@ public final class RailgunModClient implements ClientModInitializer {
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
         EntityRendererRegistry.register(RailgunMod.ARES0, com.creedpdf.orbitalrailgun.client.ares0.Ares0Renderer::new);
         EntityRendererRegistry.register(RailgunMod.METEOR, com.creedpdf.orbitalrailgun.client.render.MeteorRenderer::new);
+        EntityRendererRegistry.register(RailgunMod.SHIP, com.creedpdf.orbitalrailgun.client.ship.ShipRenderer::new);
+        ClientTickEvents.END_CLIENT_TICK.register(com.creedpdf.orbitalrailgun.client.ship.ShipCinematic::tick);
+        HudRenderCallback.EVENT.register(com.creedpdf.orbitalrailgun.client.ship.ShipCinematic::hud);
         registerPortalRenderer();
         com.creedpdf.orbitalrailgun.client.ares0.Ares0Fx.register();
         com.creedpdf.orbitalrailgun.client.space.JetFlameFx.register();
@@ -108,6 +111,12 @@ public final class RailgunModClient implements ClientModInitializer {
         public void openAres0(com.creedpdf.orbitalrailgun.entity.Ares0Entity ares) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.currentScreen == null) client.setScreen(new com.creedpdf.orbitalrailgun.client.ares0.Ares0Screen(ares));
+        }
+
+        @Override
+        public void openShip(com.creedpdf.orbitalrailgun.entity.ShipEntity ship) {
+            MinecraftClient client = MinecraftClient.getInstance();
+            if (client.currentScreen == null) client.setScreen(new com.creedpdf.orbitalrailgun.client.ship.ShipScreen(ship));
         }
 
         @Override

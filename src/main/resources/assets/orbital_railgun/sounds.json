@@ -692,6 +692,42 @@
       }
     ]
   },
+  "ship.ignite": {
+    "subtitle": "subtitles.orbital_railgun.ship.ignite",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_ignite",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.launch": {
+    "subtitle": "subtitles.orbital_railgun.ship.launch",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_launch",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.engine": {
+    "subtitle": "subtitles.orbital_railgun.ship.engine",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_engine",
+        "attenuation_distance": 320
+      }
+    ]
+  },
+  "ship.land": {
+    "subtitle": "subtitles.orbital_railgun.ship.land",
+    "sounds": [
+      {
+        "name": "orbital_railgun:ship_land",
+        "attenuation_distance": 320
+      }
+    ]
+  },
   "module.shield": {
     "subtitle": "subtitles.orbital_railgun.module.shield",
     "sounds": [

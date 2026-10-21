@@ -74,7 +74,7 @@ red = sum(1 for p in pixels(ASSETS / "textures/entity/railgun.png") if len(p) >=
 if red == 0:
     errors.append("railgun.png: no glow colours baked")
 print(f"glowmask lit pixels: {lit}, red texels in atlas: {red}")
-for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glowmask.png"):
+for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glowmask.png", "textures/entity/ship_glowmask.png"):
     path = ASSETS / extra
     if not path.exists():
         errors.append(f"{extra}: missing")

@@ -68,6 +68,8 @@ public final class ModPackets {
     public static final Identifier ARES0_ACTION = RailgunMod.id("ares0_action");
     /** Uplink tablet remote control: varint action (0 recall ARES-9, 1 ARES-0 select, 2 ARES-0 fire, 3 ARES-0 recall), varint body. */
     public static final Identifier TABLET_REMOTE = RailgunMod.id("tablet_remote");
+    /** Starship terminal: varint entity id, varint action (0 launch, 1 stow), varint destination body. */
+    public static final Identifier SHIP_ACTION = RailgunMod.id("ship_action");
 
     public static void registerServerReceivers() {
         ServerPlayNetworking.registerGlobalReceiver(REQUEST_DEPLOY, (server, player, handler, buf, sender) -> {
@@ -87,6 +89,22 @@ public final class ModPackets {
             server.execute(() -> {
                 handleRemote(player, action, body);
                 sendTabletInfo(player);
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(SHIP_ACTION, (server, player, handler, buf, sender) -> {
+            int id = buf.readVarInt();
+            int action = buf.readVarInt();
+            int body = buf.readVarInt();
+            server.execute(() -> {
+                if (!(player.getWorld().getEntityById(id) instanceof com.creedpdf.orbitalrailgun.entity.ShipEntity ship) || !ship.isAlive()) return;
+                if (player.squaredDistanceTo(ship) > 24 * 24) return;
+                boolean ok = switch (action) {
+                    case 0 -> body >= 0 && body < com.creedpdf.orbitalrailgun.space.Body.ALL.length
+                            && ship.launch(player, com.creedpdf.orbitalrailgun.space.Body.ALL[body]);
+                    case 1 -> ship.stow(player);
+                    default -> false;
+                };
+                if (!ok) deny(player, "busy");
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(TABLET_STATUS, (server, player, handler, buf, sender) ->

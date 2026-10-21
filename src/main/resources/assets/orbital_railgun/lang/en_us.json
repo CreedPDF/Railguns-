@@ -173,5 +173,18 @@
   "command.orbital_railgun.quality": "Railguns+ effects: %s (adaptive %s, now running at %s)",
   "itemGroup.orbital_railgun.main": "Railguns+",
   "message.orbital_railgun.remote.recall": "RECALL ORDER SENT // ASSET RETURNING TO ORBIT",
-  "message.orbital_railgun.denied.no_ares0": "No ARES-0 deployed."
+  "message.orbital_railgun.denied.no_ares0": "No ARES-0 deployed.",
+  "item.orbital_railgun.starship": "ARES Starship",
+  "item.orbital_railgun.starship.tooltip": "Use on open ground: the ship lands from orbit. Walk up the ramp and use the flight console.",
+  "block.orbital_railgun.flight_console": "Flight Console",
+  "entity.orbital_railgun.starship": "ARES Starship",
+  "message.orbital_railgun.ship.none": "No starship docked to this console.",
+  "message.orbital_railgun.ship.inbound": "STARSHIP INBOUND // CLEAR THE LANDING ZONE",
+  "message.orbital_railgun.ship.deny.space": "The starship can only land on a surface.",
+  "message.orbital_railgun.ship.deny.room": "Not enough room: the ship needs about 9 x 19 blocks of clear space.",
+  "message.orbital_railgun.ship.destroyed": "That world no longer exists.",
+  "subtitles.orbital_railgun.ship.ignite": "Starship engines ignite",
+  "subtitles.orbital_railgun.ship.launch": "Starship launches",
+  "subtitles.orbital_railgun.ship.engine": "Starship engines roar",
+  "subtitles.orbital_railgun.ship.land": "Starship touches down"
 }

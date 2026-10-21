@@ -73,6 +73,15 @@ public final class ClientPackets {
         ClientPlayNetworking.send(ModPackets.TABLET_REMOTE, buf);
     }
 
+    /** Starship terminal: 0 launch to body, 1 stow. */
+    public static void sendShip(int entityId, int action, int body) {
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeVarInt(entityId);
+        buf.writeVarInt(action);
+        buf.writeVarInt(body);
+        ClientPlayNetworking.send(ModPackets.SHIP_ACTION, buf);
+    }
+
     public static void sendRift() {
         ClientPlayNetworking.send(ModPackets.TABLET_RIFT, PacketByteBufs.create());
     }

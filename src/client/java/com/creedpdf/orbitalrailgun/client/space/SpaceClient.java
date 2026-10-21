@@ -61,7 +61,7 @@ public final class SpaceClient {
             if (w == null) return;
             float pt = ctx.tickDelta();
             Matrix4f m = new Matrix4f(ctx.matrixStack().peek().getPositionMatrix());
-            SpaceSky.render(m, ctx.camera().getPos(), new Quaternionf(), w.getTime() + pt, pt, 1f, 1f, null, 1f);
+            SpaceSky.render(m, com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.spaceView(ctx.camera().getPos()), new Quaternionf(), w.getTime() + pt, pt, 1f, 1f, null, 1f);
         });
         for (RegistryKey<World> key : new RegistryKey[]{SpaceDims.MOON, SpaceDims.MARS, SpaceDims.VENUS, SpaceDims.EUROPA}) {
             DimensionRenderingRegistry.registerSkyRenderer(key, PlanetSky::render);

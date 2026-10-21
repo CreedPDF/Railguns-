@@ -41,4 +41,7 @@ public interface RailgunClientBridge {
 
     /** Opens ARES-0's planet targeting console. */
     default void openAres0(com.creedpdf.orbitalrailgun.entity.Ares0Entity ares) {}
+
+    /** Opens the starship navigation terminal. */
+    default void openShip(com.creedpdf.orbitalrailgun.entity.ShipEntity ship) {}
 }

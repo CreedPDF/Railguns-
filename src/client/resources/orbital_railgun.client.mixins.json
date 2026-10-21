@@ -8,7 +8,8 @@
     "HeldItemRendererMixin",
     "PlayerEntityRendererMixin",
     "GameRendererMixin",
-    "WorldRendererSkyMixin"
+    "WorldRendererSkyMixin",
+    "InGameHudMixin"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -1,0 +1,148 @@
+{
+ "parent": "block/block",
+ "textures": {
+  "particle": "orbital_railgun:block/flight_console_side",
+  "side": "orbital_railgun:block/flight_console_side",
+  "screen": "orbital_railgun:block/flight_console_screen",
+  "top": "orbital_railgun:block/flight_console_top"
+ },
+ "elements": [
+  {
+   "from": [
+    3,
+    0,
+    3
+   ],
+   "to": [
+    13,
+    9,
+    13
+   ],
+   "faces": {
+    "north": {
+     "texture": "#side"
+    },
+    "south": {
+     "texture": "#side"
+    },
+    "east": {
+     "texture": "#side"
+    },
+    "west": {
+     "texture": "#side"
+    },
+    "down": {
+     "texture": "#side"
+    },
+    "up": {
+     "texture": "#top"
+    }
+   }
+  },
+  {
+   "from": [
+    1,
+    9,
+    2
+   ],
+   "to": [
+    15,
+    11,
+    14
+   ],
+   "faces": {
+    "north": {
+     "texture": "#side"
+    },
+    "south": {
+     "texture": "#side"
+    },
+    "east": {
+     "texture": "#side"
+    },
+    "west": {
+     "texture": "#side"
+    },
+    "down": {
+     "texture": "#side"
+    },
+    "up": {
+     "texture": "#side"
+    }
+   }
+  },
+  {
+   "from": [
+    1,
+    11,
+    6
+   ],
+   "to": [
+    15,
+    13,
+    14
+   ],
+   "rotation": {
+    "angle": -22.5,
+    "axis": "x",
+    "origin": [
+     8,
+     11,
+     14
+    ]
+   },
+   "faces": {
+    "north": {
+     "texture": "#screen",
+     "uv": [
+      0,
+      0,
+      16,
+      4
+     ]
+    },
+    "up": {
+     "texture": "#screen"
+    },
+    "south": {
+     "texture": "#side"
+    },
+    "east": {
+     "texture": "#side"
+    },
+    "west": {
+     "texture": "#side"
+    },
+    "down": {
+     "texture": "#side"
+    }
+   }
+  },
+  {
+   "from": [
+    2,
+    13.2,
+    7
+   ],
+   "to": [
+    14,
+    13.4,
+    13
+   ],
+   "rotation": {
+    "angle": -22.5,
+    "axis": "x",
+    "origin": [
+     8,
+     11,
+     14
+    ]
+   },
+   "faces": {
+    "up": {
+     "texture": "#screen"
+    }
+   }
+  }
+ ]
+}
