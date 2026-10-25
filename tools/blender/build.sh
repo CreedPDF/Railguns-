@@ -13,6 +13,13 @@ for attempt in 1 2 3 4; do
     --out "$ROOT/build/blender" \
     --collision "$ROOT/src/main/resources/orbital_railgun_collision.json" $EXTRA
   code=$?
+  if [ $code -eq 0 ]; then
+    "$BLENDER" -b --factory-startup --python-exit-code 1 \
+      -P "$ROOT/tools/blender/build_grs.py" -- \
+      --assets "$ROOT/src/main/resources/assets/orbital_railgun" \
+      --out "$ROOT/build/blender" $EXTRA
+    code=$?
+  fi
   # The crashes happen in Cycles' preview renders; retries skip them (committed icons/renders are kept).
   EXTRA="--no-render"
   if [ $code -eq 0 ]; then exit 0; fi
