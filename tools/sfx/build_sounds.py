@@ -1774,7 +1774,10 @@ def main():
         write_ogg(x, OUT / f"{name}.ogg")
         print(f"{name:22s} {len(x) / SR:5.2f}s")
 
-    sounds_json = {}
+    sj = OUT.parent / "sounds.json"
+    old = json.loads(sj.read_text()) if sj.exists() else {}
+    # events owned by other generators (tools/sfx/grs_sounds.py) are kept
+    sounds_json = {k: v for k, v in old.items() if k.startswith("grs.")}
     for event, (file, props) in EVENTS.items():
         sounds_json[event] = {
             "subtitle": f"subtitles.orbital_railgun.{event}",

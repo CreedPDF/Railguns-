@@ -13,17 +13,25 @@ for attempt in 1 2 3 4; do
     --out "$ROOT/build/blender" \
     --collision "$ROOT/src/main/resources/orbital_railgun_collision.json" $EXTRA
   code=$?
-  if [ $code -eq 0 ]; then
-    "$BLENDER" -b --factory-startup --python-exit-code 1 \
-      -P "$ROOT/tools/blender/build_grs.py" -- \
-      --assets "$ROOT/src/main/resources/assets/orbital_railgun" \
-      --out "$ROOT/build/blender" $EXTRA
-    code=$?
-  fi
   # The crashes happen in Cycles' preview renders; retries skip them (committed icons/renders are kept).
   EXTRA="--no-render"
-  if [ $code -eq 0 ]; then exit 0; fi
+  if [ $code -eq 0 ]; then break; fi
   if [ $code -ne 139 ] && [ $code -ne 134 ]; then exit $code; fi
   echo "Blender crashed (exit $code), retrying ($attempt/4)..."
+done
+[ $code -eq 0 ] || exit 1
+
+# Gungnir Railway Station models (own retry loop, so its preview renders are not skipped by the railgun's retries)
+EXTRA=""
+for attempt in 1 2 3 4; do
+  "$BLENDER" -b --factory-startup --python-exit-code 1 \
+    -P "$ROOT/tools/blender/build_grs.py" -- \
+    --assets "$ROOT/src/main/resources/assets/orbital_railgun" \
+    --out "$ROOT/build/blender" $EXTRA
+  code=$?
+  if [ $code -eq 0 ]; then exit 0; fi
+  if [ $code -ne 139 ] && [ $code -ne 134 ]; then exit $code; fi
+  EXTRA="--no-render"
+  echo "Blender crashed (exit $code), retrying GRS ($attempt/4)..."
 done
 exit 1

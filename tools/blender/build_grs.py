@@ -64,6 +64,7 @@ def link_obj(name, bm):
     bm.free()
     o = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(o)
+    o["grs_fix"] = 1
     return o
 
 
@@ -73,6 +74,10 @@ def tag(obj, part, mats, smooth=False):
     obj.data.materials.clear()
     for m in (mats if isinstance(mats, (list, tuple)) else [mats]):
         obj.data.materials.append(m.m)
+    # recalculating normals goes through edit mode, which clamps face material indices to the slots that exist -
+    # so it must happen only once the slots are assigned
+    if obj.get("grs_fix"):
+        fix_normals(obj)
     active(obj)
     if smooth:
         bpy.ops.object.shade_smooth()
@@ -151,9 +156,7 @@ def lathe(name, profile, segs=48, a0=0.0, a1=math.tau, closed=False, mat_of_edge
                 pass
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     bm.normal_update()
-    o = link_obj(name, bm)
-    fix_normals(o)
-    return o
+    return link_obj(name, bm)
 
 
 def fix_normals(o):
@@ -194,9 +197,7 @@ def loft(name, sections, closed_caps=True, mat_of_face=None):
                 pass
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
     bm.normal_update()
-    o = link_obj(name, bm)
-    fix_normals(o)
-    return o
+    return link_obj(name, bm)
 
 
 def extrude_outline(name, pts_xz, thickness, rim_mat=1, face_mat=0, y=0.0):
@@ -214,9 +215,7 @@ def extrude_outline(name, pts_xz, thickness, rim_mat=1, face_mat=0, y=0.0):
         f = bm.faces.new((front[i], front[j], back[j], back[i]))
         f.material_index = rim_mat
     bm.normal_update()
-    o = link_obj(name, bm)
-    fix_normals(o)
-    return o
+    return link_obj(name, bm)
 
 
 def beam(name, p0, p1, w, h, up=(0, 0, 1)):
@@ -442,11 +441,11 @@ def obsidian_mat(name):
     edge = m.math("POWER", m.math("SUBTRACT", 1.0, m.ao(0.4)), 2.0)
     col = m.mix(col, (0.12, 0.1, 0.09), m.math("MULTIPLY", edge, 0.3, True))
     vor = m.voronoi_edge(0.22)
-    lines = m.math("LESS_THAN", vor, 0.018)
-    ember = m.math("MULTIPLY", lines, m.math("GREATER_THAN", n1, 0.5))
+    lines = m.math("LESS_THAN", vor, 0.007)
+    ember = m.math("MULTIPLY", lines, m.math("GREATER_THAN", n1, 0.6))
     col = m.mix(col, (0.5, 0.17, 0.03), ember)
     m.color(col)
-    m.glow(m.ramp(ember, [(0.0, (0, 0, 0)), (1.0, (0.85, 0.32, 0.05))]))
+    m.glow(m.ramp(ember, [(0.0, (0, 0, 0)), (1.0, (0.55, 0.2, 0.03))]))
     return m
 
 
@@ -901,7 +900,6 @@ def build_goggles(assets, out):
         bm.faces.new((lo_o[j], lo_o[i], lo_i[i], lo_i[j]))
     bm.normal_update()
     o = link_obj("strap", bm)
-    fix_normals(o)
     objs.append(tag(o, "goggles", [strap]))
     # faceplate frame joining the lenses
     objs.append(tag(box("frame", (0, -0.285, EYE), (0.46, 0.05, 0.13), 0, 0.012), "goggles", [shell]))
