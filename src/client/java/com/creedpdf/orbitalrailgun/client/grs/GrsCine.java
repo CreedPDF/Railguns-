@@ -409,7 +409,7 @@ public final class GrsCine {
         Vector3f p = place(view, c, kk);
         float w = (float) (RJ() * 2.6 * kk), h = w * 0.25f;
         float jit = k < 0.3 ? (float) (Math.sin(t * 31) * 0.02 * w) : 0;
-        quad(buf.getBuffer(BeamRenderLayers.translucent(TITLE)), m, p.x + jit, p.y, p.z, w, h, 0, 0, 1, 1, 1, 1, 1, a);
+        quad(buf.getBuffer(BeamRenderLayers.translucent(TITLE)), m, p.x + jit, p.y, p.z, w, h, 0, 0, 0, 1, 1, 1, 1, 1, a);
     }
 
     /** Called from the space sky after every layer (normal depth): warp, light bars, the spear in flight, rocks, plasma. */
