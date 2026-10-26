@@ -1,0 +1,6 @@
+{
+  "message_id": "orbital_railgun.krl_plasma",
+  "exhaustion": 0.1,
+  "scaling": "never",
+  "effects": "burning"
+}

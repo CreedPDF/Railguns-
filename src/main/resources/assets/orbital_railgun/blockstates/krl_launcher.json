@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "orbital_railgun:block/krl_launcher"
+    }
+  }
+}
