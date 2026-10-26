@@ -10,6 +10,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /** Pushes the projection far plane out while a railgun beam is live, so 2000-block shots are never clipped. */
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
+    /** The Gungnir cutscene's impact frames, applied to the finished world image like vanilla's post effects. */
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/GameRenderer;renderWorld(FJLnet/minecraft/client/util/math/MatrixStack;)V",
+            shift = At.Shift.AFTER), require = 0)
+    private void orbitalRailgun$grsImpactFrames(float tickDelta, long startTime, boolean tick, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        com.creedpdf.orbitalrailgun.client.grs.GrsImpactFx.apply(tickDelta);
+    }
+
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$noHandInCinematic(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera camera,
                                                   float tickDelta, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {

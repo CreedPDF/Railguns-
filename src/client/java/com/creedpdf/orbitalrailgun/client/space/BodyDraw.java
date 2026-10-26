@@ -99,8 +99,20 @@ public final class BodyDraw {
         if (b == Body.SATURN) rings(cp, m, c, rr, q, l, alpha, false);
 
         VertexConsumer vc = cp.getBuffer(solid ? BeamRenderLayers.solid(albedo(b)) : BeamRenderLayers.translucent(albedo(b)));
+        boolean giant = b == Body.JUPITER || b == Body.SATURN;
         sphere(vc, m, c, rr, q, lat, lon, (n, out) -> {
             float k = lit(n, l, ambient);
+            if (giant) {
+                // gas giants are strongly limb-darkened: the light comes from deep in the cloud deck
+                float px = c.x + n.x * rr, py = c.y + n.y * rr, pz = c.z + n.z * rr;
+                float len = (float) Math.sqrt(px * px + py * py + pz * pz);
+                float mu = len > 0 ? Math.max(0f, -(n.x * px + n.y * py + n.z * pz) / len) : 1f;
+                float ld = 0.42f + 0.58f * (float) Math.pow(mu, 0.55);
+                k *= ld;
+                out[0] = k * (1.04f + 0.14f * warm(n, l) + 0.06f * (1 - mu)); out[1] = k * (1f + 0.05f * warm(n, l)); out[2] = k * (0.95f - 0.05f * (1 - mu));
+                out[3] = alpha;
+                return;
+            }
             out[0] = k * (1f + 0.12f * warm(n, l)); out[1] = k * (1f + 0.04f * warm(n, l)); out[2] = k; out[3] = alpha;
         }, true);
 

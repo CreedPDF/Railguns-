@@ -24,16 +24,40 @@ import net.minecraft.world.World;
 public final class Grs {
     private Grs() {}
 
-    /** The station rides Jupiter's ring plane at this many Jupiter radii, on the side facing Earth. */
-    public static final double RING_ORBIT = 1.62;
-    /** Jupiter's faint rings, in Jupiter radii. */
-    public static final double RING_IN = 1.36, RING_OUT = 1.9;
+    // ---- the station: a ring of metal all the way round Jupiter, in its equatorial plane
+    /** Radius of the ring's centreline, in Jupiter radii. */
+    public static final double RING_ORBIT = 1.55;
+    /** Hull cross-section half-width (radial) and half-height, blocks. */
+    public static final double HULL_W = 260, HULL_H = 110;
+    /** Height of the rail's top above the hull centreline, and of the spear's path. */
+    public static final double RAIL_TOP = 150, PATH_H = 330;
+    /** Coil gates round the spear's path: inner and outer radius. The muzzle gate is bigger. */
+    public static final double GATE_IN = 118, GATE_OUT = 152, MUZZLE_IN = 300, MUZZLE_OUT = 430;
 
-    /** The station's centre in the Space dimension. */
+    public static double ringRadius() {
+        return Body.JUPITER.radius * RING_ORBIT;
+    }
+
+    /** Ring angle (around Jupiter, from +X toward +Z) of the muzzle, which faces Earth. */
+    public static double muzzleAngle() {
+        Vec3d d = Body.EARTH.center.subtract(Body.JUPITER.center);
+        return Math.atan2(d.z, d.x);
+    }
+
+    /** A point of the ring frame: angle th round Jupiter, rho out from the centreline, h above it (Space dimension). */
+    public static Vec3d ringPoint(double th, double rho, double h) {
+        double r = ringRadius() + rho;
+        return Body.JUPITER.center.add(Math.cos(th) * r, h, Math.sin(th) * r);
+    }
+
+    /** The spear's path at angle th. */
+    public static Vec3d pathPoint(double th) {
+        return ringPoint(th, 0, PATH_H);
+    }
+
+    /** The station's command point: the muzzle gate. */
     public static Vec3d stationPos() {
-        Body j = Body.JUPITER;
-        Vec3d toEarth = Body.EARTH.center.subtract(j.center).multiply(1, 0, 1).normalize();
-        return j.center.add(toEarth.multiply(j.radius * RING_ORBIT));
+        return pathPoint(muzzleAngle());
     }
 
     /**
@@ -67,7 +91,7 @@ public final class Grs {
      * The spear breaks from its lap, slings once round Jupiter and fires for Earth. Long enough for the caller's
      * cutscene (zoom out, fly to Jupiter, the station, riding the spear, the slingshot, the shot).
      */
-    public static final int RELEASE = 300;
+    public static final int RELEASE = 284;
     /** It leaves the barrel: the descent is a few ticks of light from the sky to the ground. */
     public static final int DESCENT = 6;
     public static final int IMPACT = RELEASE + DESCENT;

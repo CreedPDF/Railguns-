@@ -39,6 +39,7 @@ public final class GrsModels {
                 STATION = load(rm, "station");
                 SPEAR = load(rm, "spear");
                 GOGGLES = load(rm, "goggles");
+                GrsImpactFx.close();
             }
         });
     }

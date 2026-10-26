@@ -227,7 +227,11 @@ public final class GrsClient {
     // ------------------------------------------------------------------------------------------- target marker
 
     private static void world(WorldRenderContext ctx) {
-        if (!worn() || !visor || !onEarth() || GrsCine.active()) return;
+        if (GrsCine.active()) {
+            GrsCine.ground(ctx, BUF);
+            return;
+        }
+        if (!worn() || !visor || !onEarth()) return;
         BlockPos t = locked != null ? locked : hover;
         if (t == null) return;
         boolean lock = locked != null;
