@@ -17,7 +17,7 @@ import java.util.UUID;
 /**
  * GRS networking.
  * <pre>
- *  C2S  grs_fire     BlockPos target, varint yield     the goggles' FIRE key -> validate, spawn the strike
+ *  C2S  grs_fire     BlockPos target, varint power     the goggles' FIRE key -> validate, spawn the strike
  *  S2C  grs_status   varint code, varint cooldown      0 accepted, 1 not on Earth, 2 no goggles, 3 recharging, 4 out of range
  * </pre>
  */
@@ -34,12 +34,12 @@ public final class GrsNet {
     public static void register() {
         ServerPlayNetworking.registerGlobalReceiver(FIRE, (server, player, handler, buf, sender) -> {
             BlockPos target = buf.readBlockPos();
-            int yield = buf.readVarInt();
-            server.execute(() -> fire(player, target, yield));
+            int power = buf.readVarInt();
+            server.execute(() -> fire(player, target, power));
         });
     }
 
-    private static void fire(ServerPlayerEntity player, BlockPos target, int yield) {
+    private static void fire(ServerPlayerEntity player, BlockPos target, int power) {
         ServerWorld w = player.getServerWorld();
         long now = w.getTime();
         if (!Grs.wearing(player)) {
@@ -63,12 +63,12 @@ public final class GrsNet {
         }
         GungnirStrikeEntity e = new GungnirStrikeEntity(RailgunMod.GUNGNIR_STRIKE, w);
         e.setPosition(target.getX() + 0.5, target.getY() + 1, target.getZ() + 0.5);
-        e.setup(yield, player.getUuid());
+        e.setup(power, player.getUuid());
         w.spawnEntity(e);
         int cd = Grs.IMPACT + Grs.COOLDOWN;
         READY.put(player.getUuid(), now + cd);
         status(player, OK, cd);
-        RailgunMod.LOGGER.info("GRS: {} called Gungnir at {} (yield {})", player.getName().getString(), target.toShortString(), Grs.clampYield(yield));
+        RailgunMod.LOGGER.info("GRS: {} called Gungnir at {} (power {})", player.getName().getString(), target.toShortString(), Grs.clampYield(power));
     }
 
     private static void status(ServerPlayerEntity p, int code, int cooldown) {

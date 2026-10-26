@@ -85,7 +85,7 @@ public final class Grs {
     /** The lap: ticks per lap of the ring (it is light: what you see is the strobe of its passes). */
     public static final int LAP_TICKS = 34;
 
-    // ---- yield
+    // ---- power
     public static final int MIN_YIELD = 1, MAX_YIELD = 10;
     private static final int[] RADIUS = {0, 5, 8, 11, 15, 19, 24, 30, 37, 45};
     private static final String[] NAMES = {"SURGICAL", "PIN", "BREACH", "BREAKER", "SHATTER", "QUAKE", "RUIN", "CATACLYSM", "EXTINCTION", "RAGNAROK"};
@@ -98,21 +98,21 @@ public final class Grs {
     }
 
     /** Crater radius in blocks (0 = no terrain damage). */
-    public static int radius(int yield) {
-        return RADIUS[clampYield(yield) - 1];
+    public static int radius(int power) {
+        return RADIUS[clampYield(power) - 1];
     }
 
-    public static String yieldName(int yield) {
-        return NAMES[clampYield(yield) - 1];
+    public static String yieldName(int power) {
+        return NAMES[clampYield(power) - 1];
     }
 
     /** The radius in which living things are hit. */
-    public static double blastRadius(int yield) {
-        return Math.max(9, radius(yield) * 1.45 + 7);
+    public static double blastRadius(int power) {
+        return Math.max(9, radius(power) * 1.45 + 7);
     }
 
-    public static float damage(int yield) {
-        return 40f + clampYield(yield) * 26f;
+    public static float damage(int power) {
+        return 40f + clampYield(power) * 26f;
     }
 
     public static boolean earth(World w) {

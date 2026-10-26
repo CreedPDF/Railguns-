@@ -21,7 +21,7 @@ import java.util.Locale;
  *   <li>the lens itself - an amber-tinted vignette with a fine grid and scanlines;</li>
  *   <li>a live feed of the Gungnir Railway Station on Jupiter's rings, the spear an orb racing round its track;</li>
  *   <li>a turning reticle with range and coordinates of the surface under it, brackets closing in on a lock;</li>
- *   <li>the yield ladder - SURGICAL to RAGNAROK - with the crater and blast it will make;</li>
+ *   <li>the power ladder - SURGICAL to RAGNAROK - with the crater and blast it will make;</li>
  *   <li>the strike in flight (release, descent, impact) and the recall countdown.</li>
  * </ul>
  */
@@ -133,7 +133,7 @@ public final class GogglesHud {
         return "LAPPING";
     }
 
-    // ------------------------------------------------------------------------------------------- yield
+    // ------------------------------------------------------------------------------------------- power
 
     private static void yieldLadder(DrawContext ctx, TextRenderer tr, int x, int y, float time) {
         int pw = 108, ph = 156;
@@ -144,7 +144,7 @@ public final class GogglesHud {
         int y0 = y + 18;
         for (int i = Grs.MAX_YIELD; i >= Grs.MIN_YIELD; i--) {
             int row = y0 + (Grs.MAX_YIELD - i) * 10;
-            boolean on = i <= GrsClient.yield, cur = i == GrsClient.yield;
+            boolean on = i <= GrsClient.power, cur = i == GrsClient.power;
             int col = cur ? OR_HI : on ? OR : OR_DIM;
             int bw = 10 + i * 4;
             if (cur) {
@@ -156,10 +156,10 @@ public final class GogglesHud {
         }
         int by = y0 + 104;
         Term.hline(ctx, x + 6, x + pw - 6, by, OR_DIM);
-        int r = Grs.radius(GrsClient.yield);
-        Term.text(ctx, tr, Grs.yieldName(GrsClient.yield), x + 6, by + 4, OR_HI, 1f);
+        int r = Grs.radius(GrsClient.power);
+        Term.text(ctx, tr, Grs.yieldName(GrsClient.power), x + 6, by + 4, OR_HI, 1f);
         Term.text(ctx, tr, r == 0 ? "NO CRATER" : "CRATER  Ø" + r * 2 + " m", x + 6, by + 16, OR, 0.65f);
-        Term.text(ctx, tr, "BLAST   " + (int) Grs.blastRadius(GrsClient.yield) + " m", x + 6, by + 24, OR, 0.65f);
+        Term.text(ctx, tr, "BLAST   " + (int) Grs.blastRadius(GrsClient.power) + " m", x + 6, by + 24, OR, 0.65f);
     }
 
     // ------------------------------------------------------------------------------------------- reticle

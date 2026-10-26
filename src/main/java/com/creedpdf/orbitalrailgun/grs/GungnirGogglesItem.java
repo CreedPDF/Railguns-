@@ -9,7 +9,7 @@ import net.minecraft.sound.SoundEvents;
 
 /**
  * The Gungnir goggles: worn on the head, they show the GRS fire-control display over your view. The spear is commanded
- * from them (fire / yield keys), wherever you are on Earth.
+ * from them (fire / power keys), wherever you are on Earth.
  */
 public class GungnirGogglesItem extends ArmorItem {
     public GungnirGogglesItem(Settings settings) {

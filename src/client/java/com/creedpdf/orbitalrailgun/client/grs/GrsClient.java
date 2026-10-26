@@ -37,11 +37,11 @@ import org.joml.Vector3f;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * Client side of the GRS: the goggles' controls and state (yield, target lock, the strike in flight, recharge), their
+ * Client side of the GRS: the goggles' controls and state (power, target lock, the strike in flight, recharge), their
  * worn model, the target marker painted on the ground, the station drawn in space and the pass-by roar.
  *
  * <p>Controls while wearing the goggles: [G] locks the surface under your crosshair, [G] again calls Gungnir onto it;
- * [Up]/[Down] choose the yield (how much destruction), [H] raises or lowers the visor. A lock expires after a few
+ * [Up]/[Down] choose the power (how much destruction), [H] raises or lowers the visor. A lock expires after a few
  * seconds or when you look away from it and press G on something else.</p>
  */
 public final class GrsClient {
@@ -50,7 +50,7 @@ public final class GrsClient {
     public static KeyBinding FIRE, YIELD_UP, YIELD_DOWN, VISOR;
 
     // ---- goggles state
-    public static int yield = 5;
+    public static int power = 5;
     public static boolean visor = true;
     public static BlockPos hover, locked;
     public static long lockedAt;
@@ -142,8 +142,8 @@ public final class GrsClient {
             visor = !visor;
             play(ModSounds.GRS_YIELD, visor ? 1.3f : 0.8f, 0.6f);
         }
-        while (YIELD_UP.wasPressed()) setYield(yield + 1);
-        while (YIELD_DOWN.wasPressed()) setYield(yield - 1);
+        while (YIELD_UP.wasPressed()) setYield(power + 1);
+        while (YIELD_DOWN.wasPressed()) setYield(power - 1);
         // what the crosshair rests on, out to the goggles' range
         hover = null;
         if (mc.cameraEntity != null && visor) {
@@ -165,7 +165,7 @@ public final class GrsClient {
             } else if (locked != null && (hover == null || hover.getSquaredDistance(locked) < 9 * 9)) {
                 PacketByteBuf b = PacketByteBufs.create();
                 b.writeBlockPos(locked);
-                b.writeVarInt(yield);
+                b.writeVarInt(power);
                 ClientPlayNetworking.send(GrsNet.FIRE, b);
                 say("CALLING GUNGNIR", 0xFFFFB060);
             } else if (hover != null) {
@@ -180,7 +180,7 @@ public final class GrsClient {
         }
         // the spear on its lap, felt through the goggles: a soft zoom every time it comes round
         float phase = (now() % Grs.LAP_TICKS) / (float) Grs.LAP_TICKS;
-        if (visor && phase < lastLapPhase) play(ModSounds.GRS_WHOOSH, 0.9f + 0.1f * (yield / 10f), 0.16f);
+        if (visor && phase < lastLapPhase) play(ModSounds.GRS_WHOOSH, 0.9f + 0.1f * (power / 10f), 0.16f);
         lastLapPhase = phase;
     }
 
@@ -190,8 +190,8 @@ public final class GrsClient {
 
     private static void setYield(int y) {
         int n = Grs.clampYield(y);
-        if (n != yield) play(ModSounds.GRS_YIELD, 0.7f + n * 0.07f, 0.8f);
-        yield = n;
+        if (n != power) play(ModSounds.GRS_YIELD, 0.7f + n * 0.07f, 0.8f);
+        power = n;
     }
 
     private static void status(int code, int cooldown) {
@@ -201,7 +201,7 @@ public final class GrsClient {
                 firedAt_pos = locked;
                 readyAt = now() + cooldown;
                 locked = null;
-                say("GUNGNIR RELEASED  ·  " + Grs.yieldName(yield), 0xFFFFA040);
+                say("GUNGNIR RELEASED  ·  " + Grs.yieldName(power), 0xFFFFA040);
             }
             case GrsNet.NOT_EARTH -> say("NO EARTH UPLINK", 0xFFFF5040);
             case GrsNet.NO_GOGGLES -> say("GOGGLES NOT WORN", 0xFFFF5040);
@@ -230,7 +230,7 @@ public final class GrsClient {
         ms.translate(t.getX() + 0.5 - cam.x, t.getY() + 1.02 - cam.y, t.getZ() + 0.5 - cam.z);
         Matrix4f m = ms.peek().getPositionMatrix();
         float time = now() + ctx.tickDelta();
-        float R = (float) Grs.blastRadius(yield), cr = Math.max(1.5f, Grs.radius(yield));
+        float R = (float) Grs.blastRadius(power), cr = Math.max(1.5f, Grs.radius(power));
         float pulse = 0.7f + 0.3f * MathHelper.sin(time * (lock ? 0.6f : 0.25f));
         float k = (lock ? 1f : 0.45f) * pulse;
         Vector3f c = new Vector3f(0, 0.05f, 0), a = new Vector3f(1, 0, 0), b = new Vector3f(0, 0, 1);

@@ -37,7 +37,7 @@ import java.util.UUID;
 
 /**
  * One strike of Gungnir. It lives at the target: the release and descent play out above it, it lands with the impact,
- * carves a crater sized by the chosen yield, then stands planted for a while before it is recalled to orbit.
+ * carves a crater sized by the chosen power, then stands planted for a while before it is recalled to orbit.
  * Everything you see is drawn by the client from this entity's tick counter (see the client's GrsStrikeFx).
  */
 public class GungnirStrikeEntity extends Entity {
@@ -65,8 +65,8 @@ public class GungnirStrikeEntity extends Entity {
         this.ignoreCameraFrustum = true;
     }
 
-    public void setup(int yield, UUID owner) {
-        dataTracker.set(YIELD, Grs.clampYield(yield));
+    public void setup(int power, UUID owner) {
+        dataTracker.set(YIELD, Grs.clampYield(power));
         dataTracker.set(OWNER, Optional.ofNullable(owner));
         Vec3d d = Grs.jupiterSkyDir(getWorld());
         dataTracker.set(DX, (float) d.x);
@@ -84,7 +84,7 @@ public class GungnirStrikeEntity extends Entity {
         return Grs.plantAxis(skyDir());
     }
 
-    public int yield() {
+    public int power() {
         return dataTracker.get(YIELD);
     }
 
@@ -231,7 +231,7 @@ public class GungnirStrikeEntity extends Entity {
 
     private void impact(ServerWorld w) {
         sound(w, ModSounds.GRS_IMPACT, 40f, 1f);
-        int y = yield();
+        int y = power();
         double R = Grs.blastRadius(y);
         DamageSource src = source(w);
         UUID o = owner();
@@ -252,8 +252,8 @@ public class GungnirStrikeEntity extends Entity {
         buildColumns(y);
     }
 
-    private void buildColumns(int yield) {
-        int r = Grs.radius(yield);
+    private void buildColumns(int power) {
+        int r = Grs.radius(power);
         int outer = Math.max(4, (int) Math.ceil(r * 1.4));
         columns = new IntArrayList();
         for (int dx = -outer; dx <= outer; dx++) {
@@ -273,11 +273,11 @@ public class GungnirStrikeEntity extends Entity {
     private void carve(ServerWorld w, int step) {
         if (columns == null) {
             groundY = getBlockY() - 1;
-            buildColumns(yield());
+            buildColumns(power());
         }
         int total = columns.size();
         int until = (int) Math.ceil(total * Math.min(1.0, step / (double) Grs.CARVE_TICKS));
-        int r = Grs.radius(yield());
+        int r = Grs.radius(power());
         double depth = r * 0.55;
         int outer = Math.max(4, (int) Math.ceil(r * 1.4));
         Random rnd = w.random;
@@ -350,7 +350,7 @@ public class GungnirStrikeEntity extends Entity {
 
     @Override
     protected void writeCustomDataToNbt(NbtCompound nbt) {
-        nbt.putInt("yield", yield());
+        nbt.putInt("yield", power());
         nbt.putInt("ticks", serverTicks);
         UUID o = owner();
         if (o != null) nbt.putUuid("owner", o);

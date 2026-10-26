@@ -76,7 +76,7 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         // the eye, relative to the strike's origin
         Vector3f eye = new Vector3f((float) (cam.x - basePos.x), (float) (cam.y - basePos.y), (float) (cam.z - basePos.z));
         float t = e.ticks(pt);
-        int yield = e.yield();
+        int power = e.power();
         Vector3f up = v3(e.plantAxis());
         Vector3f sky = v3(e.skyDir());
         float time = e.age + pt;
@@ -84,14 +84,14 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         ms.push();
         Matrix4f m = ms.peek().getPositionMatrix();
         if (t < Grs.IMPACT) {
-            descent(m, eye, sky, t, yield, time);
+            descent(m, eye, sky, t, power, time);
         } else {
             float since = t - Grs.IMPACT;
             float recall = t >= Grs.RECALL ? MathHelper.clamp((t - Grs.RECALL) / Grs.RECALL_LEN, 0, 1) : 0f;
             spear(ms, up, since, recall, time);
             m = ms.peek().getPositionMatrix();
-            ground(m, up, yield, since, recall, time);
-            impactFx(m, eye, up, since, yield, time);
+            ground(m, up, power, since, recall, time);
+            impactFx(m, eye, up, since, power, time);
             if (recall <= 0) planted(m, up, since, time);
             else recallFx(m, eye, up, sky, recall, time);
         }
@@ -105,7 +105,7 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
             if (t > Grs.IMPACT - 10 && t < Grs.IMPACT) RailgunHud.shake(0.4f * near);
             if (e.ticks() == Grs.IMPACT && near > 0) {
                 RailgunHud.triggerFireFlash(Math.min(1f, 0.3f + near));
-                RailgunHud.shake(1.5f + 3.5f * near * (yield / 10f + 0.4f));
+                RailgunHud.shake(1.5f + 3.5f * near * (power / 10f + 0.4f));
             }
             if (e.ticks() > Grs.IMPACT && e.ticks() <= Grs.IMPACT + Grs.CARVE_TICKS && near > 0) RailgunHud.shake(0.6f * near);
             if (e.ticks() > Grs.RECALL + 20 && e.ticks() < Grs.RECALL + 34 && near > 0) RailgunHud.shake(0.8f * near);
@@ -114,7 +114,7 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
 
     // --------------------------------------------------------------------------- release and descent
 
-    private void descent(Matrix4f m, Vector3f eye, Vector3f sky, float t, int yield, float time) {
+    private void descent(Matrix4f m, Vector3f eye, Vector3f sky, float t, int power, float time) {
         Vector3f far = new Vector3f(sky).mul(SKY);
         if (t < Grs.RELEASE) {
             // the strobe of the lapping spear beside Jupiter, swelling as it breaks orbit
@@ -126,7 +126,7 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
             GrsDraw.sprite(add(GrsDraw.FLARE), m, far.x, far.y, far.z, 6f + 34f * k * k, time * 0.04f, k, 0.5f * k, 0.12f * k, 1);
             // the target answers: a faint ring of light on the ground, tightening
             float tk = GrsDraw.smooth((t - Grs.RELEASE + 26) / 26f);
-            if (tk > 0) targetGlow(m, yield, tk, time);
+            if (tk > 0) targetGlow(m, power, tk, time);
             return;
         }
         // a few ticks of light down out of the sky
@@ -134,20 +134,20 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         float fe = f * f;
         Vector3f head = new Vector3f(sky).mul(SKY * (1 - fe));
         Vector3f tail = new Vector3f(sky).mul(SKY);
-        float w = 2.6f + yield * 0.45f;
+        float w = 2.6f + power * 0.45f;
         VertexConsumer beam = add(GrsDraw.BEAM);
         GrsDraw.beam(beam, m, head, tail, eye, w * 2.4f, time * 0.5f, 40f, 1f, 0.38f, 0.05f, 0.75f);
         GrsDraw.beam(beam, m, head, tail, eye, w * 1.1f, time * 0.8f, 26f, 1f, 0.65f, 0.25f, 0.9f);
         GrsDraw.beam(beam, m, head, tail, eye, w * 0.35f, time, 18f, 1f, 0.95f, 0.85f, 1f);
         GrsDraw.streak(add(GrsDraw.STREAK), m, new Vector3f(head).add(new Vector3f(sky).mul(60)), head, eye, w * 1.6f, 1f, 0.8f, 0.5f, 1);
-        GrsDraw.sprite(add(GrsDraw.ORB), m, head.x, head.y, head.z, 8f + yield * 1.2f, 0, 1f, 0.85f, 0.6f, 1);
-        GrsDraw.sprite(add(GrsDraw.FLARE), m, head.x, head.y, head.z, 30f + yield * 3f, time * 0.2f, 1f, 0.55f, 0.15f, 1);
+        GrsDraw.sprite(add(GrsDraw.ORB), m, head.x, head.y, head.z, 8f + power * 1.2f, 0, 1f, 0.85f, 0.6f, 1);
+        GrsDraw.sprite(add(GrsDraw.FLARE), m, head.x, head.y, head.z, 30f + power * 3f, time * 0.2f, 1f, 0.55f, 0.15f, 1);
         // the ground lights up under it
-        targetGlow(m, yield, 1f + f, time);
+        targetGlow(m, power, 1f + f, time);
     }
 
-    private void targetGlow(Matrix4f m, int yield, float k, float time) {
-        float R = (float) Grs.blastRadius(yield);
+    private void targetGlow(Matrix4f m, int power, float k, float time) {
+        float R = (float) Grs.blastRadius(power);
         Vector3f c = new Vector3f(0, 0.15f, 0), a = new Vector3f(1, 0, 0), b = new Vector3f(0, 0, 1);
         float pulse = 0.75f + 0.25f * MathHelper.sin(time * 1.3f);
         GrsDraw.flat(add(GrsDraw.SHOCK), m, c, a, b, R * (1.6f - 0.6f * Math.min(1, k)), 1f * k * pulse * 0.6f, 0.4f * k * pulse * 0.6f,
@@ -212,9 +212,9 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         return new Vector3f[]{new Vector3f(1, 0, 0), new Vector3f(0, 0, 1)};
     }
 
-    private void impactFx(Matrix4f m, Vector3f eye, Vector3f up, float since, int yield, float time) {
+    private void impactFx(Matrix4f m, Vector3f eye, Vector3f up, float since, int power, float time) {
         if (since > 140) return;
-        float R = (float) Grs.blastRadius(yield);
+        float R = (float) Grs.blastRadius(power);
         Vector3f[] g = groundBasis();
         // the flash
         float flash = (float) Math.exp(-since / 4.0);
@@ -226,7 +226,7 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         for (int i = 0; i < 3; i++) {
             float st = since - i * 5;
             if (st < 0) continue;
-            float k = st / (16f + yield * 1.5f);
+            float k = st / (16f + power * 1.5f);
             if (k >= 1) continue;
             float rad = R * (0.25f + (1.8f + i * 0.5f) * k);
             float al = (float) Math.pow(1 - k, 1.6) * (i == 0 ? 1f : 0.6f);
@@ -235,20 +235,20 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         // a pillar of fire up the shaft
         float col = (float) Math.exp(-since / 12.0);
         if (col > 0.02f) {
-            Vector3f top = new Vector3f(up).mul(30f + yield * 6f);
+            Vector3f top = new Vector3f(up).mul(30f + power * 6f);
             VertexConsumer b = add(GrsDraw.BEAM);
-            GrsDraw.beam(b, m, new Vector3f(0, 0.2f, 0), top, eye, (4f + yield * 0.6f) * col, time * 0.3f, 18f, 1f, 0.42f, 0.06f, col * 0.9f);
-            GrsDraw.beam(b, m, new Vector3f(0, 0.2f, 0), new Vector3f(top).mul(0.7f), eye, (1.5f + yield * 0.2f) * col, time * 0.5f, 12f, 1f, 0.85f, 0.6f, col);
+            GrsDraw.beam(b, m, new Vector3f(0, 0.2f, 0), top, eye, (4f + power * 0.6f) * col, time * 0.3f, 18f, 1f, 0.42f, 0.06f, col * 0.9f);
+            GrsDraw.beam(b, m, new Vector3f(0, 0.2f, 0), new Vector3f(top).mul(0.7f), eye, (1.5f + power * 0.2f) * col, time * 0.5f, 12f, 1f, 0.85f, 0.6f, col);
         }
         // rock and burning debris on ballistic arcs (one pass per buffer: never interleave two layers)
         for (int pass = 0; pass < 2; pass++) {
-            Random r = Random.create(0x6A9 + yield * 31L);
-            int n = 70 + yield * 14;
+            Random r = Random.create(0x6A9 + power * 31L);
+            int n = 70 + power * 14;
             VertexConsumer vc = pass == 0 ? blend(GrsDraw.DUST) : add(GrsDraw.ORB);
             for (int i = 0; i < n; i++) {
                 float ang = r.nextFloat() * MathHelper.TAU;
-                float sp = (0.6f + r.nextFloat() * 1.4f) * (1.2f + yield * 0.12f);
-                float vy = 0.9f + r.nextFloat() * 1.8f + yield * 0.08f;
+                float sp = (0.6f + r.nextFloat() * 1.4f) * (1.2f + power * 0.12f);
+                float vy = 0.9f + r.nextFloat() * 1.8f + power * 0.08f;
                 float size = 0.5f + r.nextFloat() * 1.3f;
                 boolean hot = i % 3 == 0;
                 if (hot != (pass == 1)) continue;
@@ -264,8 +264,8 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         // the dust wall rolling outward and settling
         float dust = (float) Math.exp(-since / 60.0);
         if (dust > 0.03f) {
-            Random d = Random.create(((long) yield << 8) ^ 0x51ED);
-            int k = 22 + yield * 4;
+            Random d = Random.create(((long) power << 8) ^ 0x51ED);
+            int k = 22 + power * 4;
             VertexConsumer db = blend(GrsDraw.DUST);
             for (int i = 0; i < k; i++) {
                 float ang = i / (float) k * MathHelper.TAU + d.nextFloat() * 0.2f;
@@ -314,12 +314,12 @@ public class GungnirStrikeRenderer extends EntityRenderer<GungnirStrikeEntity> {
         }
     }
 
-    private void ground(Matrix4f m, Vector3f up, int yield, float since, float recall, float time) {
-        float R = (float) Grs.blastRadius(yield) * 0.95f * GrsDraw.smooth(Math.min(1f, since / Grs.CARVE_TICKS));
+    private void ground(Matrix4f m, Vector3f up, int power, float since, float recall, float time) {
+        float R = (float) Grs.blastRadius(power) * 0.95f * GrsDraw.smooth(Math.min(1f, since / Grs.CARVE_TICKS));
         float fade = 1 - recall;
         Vector3f[] g = groundBasis();
         if (R <= 0.5f) return;
-        float crater = Grs.radius(yield) * 0.55f;
+        float crater = Grs.radius(power) * 0.55f;
         // the scorch sits on the crater floor's rim height; cracks glow and slowly cool
         float cool = 0.55f + 0.45f * (float) Math.exp(-since / 300.0);
         float flick = 0.85f + 0.15f * MathHelper.sin(time * 0.21f);
