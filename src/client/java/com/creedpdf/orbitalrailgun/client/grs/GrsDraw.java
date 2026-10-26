@@ -30,9 +30,10 @@ public final class GrsDraw {
 
     public static void camera(Camera c) {
         Quaternionf q = c.getRotation();
-        R.set(1, 0, 0).rotate(q);
+        // the camera looks down its rotated +Z; with +Y up, screen-right is its rotated -X
+        R.set(-1, 0, 0).rotate(q);
         U.set(0, 1, 0).rotate(q);
-        F.set(0, 0, -1).rotate(q);
+        F.set(0, 0, 1).rotate(q);
     }
 
     public static VertexConsumer add(VertexConsumerProvider cp, Identifier tex) {

@@ -54,8 +54,8 @@ import org.lwjgl.opengl.GL11;
 public final class GrsCine {
     private GrsCine() {}
 
-    public static final int GROUND = 0, RISE = 22, LOOK = 40, EARTH = 48, WARP = 64, JUP = 82, SKIM = 112, GATE = 120, RAIL = 134, WIDE = 170,
-            RIDE = 192, FLASH = 220, RELEASE = 224, HOME = 238, ENTRY = 258, SKY = 270, IMPACT = Grs.IMPACT, PLANTED = IMPACT + 40, END = IMPACT + 92;
+    public static final int GROUND = 0, RISE = 40, LOOK = 75, EARTH = 90, WARP = 140, JUP = 190, GATE = 290, RAIL = 350, WIDE = 410, RIDE = 460,
+            FLASH = 516, RELEASE = 524, HOME = 570, ENTRY = 630, SKY = 670, IMPACT = Grs.IMPACT, PLANTED = IMPACT + 50, END = IMPACT + 150;
     private static final double PARK_Y = 2400;
 
     public static final Identifier TITLE = RailgunMod.id("textures/grs/cine/title.png"), W_RELEASE = RailgunMod.id("textures/grs/cine/release.png"),
@@ -157,26 +157,38 @@ public final class GrsCine {
         return new Vec3d(-Math.sin(th), 0, Math.cos(th));
     }
 
+    private static final Vec3d EARTH_DIR = new Vec3d(0.25, 1, 0.35).normalize();
+
     /** Where the spear is during the release and the flight home. */
     private static Vec3d flight(double t) {
-        Vec3d from = Grs.stationPos();
-        Vec3d to = E().add(0, Body.EARTH.radius + 60, 0);
+        Vec3d gate = Grs.stationPos();
+        Vec3d top = E().add(new Vec3d(0.12, 1, 0.08).normalize().multiply(Body.EARTH.radius + 900));
         if (t < HOME) {
             double u = t - RELEASE;
-            return from.add(tangent(MZ()).multiply(u * 18 + u * u * 6));
+            return gate.add(tangent(MZ()).multiply(u * 25 + u * u * 4));
         }
-        Vec3d a = from.add(tangent(MZ()).multiply(14 * 18 + 14 * 14 * 6));
-        double k = k(t, HOME, ENTRY + 6);
-        return a.add(to.subtract(a).multiply(s(k) * 0.35 + k * 0.65));
+        double u = HOME - RELEASE;
+        Vec3d a = gate.add(tangent(MZ()).multiply(u * 25 + u * u * 4));
+        if (t < ENTRY) {
+            double k = k(t, HOME, ENTRY);
+            return a.add(top.subtract(a).multiply(s(k) * 0.5 + k * 0.5));
+        }
+        // burning down through the atmosphere toward the surface
+        Vec3d d = top.subtract(a).normalize();
+        Vec3d down = d.add(E().subtract(top).normalize().multiply(1.5)).normalize();
+        return top.add(down.multiply((t - ENTRY) * 16));
     }
 
     private static Vec3d flightDir(double t) {
-        Vec3d a = flight(t), b = flight(t + 0.5);
-        Vec3d d = b.subtract(a);
+        Vec3d d = flight(t + 0.5).subtract(flight(t - 0.5));
         return d.lengthSquared() < 1e-6 ? tangent(MZ()) : d.normalize();
     }
 
-    /** {eye, look-at} in the Space dimension. */
+    private static Vec3d arrive() {
+        return J().add(toEarth().multiply(RJ() * 3.9)).add(UP.multiply(RJ() * 1.2)).add(sideJ().multiply(RJ() * 1.5));
+    }
+
+    /** {eye, look-at} in the Space dimension (and the ring's cutscene state for this moment). Mirrors the offline previewer. */
     private static Vec3d[] spaceShot(double t) {
         Vec3d J = J(), toE = toEarth(), side = sideJ();
         double R = RJ(), Rr = Grs.ringRadius(), mz = MZ();
@@ -186,97 +198,79 @@ public final class GrsCine {
         GrsRing.wake = 1.1f;
         GrsRing.orbScale = 1f;
         if (t < WARP) {
-            // over the world, pulling back fast
+            // over the world, pulling back until it and the Moon are small
             double k = k(t, EARTH, WARP);
-            double d = Body.EARTH.radius * (1.25 * Math.pow(18, Math.pow(k, 1.3)));
-            Vec3d dir = new Vec3d(0.25, 1, 0.35).normalize();
-            Vec3d eye = E().add(dir.multiply(d));
-            Vec3d look = E().add(new Vec3d(0.3, 0, -0.2).multiply(Body.EARTH.radius * 0.4 * (1 - k)));
+            double d = Body.EARTH.radius * 1.8 * Math.pow(7.5 / 1.8, s(k));
+            Vec3d eye = E().add(EARTH_DIR.multiply(d));
+            Vec3d look = E().add(new Vec3d(0.3, 0, -0.2).multiply(Body.EARTH.radius * 0.5 * (1 - s(k))));
             return new Vec3d[]{eye, look};
         }
-        Vec3d arrive = J.add(toE.multiply(R * 6.0)).add(UP.multiply(R * 1.05)).add(side.multiply(R * 0.6));
         if (t < JUP) {
-            // turn away to the Milky Way, then the warp to Jupiter
-            double k = k(t, WARP, JUP);
-            Vec3d a = E().add(new Vec3d(0.25, 1, 0.35).normalize().multiply(Body.EARTH.radius * 22.5));
-            double e = k < 0.3 ? 0 : s((k - 0.3) / 0.7);
-            Vec3d eye = a.add(arrive.subtract(a).multiply(e));
-            Vec3d milky = eye.add(new Vec3d(0.2, 0.75, -0.6));
-            Vec3d look = Kit.lerp(milky, J, s(k * 2.2 - 0.3));
+            // turn to Jupiter, then the warp
+            Vec3d a = E().add(EARTH_DIR.multiply(Body.EARTH.radius * 7.5));
+            double e = s(k(t, WARP + 14, JUP));
+            Vec3d eye = a.add(arrive().subtract(a).multiply(e));
+            Vec3d look = Kit.lerp(E(), J, s(k(t, WARP, WARP + 16)));
             return new Vec3d[]{eye, look};
-        }
-        if (t < SKIM) {
-            // Jupiter in its ring, swelling; the spear lapping, the ring lighting up
-            double k = k(t, JUP, SKIM);
-            Vec3d eye = J.add(toE.multiply(R * (6.0 - 1.6 * s(k)))).add(UP.multiply(R * (1.05 - 0.2 * k))).add(side.multiply(R * 0.6 * (1 - k)));
-            GrsRing.charge = (float) (0.15 + 0.55 * s((k - 0.35) / 0.65));
-            GrsRing.wake = (float) (1.1 + 3.5 * s((k - 0.3) / 0.7));
-            return new Vec3d[]{eye, J.add(UP.multiply(R * 0.12))};
         }
         if (t < GATE) {
-            // skimming Jupiter's limb as the spear's wake sweeps over it
-            double k = k(t, SKIM, GATE);
-            double th = mz - 0.75 + k * 0.12;
-            Vec3d eye = J.add(radial(th).multiply(R * 1.13)).add(UP.multiply(R * 0.12));
-            Vec3d look = Grs.pathPoint(th + 0.55).add(UP.multiply(-R * 0.08));
-            GrsRing.spearAngle = mz - 0.95 + k * 1.2;
-            GrsRing.wake = 2.5f;
-            GrsRing.charge = 0.4f;
-            return new Vec3d[]{eye, look};
+            // Jupiter inside its ring, swelling slowly; the spear lapping and the ring lighting up
+            double e = s(k(t, JUP, GATE));
+            Vec3d eye = J.add(toE.multiply(R * (3.9 - 1.15 * e))).add(UP.multiply(R * (1.2 - 0.5 * e))).add(side.multiply(R * (1.5 - 0.9 * e)));
+            GrsRing.charge = 0.15f + 0.6f * s(k(t, JUP + 40, GATE - 10));
+            GrsRing.wake = 1.1f + 3.0f * s(k(t, JUP + 30, GATE));
+            return new Vec3d[]{eye, J.add(UP.multiply(R * 0.15)).add(side.multiply(R * 0.35 * (1 - e)))};
         }
         if (t < RAIL) {
-            // the muzzle gate, head on, pushing in
-            double k = k(t, GATE, RAIL);
-            double back = 1400 - 700 * s(k);
-            Vec3d gate = Grs.stationPos();
-            Vec3d eye = gate.add(tangent(mz).multiply(back)).add(UP.multiply(90 - 40 * k)).add(radial(mz).multiply(160));
-            GrsRing.charge = 0.35f + 0.5f * (float) k;
-            return new Vec3d[]{eye, gate.add(UP.multiply(-40))};
+            // the muzzle gate, head on, pushing in slowly
+            double e = s(k(t, GATE, RAIL));
+            Vec3d g = Grs.stationPos();
+            Vec3d eye = g.add(tangent(mz).multiply(2600 - 1700 * e)).add(radial(mz).multiply(420 - 200 * e)).add(UP.multiply(140 - 60 * e));
+            GrsRing.charge = 0.5f;
+            return new Vec3d[]{eye, g.add(UP.multiply(-30))};
         }
         if (t < WIDE) {
-            // racing along the ring beside the rail, through the coil gates
+            // beside the rail, looking along the ring to the muzzle; the spear goes by
             double k = k(t, RAIL, WIDE);
-            double th = mz - 0.42 + 0.36 * (k * 0.7 + s(k) * 0.3);
-            Vec3d eye = Grs.ringPoint(th, Grs.GATE_OUT + 140, Grs.PATH_H + 90);
-            Vec3d look = Grs.ringPoint(th + 0.06, 30, Grs.PATH_H - 40);
-            GrsRing.spearAngle = mz - 0.42 + (t - RAIL) * 0.05;
-            GrsRing.wake = 1.6f;
+            double th = mz - 0.36 + 0.1 * k;
+            Vec3d eye = Grs.ringPoint(th, Grs.GATE_OUT + 260, Grs.PATH_H + 110);
+            Vec3d look = Grs.ringPoint(th + 0.07, 0, Grs.PATH_H - 40);
+            GrsRing.spearAngle = th - 0.35 + 0.9 * s(k(t, RAIL + 10, RAIL + 42));
+            GrsRing.wake = 1.4f;
             GrsRing.charge = 0.55f;
             return new Vec3d[]{eye, look};
         }
         if (t < RIDE) {
-            // the whole ring lit, the spear a flare going round
-            double k = k(t, WIDE, RIDE);
-            Vec3d dir = toE.multiply(Math.cos(0.9 + k * 0.25)).add(side.multiply(Math.sin(0.9 + k * 0.25))).multiply(R * 5.2).add(UP.multiply(R * 0.7));
-            GrsRing.charge = 0.9f;
+            // the whole ring lit, the spear a flare going round Jupiter
+            double a = 0.85 + 0.35 * k(t, WIDE, RIDE);
+            Vec3d dir = toE.multiply(Math.cos(a)).add(side.multiply(Math.sin(a)));
+            GrsRing.charge = 1f;
             GrsRing.wake = 4.5f;
-            return new Vec3d[]{J.add(dir), J};
+            return new Vec3d[]{J.add(dir.multiply(R * 3.6)).add(UP.multiply(R * 1.35)), J};
         }
         if (t < RELEASE) {
-            // riding the spear through the coil tunnel into the muzzle
+            // riding the spear along the rail, through the last gates and out of the muzzle
             double k = k(t, RIDE, FLASH);
-            double th = mz - 0.68 + 0.68 * (k * 0.6 + k * k * 0.4);
+            double th = mz - 0.5 + 0.52 * (k * 0.45 + k * k * 0.55);
             GrsRing.spearAngle = th;
-            GrsRing.orbScale = 0.12f;
-            GrsRing.charge = 1f;
-            GrsRing.wake = 0.25f;
-            Vec3d eye = Grs.pathPoint(th - 26 / Rr).add(UP.multiply(9)).add(radial(th).multiply(4));
-            Vec3d look = Grs.pathPoint(th + 160 / Rr).add(UP.multiply(-6));
+            GrsRing.charge = 0.6f;
+            GrsRing.wake = 0.3f;
+            GrsRing.orbScale = 0f;
+            Vec3d eye = Grs.pathPoint(th - 34 / Rr).add(UP.multiply(12)).add(radial(th).multiply(3));
+            Vec3d look = Grs.pathPoint(th + 220 / Rr).add(UP.multiply(-8));
             return new Vec3d[]{eye, look};
         }
         GrsRing.away = true;
-        GrsRing.charge = (float) Math.max(0, 1 - (t - RELEASE) / 30);
+        GrsRing.charge = (float) Math.max(0, 1 - (t - RELEASE) / 40);
         if (t < HOME) {
-            // out of the muzzle past the planet: the camera holds, the spear goes by
-            Vec3d gate = Grs.stationPos();
-            Vec3d eye = gate.add(tangent(mz).multiply(2600)).add(radial(mz).multiply(1800)).add(UP.multiply(300));
+            // out of the muzzle, past the camera, Jupiter behind it
+            Vec3d g = Grs.stationPos();
+            Vec3d eye = g.add(tangent(mz).multiply(1500)).add(radial(mz).multiply(700)).add(UP.multiply(120));
             return new Vec3d[]{eye, flight(t)};
         }
         // behind the spear, all the way home
         Vec3d p = flight(t), d = flightDir(t);
-        Vec3d eye = p.subtract(d.multiply(t < ENTRY ? 110 : 80)).add(UP.multiply(t < ENTRY ? 26 : 18));
-        Vec3d look = p.add(d.multiply(400));
-        return new Vec3d[]{eye, look};
+        return new Vec3d[]{p.subtract(d.multiply(260)).add(UP.multiply(45)), p.add(d.multiply(400))};
     }
 
     // ------------------------------------------------------------------------------------------- the camera
@@ -295,23 +289,26 @@ public final class GrsCine {
         off = off.lengthSquared() < 4 ? new Vec3d(1, 0, 0) : off.normalize();
         Vec3d side = off.crossProduct(up);
         if (t < RISE) {
-            double k = k(t, GROUND, RISE);
-            Vec3d pos = target.add(off.multiply(7 - 2 * k)).add(side.multiply(2.5)).add(0, 0.6 + 1.6 * k, 0);
-            Vec3d look = target.add(0, 0.5 + 26 * s(k), 0);
+            // low by the target as the designator burns in, tilting up the beam
+            double k = s(k(t, GROUND, RISE));
+            Vec3d pos = target.add(off.multiply(8 - 2.5 * k)).add(side.multiply(3 - k)).add(0, 0.7 + 2.2 * k, 0);
+            Vec3d look = target.add(0, 0.4 + 30 * k, 0);
             return pose(pos, look);
         }
         if (t < LOOK) {
+            // straight up, faster and faster, through the clouds
             double k = k(t, RISE, LOOK);
-            double y = 3 + 520 * Math.pow(k, 2.3);
-            Vec3d pos = target.add(off.multiply(1.5)).add(0, y, 0);
-            float yaw = (float) Math.toRadians(baseYaw + 140 * k);
-            Vec3d look = pos.add(-Math.sin(yaw) * 0.08, 1, Math.cos(yaw) * 0.08);
+            double y = 3 + 560 * Math.pow(k, 2.2);
+            Vec3d pos = target.add(off.multiply(2)).add(0, y, 0);
+            float yaw = (float) Math.toRadians(baseYaw + 120 * s(k));
+            Vec3d look = pos.add(-Math.sin(yaw) * 0.1, 1, Math.cos(yaw) * 0.1);
             return pose(pos, look);
         }
         if (t < EARTH) {
+            // looking back down: the target a red point far below
             double k = k(t, LOOK, EARTH);
-            Vec3d pos = target.add(0, 620 + 120 * k, 0);
-            return pose(pos, pos.add(0.02, -1, 0.05));
+            Vec3d pos = target.add(0, 620 + 260 * s(k), 0);
+            return pose(pos, pos.add(0.03, -1, 0.06));
         }
         if (t < SKY) {
             Vec3d[] sh = spaceShot(t);
@@ -323,8 +320,10 @@ public final class GrsCine {
         if (t < IMPACT) {
             // on the ground: a star coming down
             Vec3d sky = skyDir();
-            Vec3d pos = target.add(off.multiply(34)).add(0, 2.5, 0);
-            return pose(pos, pos.add(sky.multiply(100)).add(target.subtract(pos).multiply(0.15 * k(t, SKY, IMPACT))));
+            Vec3d pos = target.add(off.multiply(72)).add(side.multiply(10)).add(0, 3, 0);
+            Vec3d up = target.add(sky.multiply(260));
+            Vec3d look = Kit.lerp(up, target.add(0, 12, 0), s(k(t, IMPACT - 14, IMPACT)));
+            return pose(pos, look);
         }
         if (t < PLANTED) {
             double k = k(t, IMPACT, PLANTED);
@@ -357,13 +356,13 @@ public final class GrsCine {
     private static void updateFx(double t) {
         int m = -1;
         double u = t - IMPACT;
-        if (u >= 0 && u < 34) {
-            if (u < 5) m = 3;
-            else if (u < 13) m = 0;
-            else if (u < 17) m = 2;
-            else if (u < 21) m = 1;
-            else if (u < 28) m = 0;
-            else if (u < 31) m = 2;
+        if (u >= 0 && u < 50) {
+            if (u < 6) m = 3;
+            else if (u < 18) m = 0;
+            else if (u < 23) m = 2;
+            else if (u < 30) m = 1;
+            else if (u < 42) m = 0;
+            else if (u < 46) m = 2;
             else m = 3;
         }
         GrsImpactFx.mode = m;
@@ -394,22 +393,8 @@ public final class GrsCine {
         return new Vector3f((float) (r.x * k), (float) (r.y * k), (float) (r.z * k));
     }
 
-    /** Called from the space sky's far half, before Jupiter: the GUNGNIR title written across the sky behind it. */
+    /** Called from the space sky's far half (nothing there now: the title is drawn flat on the screen, see hud). */
     public static void backFx(VertexConsumerProvider buf, Matrix4f m, Vec3d view, float time) {
-        if (!active()) return;
-        double t = t(MinecraftClient.getInstance().getTickDelta());
-        if (t < JUP || t >= SKIM) return;
-        double k = k(t, JUP, SKIM);
-        // the letters glitch in, hold, then fade
-        float a = (float) (s((k - 0.12) / 0.12) * (1 - s((k - 0.85) / 0.15)));
-        if (k < 0.3) a *= (MathHelper.sin((float) (t * 9.7)) > -0.3 ? 1 : 0.15f);
-        if (a < 0.02f) return;
-        float kk = scale(view);
-        Vec3d c = J().subtract(toEarth().multiply(RJ() * 2.0)).add(UP.multiply(RJ() * 1.25));
-        Vector3f p = place(view, c, kk);
-        float w = (float) (RJ() * 2.6 * kk), h = w * 0.25f;
-        float jit = k < 0.3 ? (float) (Math.sin(t * 31) * 0.02 * w) : 0;
-        quad(buf.getBuffer(BeamRenderLayers.translucent(TITLE)), m, p.x + jit, p.y, p.z, w, h, 0, 0, 0, 1, 1, 1, 1, 1, a);
     }
 
     /** Called from the space sky after every layer (normal depth): warp, light bars, the spear in flight, rocks, plasma. */
@@ -421,12 +406,12 @@ public final class GrsCine {
         Vector3f F = new Vector3f(GrsDraw.F), R = new Vector3f(GrsDraw.R), U = new Vector3f(GrsDraw.U);
         // the warps
         float warp = 0;
-        if (t >= WARP && t < JUP) warp = (float) (s(k(t, WARP + 4, WARP + 9)) * (1 - s(k(t, JUP - 5, JUP))));
-        if (t >= HOME && t < ENTRY) warp = (float) (s(k(t, HOME, HOME + 4)) * (1 - s(k(t, ENTRY - 4, ENTRY))));
+        if (t >= WARP && t < JUP) warp = (float) (s(k(t, WARP + 12, WARP + 24)) * (1 - s(k(t, JUP - 16, JUP - 2))));
+        if (t >= HOME && t < ENTRY) warp = (float) (s(k(t, HOME + 4, HOME + 14)) * (1 - s(k(t, ENTRY - 12, ENTRY))));
         if (warp > 0.01f) streaks(buf.getBuffer(BeamRenderLayers.textured(WARP_T)), m, F, R, U, t, warp, 260, 1f, 0.95f, 0.9f);
         // light bars streaming past inside the coil tunnel
         if (t >= RIDE && t < FLASH) {
-            float k = (float) (s(k(t, RIDE, RIDE + 3)));
+            float k = (float) (s(k(t, RIDE + 4, RIDE + 16))) * 0.7f;
             bars(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.BEAM)), m, F, R, U, t, k);
         }
         // the spear itself in flight
@@ -437,13 +422,14 @@ public final class GrsCine {
             spearModel(buf, m, view, kk, p, d, entry ? 1.6f : 0.6f, time);
             Vector3f pp = place(view, p, kk);
             float glow = entry ? 2.4f : 1f;
-            GrsDraw.sprite(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.FLARE)), m, pp.x, pp.y, pp.z, 60 * kk * glow, (float) t * 0.1f, 1f, 0.6f, 0.25f, 1);
+            float flare = t < HOME ? 45 : entry ? 40 : 18;
+            GrsDraw.sprite(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.FLARE)), m, pp.x, pp.y, pp.z, flare * kk, (float) t * 0.1f, 1f, 0.6f, 0.25f, 1);
             Vector3f tail = place(view, p.subtract(d.multiply(entry ? 900 : 1600)), kk);
             GrsDraw.streak(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.STREAK)), m, tail, pp, new Vector3f(), 24 * kk * glow, 1f, 0.55f, 0.2f, 0.9f);
             if (entry) plasma(buf, m, pp, place(view, p.add(d.multiply(-200)), kk), kk, t);
         }
         // rocks streaming by on the flight home
-        if (t >= HOME + 2 && t < ENTRY - 2) rocks(buf.getBuffer(BeamRenderLayers.translucent(ROCK)), m, F, R, U, t);
+        if (t >= HOME + 10 && t < ENTRY - 8) rocks(buf.getBuffer(BeamRenderLayers.translucent(ROCK)), m, F, R, U, t);
     }
 
     private static void streaks(VertexConsumer vc, Matrix4f m, Vector3f F, Vector3f R, Vector3f U, double t, float k, int n, float r, float g, float b) {
@@ -608,14 +594,15 @@ public final class GrsCine {
         if (t == 1) GrsClient.play(ModSounds.GRS_LOCK, 0.7f, 1f);
         if (t == RISE) GrsClient.play(ModSounds.GRS_WHOOSH, 0.55f, 1f);
         if (t == EARTH) GrsClient.play(ModSounds.GRS_HUM, 0.7f, 1f);
-        if (t == WARP + 6) GrsClient.play(ModSounds.GRS_DESCENT, 0.6f, 0.8f);
-        if (t == JUP + 10) GrsClient.play(ModSounds.GRS_YIELD, 0.5f, 0.9f);
+        if (t == WARP + 14) GrsClient.play(ModSounds.GRS_DESCENT, 0.6f, 0.8f);
+        if (t == JUP + 24) GrsClient.play(ModSounds.GRS_YIELD, 0.5f, 0.9f);
         if (t == GATE) GrsClient.play(ModSounds.GRS_HUM, 1f, 0.9f);
-        if (t > RAIL && t < WIDE && (t - RAIL) % 9 == 0) GrsClient.play(ModSounds.GRS_WHOOSH, 0.9f + (t - RAIL) / 90f, 0.6f);
+        if (t == RAIL + 22) GrsClient.play(ModSounds.GRS_WHOOSH, 1f, 1f);
+        if (t == WIDE + 10) GrsClient.play(ModSounds.GRS_HUM, 0.85f, 0.7f);
         if (t == RIDE) GrsClient.play(ModSounds.GRS_RELEASE, 1.25f, 1f);
-        if (t > RIDE && t < FLASH && (t - RIDE) % 4 == 0) GrsClient.play(ModSounds.GRS_WHOOSH, 1.2f + (t - RIDE) / 40f, 0.4f);
+        if (t > RIDE + 30 && t < FLASH && (t - RIDE) % 5 == 0) GrsClient.play(ModSounds.GRS_WHOOSH, 1.1f + (t - RIDE) / 60f, 0.45f);
         if (t == RELEASE) GrsClient.play(ModSounds.GRS_DESCENT, 1f, 1f);
-        if (t == HOME) GrsClient.play(ModSounds.GRS_WHOOSH, 0.7f, 1f);
+        if (t == HOME + 4) GrsClient.play(ModSounds.GRS_WHOOSH, 0.7f, 1f);
         if (t == ENTRY) GrsClient.play(ModSounds.GRS_DESCENT, 1.35f, 0.9f);
         if (t == IMPACT) RailgunHud.shake(4f);
     }
@@ -629,38 +616,66 @@ public final class GrsCine {
         double t = t(pt);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
-        // punching through the cloud layer
+        // punching through the cloud layer on the way up
         if (t >= RISE && t < LOOK) {
-            float c = (float) Math.exp(-Math.pow((t - (RISE + 9)) / 2.6, 2));
-            fade(ctx, w, h, c * 0.9f, 0xF4F2F0);
+            float c = (float) Math.exp(-Math.pow((t - (RISE + 22)) / 4.0, 2));
+            fade(ctx, w, h, c * 0.85f, 0xF4F2F0);
         }
-        fade(ctx, w, h, win(t, LOOK + 5, 3, EARTH, 2), 0xFFFFFF);
-        fade(ctx, w, h, cut(t, WARP), 0x000000);
-        fade(ctx, w, h, cut(t, SKIM), 0x000000);
-        fade(ctx, w, h, win(t, RAIL - 3, 2, RAIL, 3), 0xFFFFFF);
-        fade(ctx, w, h, cut(t, WIDE), 0x000000);
-        fade(ctx, w, h, cut(t, RIDE), 0x000000);
-        fade(ctx, w, h, win(t, FLASH - 2, 2, RELEASE, 3), 0xFFFFFF);
-        fade(ctx, w, h, cut(t, HOME), 0x000000);
-        // burning in: white haze, then the flash to the ground
-        if (t >= ENTRY && t < SKY) fade(ctx, w, h, (float) (k(t, ENTRY, SKY) * 0.6), 0xFFE8D8);
-        fade(ctx, w, h, win(t, SKY - 3, 2, SKY, 3), 0xFFFFFF);
-        // night falls round the star coming down
-        if (t >= SKY && t < IMPACT) fade(ctx, w, h, (float) (k(t, SKY, IMPACT) * 0.55), 0x000000);
-        fade(ctx, w, h, win(t, IMPACT - 1, 1, IMPACT, 2), 0xFFFFFF);
-        fade(ctx, w, h, win(t, END - 12, 10, END + 10, 1), 0x000000);
+        // the cuts: soft dips, white where something flares
+        fade(ctx, w, h, win(t, EARTH - 8, 6, EARTH, 6), 0xFFFFFF);
+        fade(ctx, w, h, dip(t, GATE, 6), 0x000000);
+        fade(ctx, w, h, dip(t, RAIL, 5), 0x000000);
+        fade(ctx, w, h, dip(t, WIDE, 6), 0x000000);
+        fade(ctx, w, h, dip(t, RIDE, 5), 0x000000);
+        fade(ctx, w, h, win(t, FLASH - 4, 4, RELEASE, 6), 0xFFFFFF);
+        fade(ctx, w, h, dip(t, HOME, 5), 0x000000);
+        if (t >= ENTRY && t < SKY) fade(ctx, w, h, (float) (s(k(t, ENTRY + 10, SKY)) * 0.55), 0xFFE8D8);
+        fade(ctx, w, h, win(t, SKY - 6, 5, SKY, 6), 0xFFFFFF);
+        if (t >= SKY && t < IMPACT) fade(ctx, w, h, (float) (s(k(t, SKY, IMPACT)) * 0.5), 0x000000);
+        fade(ctx, w, h, win(t, IMPACT - 2, 2, IMPACT, 3), 0xFFFFFF);
+        fade(ctx, w, h, win(t, END - 20, 16, END + 10, 1), 0x000000);
 
-        // the words
-        word(ctx, W_JUPITER, w, h, h * 0.74f, 0.42f, win(t, JUP + 16, 6, SKIM - 6, 4));
-        word(ctx, W_RELEASE, w, h, h * 0.5f, 0.42f, win(t, RELEASE + 2, 3, HOME - 3, 3));
-        if (t >= IMPACT && t < PLANTED + 10) {
-            float a = win(t, IMPACT + 3, 2, PLANTED + 4, 6);
+        // GUNGNIR over Jupiter, flat on the screen (always reads the right way round)
+        float ta = win(t, JUP + 22, 22, GATE - 26, 18);
+        if (ta > 0.02f) title(ctx, mc, w, h, t, ta);
+        word(ctx, W_JUPITER, w, h, h * 0.8f, 0.36f, win(t, JUP + 40, 16, GATE - 24, 14));
+        word(ctx, W_RELEASE, w, h, h * 0.5f, 0.42f, win(t, RELEASE + 8, 8, HOME - 8, 8));
+        if (t >= IMPACT && t < PLANTED + 20) {
+            float a = win(t, IMPACT + 4, 3, PLANTED + 6, 10);
             impactOverlay(ctx, w, h, t, a);
             word(ctx, W_IMPACT, w, h, h * 0.42f, 0.36f, a);
         }
         String skip = "[" + GrsClient.key(GrsClient.FIRE) + "] SKIP";
         ctx.drawText(mc.textRenderer, skip, w - 8 - mc.textRenderer.getWidth(skip), h - 14, 0x70FFB080, false);
         RenderSystem.disableBlend();
+    }
+
+    /** The title, set just above Jupiter's disc where the camera sees it, settling in as it fades up. */
+    private static void title(DrawContext ctx, MinecraftClient mc, int w, int h, double t, float a) {
+        Vec3d[] sh = spaceShot(t);
+        Vec3d f = sh[1].subtract(sh[0]).normalize();
+        Vec3d r = f.crossProduct(UP).normalize(), u = r.crossProduct(f);
+        double tf = Math.tan(Math.toRadians(mc.options.getFov().getValue()) / 2);
+        Vec3d top = J().add(UP.multiply(RJ() * 1.08)).subtract(sh[0]);
+        double z = top.dotProduct(f);
+        float cx = w / 2f, cy = h * 0.2f;
+        if (z > 1) {
+            cx = (float) ((top.dotProduct(r) / z / tf / ((double) w / h) + 1) * w / 2);
+            cy = (float) ((1 - top.dotProduct(u) / z / tf) * h / 2);
+        }
+        float settle = (float) s(k(t, JUP + 22, JUP + 60));
+        float scale = 1.06f - 0.06f * settle;
+        // the title texture is 8:1 with the letters in its middle half
+        int tw = (int) (w * 0.8f * scale), th = tw / 8;
+        int x = (int) (cx - tw / 2f), y = (int) Math.max(4, cy - th * 0.78f);
+        RenderSystem.setShaderColor(1, 1, 1, a);
+        ctx.drawTexture(TITLE, x, y, tw, th, 0, 0, 4096, 512, 4096, 512);
+        RenderSystem.setShaderColor(1, 1, 1, 1);
+    }
+
+    private static float dip(double t, double at, double half) {
+        double d = Math.abs(t - at);
+        return d > half ? 0 : (float) (1 - s(d / half));
     }
 
     private static void word(DrawContext ctx, Identifier tex, int w, int h, float cy, float scale, float a) {
@@ -696,7 +711,7 @@ public final class GrsCine {
         ctx.drawText(MinecraftClient.getInstance().textRenderer, rng, (int) (w * 0.76) - 30, (int) (h * 0.2) - 12, bc, false);
         // the crack: a jagged bolt of white across the frame, re-struck every few frames
         double u = t - IMPACT;
-        if ((u > 9 && u < 14) || (u > 22 && u < 27)) {
+        if ((u > 12 && u < 18) || (u > 32 && u < 38)) {
             Random r = Random.create(seed + (long) (u / 2));
             float x = w * (0.35f + r.nextFloat() * 0.3f), y = 0;
             float dx = (r.nextFloat() - 0.5f) * w * 0.05f;

@@ -40,7 +40,7 @@ public final class GrsRing {
     private static final double TILE = 420;
 
     static {
-        double W = Grs.HULL_W, H = Grs.HULL_H, C = 64;
+        double W = Grs.HULL_W, H = Grs.HULL_H, C = 36;
         PROFILE = new double[][]{{W, -(H - C)}, {W, H - C}, {W - C, H}, {-(W - C), H}, {-W, H - C}, {-W, -(H - C)}, {-(W - C), -H}, {W - C, -H}};
     }
 
@@ -193,7 +193,7 @@ public final class GrsRing {
                 GrsDraw.v(vc, f.m, d.x, d.y, d.z, u0, v1, r, g, bl, 1);
             }
             // the rail's spine on the hull's back
-            double rw = 36, h0 = Grs.HULL_H, h1 = Grs.RAIL_TOP;
+            double rw = 22, h0 = Grs.HULL_H, h1 = Grs.RAIL_TOP;
             double[][] faces = {{-rw, h1, rw, h1, 0, 1}, {rw, h0, rw, h1, 1, 0}, {-rw, h1, -rw, h0, -1, 0}};
             for (double[] fc : faces) {
                 f.dir(tm, fc[4], fc[5], 0, n);
@@ -217,16 +217,16 @@ public final class GrsRing {
         Vector3f a = new Vector3f(), b = new Vector3f(), c = new Vector3f(), d = new Vector3f(), mid = new Vector3f();
         double step = Math.PI * 2 / seg;
         // edges seen from far would shrink below a pixel: widen them with distance
-        int[] corners = {1, 2, 3, 4, 5, 6};
+        int[] corners = {2, 3};
         for (int i = 0; i < seg; i++) {
             double t0 = i * step, t1 = t0 + step, tm = t0 + step / 2;
             f.ring(tm, 0, 0, mid);
             if (f.back(mid) == front) continue;
             float lit = 0.7f + 0.3f * f.shade(mid);
             float dist = mid.length();
-            float w = Math.max(5f, dist / f.s * 0.0011f);
+            float w = Math.max(3f, dist / f.s * 0.0005f);
             float pulse = 0.75f + 0.25f * MathHelper.sin((float) (tm * 40 - time * 0.3));
-            float k = f.alpha * lit * pulse * (1 + charge);
+            float k = f.alpha * lit * pulse * (0.45f + charge * 0.5f);
             for (int ci : corners) {
                 double[] p = PROFILE[ci];
                 double[] q = PROFILE[(ci + 1) % PROFILE.length];
@@ -256,9 +256,9 @@ public final class GrsRing {
             if (f.back(mid) == front) continue;
             double behind = ((sp - tm) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
             float wk = away ? 0 : (float) Math.max(0, 1 - behind / wake);
-            float k = f.alpha * (0.35f + 0.5f * charge + 1.6f * wk * wk) * f.shade(mid) * 0.5f + f.alpha * (0.25f + wk * 0.8f);
+            float k = f.alpha * (0.35f + 0.4f * charge + 1.4f * wk * wk);
             float dist = mid.length();
-            float w = Math.max(14f, dist / f.s * 0.0016f) * (1 + wk * 1.5f);
+            float w = Math.max(10f, dist / f.s * 0.0008f) * (1 + wk);
             f.ring(t0, -w, Grs.RAIL_TOP + 1.5, a);
             f.ring(t1, -w, Grs.RAIL_TOP + 1.5, b);
             f.ring(t1, w, Grs.RAIL_TOP + 1.5, c);
@@ -271,15 +271,18 @@ public final class GrsRing {
             // the wake in the air along the path, camera-facing, so it reads as a line of light round Jupiter
             if (wk > 0.01f || charge > 0.01f) {
                 Vector3f p0 = f.ring(t0, 0, Grs.PATH_H, new Vector3f()), p1 = f.ring(t1, 0, Grs.PATH_H, new Vector3f());
-                float al = Math.min(1, wk * wk * 1.4f + charge * 0.6f) * f.alpha;
-                float lw = Math.max(10f * f.s, dist * 0.0022f) * (0.6f + wk);
+                float db = dist / f.s;
+                float near = MathHelper.clamp(db / 400f, 0, 1);
+                near = near * near * (3 - 2 * near);
+                float al = Math.min(1, wk * wk * 1.2f + charge * 0.45f) * f.alpha * near;
+                float lw = Math.max(8f, db * 0.0012f) * f.s * (0.5f + wk);
                 GrsDraw.streak(vc, f.m, p0, p1, new Vector3f(), lw, 1f, 0.55f + 0.35f * wk, 0.18f + 0.5f * wk * wk, al);
             }
         }
     }
 
     private static void spear(VertexConsumerProvider buf, Frame f, boolean front, float time) {
-        if (away) return;
+        if (away || orbScale <= 0.001f) return;
         double sp = spear(time);
         Vector3f p = f.ring(sp, 0, Grs.PATH_H, new Vector3f());
         if (f.back(p) == front) return;
@@ -292,21 +295,20 @@ public final class GrsRing {
 
     // ------------------------------------------------------------------------------------------- coil gates
 
-    /** Ring angles of every gate: one every 3 degrees, then a tunnel of coils every half degree for the last 40. */
+    /** Ring angles of the gates, relative to the muzzle: seven spaced round the ring, five closing in on the muzzle. */
     private static final double[] GATES;
 
     static {
         java.util.List<Double> g = new java.util.ArrayList<>();
-        double deg = Math.PI / 180;
-        for (double a = 0; a < 320; a += 3) g.add(-a * deg - 40 * deg);
-        for (double a = 0.5; a < 40; a += 0.5) g.add(-a * deg);
+        for (int k = 1; k < 8; k++) g.add(k * Math.PI / 4);
+        for (int i = 1; i <= 5; i++) g.add(-Math.toRadians(1.6 * i));
         GATES = g.stream().mapToDouble(Double::doubleValue).toArray();
     }
 
     /** True if the angle th (absolute) falls inside the coil tunnel before the muzzle. */
     public static boolean inTunnel(double th) {
         double rel = MathHelper.wrapDegrees(Math.toDegrees(th - Grs.muzzleAngle()));
-        return rel > -40 && rel < 0;
+        return rel > -9 && rel < 0;
     }
 
     private static void gates(VertexConsumerProvider buf, Frame f, boolean front, float time) {
@@ -323,11 +325,11 @@ public final class GrsRing {
                 int n = d < 1500 ? 40 : d < 5000 ? 20 : 10;
                 double behind = ((sp - th) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
                 float hot = away ? 0 : (float) Math.max(0, 1 - behind / 0.25);
-                gate(vc, f, th, Grs.GATE_IN, Grs.GATE_OUT, 16, n, pass == 1, hot, time);
+                gate(vc, f, th, Grs.GATE_IN, Grs.GATE_OUT, Grs.GATE_D, n, pass == 1, hot, time);
             }
             double d = viewDist(f, mz, Grs.PATH_H);
             Vector3f cp = f.ring(mz, 0, Grs.PATH_H, new Vector3f());
-            if (d < 40000 && f.back(cp) != front) gate(vc, f, mz, Grs.MUZZLE_IN, Grs.MUZZLE_OUT, 46, d < 4000 ? 64 : 32, pass == 1, charge, time);
+            if (d < 40000 && f.back(cp) != front) gate(vc, f, mz, Grs.MUZZLE_IN, Grs.MUZZLE_OUT, Grs.MUZZLE_D, d < 4000 ? 64 : 32, pass == 1, charge, time);
         }
     }
 
@@ -379,6 +381,7 @@ public final class GrsRing {
         for (int side = -1; side <= 1; side += 2) {
             double rho = side * ri * 0.62;
             double top = Grs.PATH_H - ri * 0.78, bot = Grs.RAIL_TOP;
+            if (top <= bot + 2) continue;
             box(vc, f, th, rho - legW / 2, rho + legW / 2, bot, top, depth * 0.8);
         }
     }
@@ -413,11 +416,11 @@ public final class GrsRing {
         if (GrsModels.STATION == null) return;
         double mz = Grs.muzzleAngle();
         if (viewDist(f, mz, 0) > 30000) return;
-        Vector3f c = f.ring(mz, 0, -Grs.HULL_H - 95, new Vector3f());
+        Vector3f c = f.ring(mz, 0, -Grs.HULL_H - 75, new Vector3f());
         MatrixStack ms = new MatrixStack();
         ms.peek().getPositionMatrix().set(f.m);
         ms.translate(c.x, c.y, c.z);
-        float sc = f.s * 3.2f;
+        float sc = f.s * 2.4f;
         ms.scale(sc, sc, sc);
         // face the hub's dish outward, ring plane level
         Vector3f radial = f.dir(mz, 1, 0, 0, new Vector3f());

@@ -28,11 +28,11 @@ public final class Grs {
     /** Radius of the ring's centreline, in Jupiter radii. */
     public static final double RING_ORBIT = 1.55;
     /** Hull cross-section half-width (radial) and half-height, blocks. */
-    public static final double HULL_W = 260, HULL_H = 110;
+    public static final double HULL_W = 180, HULL_H = 60;
     /** Height of the rail's top above the hull centreline, and of the spear's path. */
-    public static final double RAIL_TOP = 150, PATH_H = 330;
-    /** Coil gates round the spear's path: inner and outer radius. The muzzle gate is bigger. */
-    public static final double GATE_IN = 118, GATE_OUT = 152, MUZZLE_IN = 300, MUZZLE_OUT = 430;
+    public static final double RAIL_TOP = 84, PATH_H = 234;
+    /** Coil gates round the spear's path: inner and outer radius and half-depth. The muzzle gate is bigger. */
+    public static final double GATE_IN = 120, GATE_OUT = 134, GATE_D = 7, MUZZLE_IN = 240, MUZZLE_OUT = 272, MUZZLE_D = 18;
 
     public static double ringRadius() {
         return Body.JUPITER.radius * RING_ORBIT;
@@ -91,7 +91,7 @@ public final class Grs {
      * The spear breaks from its lap, slings once round Jupiter and fires for Earth. Long enough for the caller's
      * cutscene (zoom out, fly to Jupiter, the station, riding the spear, the slingshot, the shot).
      */
-    public static final int RELEASE = 284;
+    public static final int RELEASE = 704;
     /** It leaves the barrel: the descent is a few ticks of light from the sky to the ground. */
     public static final int DESCENT = 6;
     public static final int IMPACT = RELEASE + DESCENT;
