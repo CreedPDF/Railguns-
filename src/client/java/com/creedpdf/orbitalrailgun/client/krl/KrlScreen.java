@@ -2,6 +2,7 @@ package com.creedpdf.orbitalrailgun.client.krl;
 
 import com.creedpdf.orbitalrailgun.krl.Krl;
 import com.creedpdf.orbitalrailgun.krl.KrlFlight;
+import com.creedpdf.orbitalrailgun.krl.KrlImpact;
 import com.creedpdf.orbitalrailgun.krl.KrlNet;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -529,7 +530,7 @@ public class KrlScreen extends Screen {
         }
         dc.disableScissor();
         // scale bar + zoom
-        float barM = ZOOMS[zoom] / 4;
+        float barM = (float) (ZOOMS[zoom] / 4);
         float barPx = (float) (barM / scaleMap());
         line(MX1 - barPx - 4, MY1 - 3, MX1 - 4, MY1 - 3, 0.6f, WHITE, 0);
         textR(String.format(Locale.ROOT, "%,.0f m", barM), MX1 - 4, MY1 - 8, WHITE, 0.42f);
