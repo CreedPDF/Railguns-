@@ -108,11 +108,22 @@ public final class SpaceSky {
             float ang = r / IMPOSTOR;
             float e = ClientPlanets.elapsed(b, pt);
             float extent = e >= Blast.DETONATE ? 30f : 1f;
+            boolean jup = b == Body.JUPITER;
+            if (jup) {
+                com.creedpdf.orbitalrailgun.client.grs.GrsSpace.pass(BUF, m, viewPos, toLocal, c, r, sun, time, pt, bodyAlpha, false);
+                slot(slot++);
+                BUF.draw();
+            }
             if (ang * extent < 0.0006f) {
                 // too small to resolve: a point of light
                 starPoint(m, c, r, b, sun, bodyAlpha);
                 slot(slot++);
                 BUF.draw();
+                if (jup) {
+                    com.creedpdf.orbitalrailgun.client.grs.GrsSpace.pass(BUF, m, viewPos, toLocal, c, r, sun, time, pt, bodyAlpha, true);
+                    slot(slot++);
+                    BUF.draw();
+                }
                 continue;
             }
             int seg = com.creedpdf.orbitalrailgun.client.config.Quality.segs(ang > 0.25f ? 384 : ang > 0.04f ? 192 : 96, 32);
@@ -120,6 +131,11 @@ public final class SpaceSky {
             BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, bodyAlpha, seg, impact);
             slot(slot++);
             BUF.draw();
+            if (jup) {
+                com.creedpdf.orbitalrailgun.client.grs.GrsSpace.pass(BUF, m, viewPos, toLocal, c, r, sun, time, pt, bodyAlpha, true);
+                slot(slot++);
+                BUF.draw();
+            }
         }
 
         // ---- ARES-0's beam crossing space, from Earth to its target
@@ -134,6 +150,8 @@ public final class SpaceSky {
         slot(slot);
         BUF.draw();
         resetDepth();
+        com.creedpdf.orbitalrailgun.client.grs.GrsSpace.stationFront(BUF, m, viewPos, toLocal, sun, time, pt, bodyAlpha);
+        BUF.draw();
 
         RenderSystem.setShaderFogStart(fogStart);
         RenderSystem.setShaderFogEnd(fogEnd);

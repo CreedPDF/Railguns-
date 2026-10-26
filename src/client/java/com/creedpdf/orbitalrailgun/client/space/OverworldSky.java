@@ -21,6 +21,7 @@ import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 /**
@@ -97,6 +98,12 @@ public final class OverworldSky {
             Vector3f impact = new Vector3f(c).negate().normalize();
             BodyDraw.draw(BUF, m, b, c, r, sun, time, pt, Math.min(alpha, 0.998f), com.creedpdf.orbitalrailgun.client.config.Quality.segs(96, 32), impact);
             BUF.draw();
+            if (b == Body.JUPITER) {
+                // the Gungnir Railway Station's lapping spear, a strobing orange star beside Jupiter
+                Quaternionf sr = new Quaternionf().rotateY((float) Math.toRadians(-90)).rotateX((float) Math.toRadians(w.getSkyAngle(pt) * 360f));
+                com.creedpdf.orbitalrailgun.client.grs.GrsSpace.overworldMark(BUF, world, sr.transform(new Vector3f(c)), r, time, pt, alpha);
+                BUF.draw();
+            }
         }
         matrices.pop();
         RenderSystem.setShaderFogStart(fs);
