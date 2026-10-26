@@ -321,8 +321,8 @@ public final class GrsCine {
             // on the ground: a star coming down
             Vec3d sky = skyDir();
             Vec3d pos = target.add(off.multiply(72)).add(side.multiply(10)).add(0, 3, 0);
-            Vec3d up = target.add(sky.multiply(260));
-            Vec3d look = Kit.lerp(up, target.add(0, 12, 0), s(k(t, IMPACT - 14, IMPACT)));
+            Vec3d skyAt = target.add(sky.multiply(260));
+            Vec3d look = Kit.lerp(skyAt, target.add(0, 12, 0), s(k(t, IMPACT - 14, IMPACT)));
             return pose(pos, look);
         }
         if (t < PLANTED) {
