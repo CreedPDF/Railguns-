@@ -63,8 +63,11 @@ public final class Grs {
     }
 
     // ---- the strike timeline (ticks of the strike entity)
-    /** The spear breaks from its lap, spirals into the hub and charges the barrel. */
-    public static final int RELEASE = 54;
+    /**
+     * The spear breaks from its lap, slings once round Jupiter and fires for Earth. Long enough for the caller's
+     * cutscene (zoom out, fly to Jupiter, the station, riding the spear, the slingshot, the shot).
+     */
+    public static final int RELEASE = 300;
     /** It leaves the barrel: the descent is a few ticks of light from the sky to the ground. */
     public static final int DESCENT = 6;
     public static final int IMPACT = RELEASE + DESCENT;

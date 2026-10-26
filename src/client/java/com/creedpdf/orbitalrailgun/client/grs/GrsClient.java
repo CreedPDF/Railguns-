@@ -79,6 +79,9 @@ public final class GrsClient {
         ClientTickEvents.END_CLIENT_TICK.register(GrsSpace::tick);
         HudRenderCallback.EVENT.register(GogglesHud::render);
         WorldRenderEvents.AFTER_TRANSLUCENT.register(GrsClient::world);
+        WorldRenderEvents.LAST.register(GrsCine::world);
+        HudRenderCallback.EVENT.register(GrsCine::hud);
+        ClientTickEvents.END_CLIENT_TICK.register(GrsCine::tick);
         ClientPlayNetworking.registerGlobalReceiver(GrsNet.STATUS, (client, handler, buf, sender) -> {
             int code = buf.readVarInt(), cd = buf.readVarInt();
             client.execute(() -> status(code, cd));
@@ -155,6 +158,10 @@ public final class GrsClient {
             say("LOCK RELEASED", 0xFFB07A50);
         }
         while (FIRE.wasPressed()) {
+            if (GrsCine.active()) {
+                GrsCine.skip();
+                continue;
+            }
             if (!visor) continue;
             if (!onEarth()) {
                 say("NO EARTH UPLINK  ·  GUNGNIR STRIKES EARTH ONLY", 0xFFFF5040);
@@ -180,7 +187,7 @@ public final class GrsClient {
         }
         // the spear on its lap, felt through the goggles: a soft zoom every time it comes round
         float phase = (now() % Grs.LAP_TICKS) / (float) Grs.LAP_TICKS;
-        if (visor && phase < lastLapPhase) play(ModSounds.GRS_WHOOSH, 0.9f + 0.1f * (power / 10f), 0.16f);
+        if (visor && phase < lastLapPhase && !GrsCine.active()) play(ModSounds.GRS_WHOOSH, 0.9f + 0.1f * (power / 10f), 0.16f);
         lastLapPhase = phase;
     }
 
@@ -199,6 +206,7 @@ public final class GrsClient {
             case GrsNet.OK -> {
                 firedAt = now();
                 firedAt_pos = locked;
+                GrsCine.start(locked);
                 readyAt = now() + cooldown;
                 locked = null;
                 say("GUNGNIR RELEASED  ·  " + Grs.yieldName(power), 0xFFFFA040);
@@ -219,7 +227,7 @@ public final class GrsClient {
     // ------------------------------------------------------------------------------------------- target marker
 
     private static void world(WorldRenderContext ctx) {
-        if (!worn() || !visor || !onEarth()) return;
+        if (!worn() || !visor || !onEarth() || GrsCine.active()) return;
         BlockPos t = locked != null ? locked : hover;
         if (t == null) return;
         boolean lock = locked != null;

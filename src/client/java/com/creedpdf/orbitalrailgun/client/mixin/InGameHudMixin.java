@@ -13,21 +13,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class InGameHudMixin {
     @Inject(method = "renderCrosshair", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$crosshair(DrawContext context, CallbackInfo ci) {
-        if (ShipCinematic.active()) ci.cancel();
+        if (ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.grs.GrsCine.active()) ci.cancel();
     }
 
     @Inject(method = "renderHotbar", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$hotbar(float tickDelta, DrawContext context, CallbackInfo ci) {
-        if (ShipCinematic.active()) ci.cancel();
+        if (ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.grs.GrsCine.active()) ci.cancel();
     }
 
     @Inject(method = "renderStatusBars", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$bars(DrawContext context, CallbackInfo ci) {
-        if (ShipCinematic.active()) ci.cancel();
+        if (ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.grs.GrsCine.active()) ci.cancel();
     }
 
     @Inject(method = "renderExperienceBar", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$xp(DrawContext context, int x, CallbackInfo ci) {
-        if (ShipCinematic.active()) ci.cancel();
+        if (ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.grs.GrsCine.active()) ci.cancel();
     }
 }

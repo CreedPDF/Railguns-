@@ -13,7 +13,7 @@ public abstract class GameRendererMixin {
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$noHandInCinematic(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera camera,
                                                   float tickDelta, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
-        if (com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.active()) ci.cancel();
+        if (com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.grs.GrsCine.active()) ci.cancel();
     }
 
     @Inject(method = "getFarPlaneDistance", at = @At("RETURN"), cancellable = true, require = 0)
