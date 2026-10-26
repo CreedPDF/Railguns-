@@ -9,7 +9,8 @@
     "PlayerEntityRendererMixin",
     "GameRendererMixin",
     "WorldRendererSkyMixin",
-    "InGameHudMixin"
+    "InGameHudMixin",
+    "BackgroundRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

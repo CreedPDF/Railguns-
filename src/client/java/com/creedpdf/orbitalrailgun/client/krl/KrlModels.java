@@ -1,0 +1,68 @@
+package com.creedpdf.orbitalrailgun.client.krl;
+
+import com.creedpdf.orbitalrailgun.RailgunMod;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
+import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.resource.Resource;
+import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourceType;
+import net.minecraft.util.Identifier;
+
+import java.io.Reader;
+import java.util.Optional;
+
+/** Loads the KRL meshes (built in Blender by tools/blender/build_krl.py) on every resource reload. */
+public final class KrlModels {
+    private KrlModels() {}
+
+    public static KrlMesh LAUNCHER, SPEAR, CONSOLE;
+    /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
+    public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
+
+    public static final Identifier LAUNCHER_TEX = tex("launcher"), LAUNCHER_GLOW = tex("launcher_glow");
+    public static final Identifier SPEAR_TEX = tex("spear"), SPEAR_GLOW = tex("spear_glow");
+    public static final Identifier CONSOLE_TEX = tex("console"), CONSOLE_GLOW = tex("console_glow");
+
+    private static Identifier tex(String n) {
+        return RailgunMod.id("textures/krl/" + n + ".png");
+    }
+
+    public static void register() {
+        ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
+            @Override
+            public Identifier getFabricId() {
+                return RailgunMod.id("krl_models");
+            }
+
+            @Override
+            public void reload(ResourceManager rm) {
+                LAUNCHER = load(rm, "launcher");
+                SPEAR = load(rm, "spear");
+                CONSOLE = load(rm, "console");
+                if (SPEAR != null && SPEAR.part("nose") != null) {
+                    float[] r = SPEAR.yRange("nose");
+                    NOSE_FROM = r[0];
+                    NOSE_TIP = r[1];
+                }
+            }
+        });
+    }
+
+    private static KrlMesh load(ResourceManager rm, String name) {
+        Identifier id = RailgunMod.id("models/krl/" + name + ".json");
+        Optional<Resource> r = rm.getResource(id);
+        if (r.isEmpty()) {
+            RailgunMod.LOGGER.warn("KRL model {} missing", id);
+            return null;
+        }
+        try (Reader rd = r.get().getReader()) {
+            JsonObject o = JsonParser.parseReader(rd).getAsJsonObject();
+            return KrlMesh.parse(o);
+        } catch (Exception e) {
+            RailgunMod.LOGGER.error("KRL model {} failed to load", id, e);
+            return null;
+        }
+    }
+}

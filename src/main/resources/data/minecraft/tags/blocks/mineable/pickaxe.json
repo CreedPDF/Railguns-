@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "orbital_railgun:krl_launcher",
+    "orbital_railgun:krl_console",
+    "orbital_railgun:krl_console_part"
+  ]
+}

@@ -835,5 +835,131 @@
         "attenuation_distance": 48
       }
     ]
+  },
+  "krl.load": {
+    "subtitle": "subtitles.orbital_railgun.krl.load",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_load",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "krl.link": {
+    "subtitle": "subtitles.orbital_railgun.krl.link",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_link",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "krl.click": {
+    "subtitle": "subtitles.orbital_railgun.krl.click",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_click",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "krl.arm": {
+    "subtitle": "subtitles.orbital_railgun.krl.arm",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_arm",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "krl.siren": {
+    "subtitle": "subtitles.orbital_railgun.krl.siren",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_siren",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "krl.ignite": {
+    "subtitle": "subtitles.orbital_railgun.krl.ignite",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_ignite",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "krl.burn": {
+    "subtitle": "subtitles.orbital_railgun.krl.burn",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_burn",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "krl.boom": {
+    "subtitle": "subtitles.orbital_railgun.krl.boom",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_boom",
+        "attenuation_distance": 512
+      }
+    ]
+  },
+  "krl.climb": {
+    "subtitle": "subtitles.orbital_railgun.krl.climb",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_climb",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "krl.stall": {
+    "subtitle": "subtitles.orbital_railgun.krl.stall",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_stall",
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "krl.wind": {
+    "subtitle": "subtitles.orbital_railgun.krl.wind",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_wind",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "krl.plasma": {
+    "subtitle": "subtitles.orbital_railgun.krl.plasma",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_plasma",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "krl.incoming": {
+    "subtitle": "subtitles.orbital_railgun.krl.incoming",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_incoming",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "krl.impact": {
+    "subtitle": "subtitles.orbital_railgun.krl.impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_impact",
+        "attenuation_distance": 640
+      }
+    ]
   }
 }

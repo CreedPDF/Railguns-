@@ -157,6 +157,7 @@ public final class RailgunMod implements ModInitializer {
         ModSounds.init();
         ModParticles.init();
         ModPackets.registerServerReceivers();
+        com.creedpdf.orbitalrailgun.krl.Krl.init();
 
         // Railguns+ has its own creative tab with everything in it. (The mod's only block is the
         // invisible collision shell of a deployed railgun / parked ship, which has no item.)
@@ -171,6 +172,9 @@ public final class RailgunMod implements ModInitializer {
                     entries.add(EVA_CHESTPLATE);
                     entries.add(EVA_LEGGINGS);
                     entries.add(EVA_BOOTS);
+                    entries.add(com.creedpdf.orbitalrailgun.krl.Krl.LAUNCHER_ITEM);
+                    entries.add(com.creedpdf.orbitalrailgun.krl.Krl.CONSOLE_ITEM);
+                    entries.add(com.creedpdf.orbitalrailgun.krl.Krl.SPEAR);
                 })
                 .build());
 
