@@ -99,21 +99,6 @@ public final class RailgunMod implements ModInitializer {
                     .fireImmune()
                     .build());
 
-    /** One strike of Gungnir, the kinetic spear of the Gungnir Railway Station. */
-    public static final EntityType<com.creedpdf.orbitalrailgun.grs.GungnirStrikeEntity> GUNGNIR_STRIKE = Registry.register(
-            Registries.ENTITY_TYPE,
-            id("gungnir_strike"),
-            FabricEntityTypeBuilder.<com.creedpdf.orbitalrailgun.grs.GungnirStrikeEntity>create(SpawnGroup.MISC, com.creedpdf.orbitalrailgun.grs.GungnirStrikeEntity::new)
-                    .dimensions(EntityDimensions.fixed(2.0f, 2.0f))
-                    .trackRangeChunks(32)
-                    .trackedUpdateRate(20)
-                    .fireImmune()
-                    .build());
-
-    /** The Gungnir goggles: the GRS fire-control display, worn on the head. */
-    public static final Item GUNGNIR_GOGGLES = Registry.register(Registries.ITEM, id("gungnir_goggles"),
-            new com.creedpdf.orbitalrailgun.grs.GungnirGogglesItem(new Item.Settings().maxCount(1).fireproof().rarity(Rarity.EPIC)));
-
     /** The see-through rift opening (Immersive Portals portal). */
     public static final EntityType<com.creedpdf.orbitalrailgun.space.RiftPortal> RIFT_PORTAL = Registry.register(
             Registries.ENTITY_TYPE, id("rift_portal"), com.creedpdf.orbitalrailgun.space.RiftPortal.TYPE);
@@ -172,7 +157,6 @@ public final class RailgunMod implements ModInitializer {
         ModSounds.init();
         ModParticles.init();
         ModPackets.registerServerReceivers();
-        com.creedpdf.orbitalrailgun.grs.GrsNet.register();
 
         // Railguns+ has its own creative tab with everything in it. (The mod's only block is the
         // invisible collision shell of a deployed railgun / parked ship, which has no item.)
@@ -187,13 +171,11 @@ public final class RailgunMod implements ModInitializer {
                     entries.add(EVA_CHESTPLATE);
                     entries.add(EVA_LEGGINGS);
                     entries.add(EVA_BOOTS);
-                    entries.add(GUNGNIR_GOGGLES);
                 })
                 .build());
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> DeploymentScheduler.clear());
-        ServerLifecycleEvents.SERVER_STOPPED.register(server -> com.creedpdf.orbitalrailgun.grs.GrsNet.clear());
 
         // v3.5 rift dimension: anyone still inside is sent home (the rift now opens into real space)
         ServerTickEvents.END_WORLD_TICK.register(com.creedpdf.orbitalrailgun.rift.RiftDimension::tick);

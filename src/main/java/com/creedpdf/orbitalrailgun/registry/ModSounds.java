@@ -68,18 +68,6 @@ public final class ModSounds {
         }
     }
     public static final SoundEvent MODULE_SHIELD_BLOCK = register("module.shield_block");
-    // Gungnir Railway Station
-    public static final SoundEvent GRS_WHOOSH = register("grs.whoosh");
-    public static final SoundEvent GRS_GOGGLES = register("grs.goggles");
-    public static final SoundEvent GRS_LOCK = register("grs.lock");
-    public static final SoundEvent GRS_YIELD = register("grs.yield");
-    public static final SoundEvent GRS_DENIED = register("grs.denied");
-    public static final SoundEvent GRS_RELEASE = register("grs.release");
-    public static final SoundEvent GRS_DESCENT = register("grs.descent");
-    public static final SoundEvent GRS_IMPACT = register("grs.impact");
-    public static final SoundEvent GRS_PLANT = register("grs.plant");
-    public static final SoundEvent GRS_HUM = register("grs.hum");
-    public static final SoundEvent GRS_RECALL = register("grs.recall");
     // v4: space, EVA suit, ARES-0, planets
     public static final SoundEvent REENTRY_BURN = register("space.reentry");
     public static final SoundEvent SPACE_AMBIENT = register("space.ambient");
