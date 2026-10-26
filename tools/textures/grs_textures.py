@@ -14,6 +14,7 @@ Additive textures are white with the intensity in alpha (the game tints them); t
   textures/grs/hud/lens.png      the goggles' lens: vignette, hex grid, scanlines (drawn over the screen)
   textures/grs/hud/reticle.png   the targeting reticle
   textures/grs/hud/station.png   the station schematic for the display
+  textures/grs/fx/jupiter_ring.png  Jupiter's faint dusty rings, the station's railway (u = inner -> outer edge)
 """
 import math
 from pathlib import Path
@@ -243,7 +244,31 @@ def station_schematic():
     print("wrote", p.relative_to(ROOT))
 
 
+def jupiter_ring():
+    n = 1024
+    u = (np.arange(n) + 0.5) / n
+    # main ring, a brighter halo inside it, gossamer rings fading outward, fine ringlets everywhere
+    main = np.exp(-((u - 0.47) / 0.07) ** 2) * 0.95
+    halo = np.exp(-((u - 0.18) / 0.12) ** 2) * 0.35
+    gossamer = np.clip(1 - np.abs(u - 0.72) / 0.26, 0, 1) ** 1.5 * 0.28
+    lets = 0.75 + 0.25 * np.sin(u * 310) * np.sin(u * 97 + 1.3)
+    a = np.clip((main + halo + gossamer) * lets, 0, 1)
+    a *= np.clip(u / 0.05, 0, 1) * np.clip((1 - u) / 0.08, 0, 1)
+    im = np.zeros((8, n, 4))
+    im[..., 0] = 0.78 + 0.12 * main
+    im[..., 1] = 0.55 + 0.08 * main
+    im[..., 2] = 0.36
+    im[..., 3] = a * 0.85
+    save_rgba(im, A / "fx/jupiter_ring.png")
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1:
+        for f in sys.argv[1:]:
+            globals()[f]()
+        raise SystemExit
+    jupiter_ring()
     orb()
     flare()
     streak()

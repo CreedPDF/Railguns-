@@ -31,6 +31,7 @@ public final class RailgunModClient implements ClientModInitializer {
         com.creedpdf.orbitalrailgun.client.config.Quality.load();
         ClientTickEvents.END_CLIENT_TICK.register(com.creedpdf.orbitalrailgun.client.config.Quality::tick);
         com.creedpdf.orbitalrailgun.client.config.QualityCommand.register();
+        com.creedpdf.orbitalrailgun.client.grs.GrsClient.register();
 
         EntityRendererRegistry.register(RailgunMod.RAILGUN, RailgunEntityRenderer::new);
         EntityRendererRegistry.register(RailgunMod.ARES0, com.creedpdf.orbitalrailgun.client.ares0.Ares0Renderer::new);
@@ -62,6 +63,11 @@ public final class RailgunModClient implements ClientModInitializer {
             if (stack.isOf(RailgunMod.RAILGUN_REMOTE)) {
                 lines.add(Text.translatable("item.orbital_railgun.railgun_remote.tooltip.1").formatted(Formatting.GRAY));
                 lines.add(Text.translatable("item.orbital_railgun.railgun_remote.tooltip.2").formatted(Formatting.DARK_RED));
+            }
+            if (stack.isOf(RailgunMod.GUNGNIR_GOGGLES)) {
+                lines.add(Text.translatable("item.orbital_railgun.gungnir_goggles.tooltip.1").formatted(Formatting.GOLD));
+                lines.add(Text.translatable("item.orbital_railgun.gungnir_goggles.tooltip.2").formatted(Formatting.GRAY));
+                lines.add(Text.translatable("item.orbital_railgun.gungnir_goggles.tooltip.3").formatted(Formatting.DARK_GRAY));
             }
         });
     }
