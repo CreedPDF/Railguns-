@@ -8,3 +8,5 @@ run/
 bin/
 .DS_Store
 tools/__pycache__/
+tools/**/__pycache__/
+*.pyc
