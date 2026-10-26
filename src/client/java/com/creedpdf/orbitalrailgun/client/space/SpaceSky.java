@@ -152,6 +152,8 @@ public final class SpaceSky {
         resetDepth();
         com.creedpdf.orbitalrailgun.client.grs.GrsSpace.stationFront(BUF, m, viewPos, toLocal, sun, time, pt, bodyAlpha);
         BUF.draw();
+        com.creedpdf.orbitalrailgun.client.grs.GrsCine.spaceFx(BUF, m, viewPos, toLocal, time);
+        BUF.draw();
 
         RenderSystem.setShaderFogStart(fogStart);
         RenderSystem.setShaderFogEnd(fogEnd);

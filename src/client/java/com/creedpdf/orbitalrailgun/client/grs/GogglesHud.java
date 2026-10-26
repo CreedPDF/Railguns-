@@ -35,7 +35,7 @@ public final class GogglesHud {
 
     public static void render(DrawContext ctx, float pt) {
         MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player == null || mc.options.hudHidden || !GrsClient.worn()) return;
+        if (mc.player == null || mc.options.hudHidden || !GrsClient.worn() || GrsCine.active()) return;
         int w = ctx.getScaledWindowWidth(), h = ctx.getScaledWindowHeight();
         TextRenderer tr = mc.textRenderer;
         float time = GrsClient.now() + pt;

@@ -43,6 +43,16 @@ public final class GrsSpace {
         return time * 0.0008f;
     }
 
+    /** Cutscene overrides: the angle the spear is ridden at (null = its own lap), and true once it has left the track. */
+    public static Float rideAngle = null;
+    public static boolean away = false;
+
+    /** World position (space dimension) of the point at angle {@code a} on the station's track. */
+    public static Vec3d trackPoint(float a, float time) {
+        Vector3f v = new Quaternionf().rotateY(-stationYaw(time)).transform(new Vector3f(MathHelper.cos(a) * TRACK_R, 1.5f, MathHelper.sin(a) * TRACK_R));
+        return Grs.stationPos().add(v.x, v.y, v.z);
+    }
+
     /** World position of the lapping spear (space dimension). */
     public static Vec3d orbPos(float time) {
         float a = lapAngle(time) + stationYaw(time);
@@ -148,7 +158,9 @@ public final class GrsSpace {
         }
         // Gungnir on its lap: an orb of light with a long wake round the track (placed in the sky frame so the
         // sprites keep facing the camera)
-        float a = lapAngle(time);
+        if (away) return;
+        boolean ride = rideAngle != null;
+        float a = ride ? rideAngle : lapAngle(time);
         float minS = 0.12f;
         VertexConsumer orb = buf.getBuffer(BeamRenderLayers.textured(GrsDraw.ORB));
         Vector3f head = null;
@@ -157,11 +169,11 @@ public final class GrsSpace {
             float fade = (float) Math.pow(1 - i / 40f, 1.6) * alpha;
             Vector3f p = q.transform(new Vector3f(MathHelper.cos(aa) * TRACK_R, 1.5f, MathHelper.sin(aa) * TRACK_R)).mul(k).add(c);
             if (i == 0) head = p;
-            float sz = (i == 0 ? 3.2f : 2.4f * (1 - i / 48f)) * k;
+            float sz = (i == 0 ? (ride ? 1.6f : 3.2f) : 2.4f * (1 - i / 48f)) * k;
             if (i == 0) sz = Math.max(sz, minS);
             GrsDraw.sprite(orb, m, p.x, p.y, p.z, sz, 0, fade, 0.45f * fade + (i == 0 ? 0.3f : 0), 0.08f * fade + (i == 0 ? 0.2f : 0), 1);
         }
-        GrsDraw.sprite(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.FLARE)), m, head.x, head.y, head.z, Math.max(14f * k, minS * 5), time * 0.05f, alpha,
+        GrsDraw.sprite(buf.getBuffer(BeamRenderLayers.textured(GrsDraw.FLARE)), m, head.x, head.y, head.z, Math.max((ride ? 5f : 14f) * k, minS * 5), time * 0.05f, alpha,
                 0.5f * alpha, 0.1f * alpha, 1);
     }
 

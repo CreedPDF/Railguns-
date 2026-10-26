@@ -35,6 +35,13 @@ public abstract class CameraMixin {
     @Inject(method = "update", at = @At("TAIL"))
     private void orbitalRailgun$panelZoom(BlockView area, Entity focusedEntity, boolean thirdPersonView,
                                          boolean inverseView, float tickDelta, CallbackInfo ci) {
+        double[] grs = com.creedpdf.orbitalrailgun.client.grs.GrsCine.camera(tickDelta);
+        if (grs != null) {
+            setRotation((float) grs[3], (float) grs[4]);
+            setPos(new Vec3d(grs[0], grs[1], grs[2]));
+            this.thirdPerson = true;
+            return;
+        }
         double[] film = com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.camera(tickDelta);
         if (film != null) {
             setRotation((float) film[3], (float) film[4]);

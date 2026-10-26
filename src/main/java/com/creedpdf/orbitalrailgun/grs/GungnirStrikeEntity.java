@@ -161,7 +161,7 @@ public class GungnirStrikeEntity extends Entity {
         BlockPos at = getBlockPos();
         sw.getChunkManager().addTicket(ChunkTicketType.PORTAL, new ChunkPos(at), 3, at);
 
-        if (t == 1) {
+        if (t == Grs.RELEASE - 68) {
             sound(sw, ModSounds.GRS_RELEASE, 10f, 1f);
             for (ServerPlayerEntity p : sw.getPlayers()) {
                 if (p.squaredDistanceTo(getPos()) < 1500 * 1500)
