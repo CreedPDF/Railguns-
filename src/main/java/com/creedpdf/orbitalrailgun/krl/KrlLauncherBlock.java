@@ -83,7 +83,7 @@ public class KrlLauncherBlock extends BlockWithEntity {
         // a console standing within a few blocks takes the new launcher straight away
         for (BlockPos p : BlockPos.iterate(pos.add(-4, -2, -4), pos.add(4, 2, 4))) {
             if (world.getBlockEntity(p) instanceof KrlConsoleBlockEntity c && c.link(pos)) {
-                if (placer instanceof PlayerEntity pl) pl.sendMessage(Text.literal("KRL-1 linked to fire control at " + p.toShortString()).formatted(Formatting.RED), true);
+                if (placer instanceof PlayerEntity pl) pl.sendMessage(Text.literal("KRL-1 linked to fire control at " + p.toShortString()).formatted(Formatting.GRAY), true);
                 world.playSound(null, p, Krl.S_LINK, SoundCategory.BLOCKS, 1f, 1f);
                 break;
             }
@@ -100,17 +100,17 @@ public class KrlLauncherBlock extends BlockWithEntity {
                 player.sendMessage(Text.literal("The rail is already loaded.").formatted(Formatting.GRAY), true);
                 return ActionResult.CONSUME;
             }
-            be.load();
+            be.load(KineticSpearItem.livery(held));
             if (!player.getAbilities().creativeMode) held.decrement(1);
             world.playSound(null, pos, Krl.S_LOAD, SoundCategory.BLOCKS, 1.4f, 1f);
-            player.sendMessage(Text.literal("Kinetic spear seated in the clamps. Rail armed for fire control.").formatted(Formatting.RED), true);
+            player.sendMessage(Text.literal("Kinetic missile latched on the rail (" + Krl.LIVERY_NAMES[be.livery()] + "). Ready for fire control.").formatted(Formatting.GRAY), true);
             return ActionResult.CONSUME;
         }
         if (player.isSneaking() && held.isEmpty()) {
             if (world.isClient) return ActionResult.SUCCESS;
             KrlLinking.select((ServerPlayerEntity) player, pos);
             world.playSound(null, pos, Krl.S_CLICK, SoundCategory.BLOCKS, 1f, 1.2f);
-            player.sendMessage(Text.literal("KRL-1 selected - sneak-right-click a fire-control console to link it.").formatted(Formatting.RED), true);
+            player.sendMessage(Text.literal("KRL-1 selected - sneak-right-click a fire-control console to link it.").formatted(Formatting.GRAY), true);
             return ActionResult.CONSUME;
         }
         if (!world.isClient) player.sendMessage(Text.literal(be.statusLine()).formatted(Formatting.GRAY), true);
@@ -121,7 +121,7 @@ public class KrlLauncherBlock extends BlockWithEntity {
     public void onStateReplaced(BlockState state, World world, BlockPos pos, BlockState newState, boolean moved) {
         if (!state.isOf(newState.getBlock()) && !world.isClient && world.getBlockEntity(pos) instanceof KrlLauncherBlockEntity be) {
             if (be.igniting()) KrlServer.abort(be.flight());
-            if (be.loaded()) Block.dropStack(world, pos, new ItemStack(Krl.SPEAR));
+            if (be.loaded()) Block.dropStack(world, pos, KineticSpearItem.withLivery(new ItemStack(Krl.SPEAR), be.livery()));
         }
         super.onStateReplaced(state, world, pos, newState, moved);
     }

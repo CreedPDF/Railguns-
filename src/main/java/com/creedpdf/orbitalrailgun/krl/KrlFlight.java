@@ -6,7 +6,7 @@ import net.minecraft.util.math.Vec3d;
 /**
  * The spear's flight, as a pure function of time so the server, every client and the cutscene camera agree exactly:
  * <ol>
- *   <li><b>BOOST</b> - off the rail straight up, accelerating, then a gravity turn toward the target; the motor burns
+ *   <li><b>BOOST</b> - off the inclined rail (60 degrees, turned toward the target), accelerating, then a gravity turn; the motor burns
  *   out as it climbs into the stratosphere (apogee 380-760 blocks over the higher of launcher and target);</li>
  *   <li><b>STALL</b> - at apogee it hangs, nearly still, and noses over toward the target;</li>
  *   <li><b>FALL</b> - it drops, steepening and accelerating all the way to Mach 13 at impact.</li>
@@ -16,13 +16,36 @@ import net.minecraft.util.math.Vec3d;
 public final class KrlFlight {
     public static final int BOOST = 220, STALL = 60, FALL = 200, TOTAL = BOOST + STALL + FALL, AFTER = 90;
     public static final double MACH_MAX = 13.0;
-    /** The rider's cutscene opens on the pad this many ticks before liftoff. */
-    public static final int PAD_LEAD = 100;
+    /** The rider's cutscene opens on the pad this many ticks before liftoff (the moment LAUNCH is pressed). */
+    public static final int PAD_LEAD = Krl.COUNTDOWN;
     /** Pad shot until RIDE; on the spear until ORBIT; the stall shot until FALL_RIDE; on the spear until GROUND; then the ground shot. */
     public static final int RIDE = 34, ORBIT = BOOST - 14, FALL_RIDE = BOOST + STALL + 12, GROUND = TOTAL - 76;
     private static final Vec3d UP = new Vec3d(0, 1, 0);
 
-    public final Vec3d launch, target, apex, apex2, h;
+    // ---- the launcher's turret geometry (mirrors tools/blender/build_krl.py), in the turret's own frame: +Z is where
+    //      it points, +Y up, blocks from the bottom centre of the launcher block
+    public static final double RAIL_EL = Math.toRadians(60);
+    public static final double SE = Math.sin(RAIL_EL), CE = Math.cos(RAIL_EL);
+    /** Trunnion, rail direction, rail "top" (the missile side). */
+    public static final Vec3d PIVOT = new Vec3d(0, 1.25, -0.6), RAIL_D = new Vec3d(0, SE, CE), RAIL_N = new Vec3d(0, CE, -SE);
+    public static final double SPEAR_UP = 0.42, NOZZLE_K = 0.3;
+    /** The missile's nozzle exit on the rail, turret frame. */
+    public static final Vec3d NOZZLE_LOCAL = PIVOT.add(RAIL_N.multiply(SPEAR_UP)).add(RAIL_D.multiply(NOZZLE_K));
+
+    /** Turret frame to world, with the turret pointing along horizontal unit vector h. */
+    public static Vec3d toWorld(Vec3d padBottomCenter, Vec3d h, Vec3d local) {
+        Vec3d side = new Vec3d(h.z, 0, -h.x);
+        return padBottomCenter.add(side.multiply(local.x)).add(0, local.y, 0).add(h.multiply(local.z));
+    }
+
+    /** The nozzle in the world once the turret has turned to face the target. */
+    public static Vec3d nozzleFor(Vec3d padBottomCenter, Vec3d target) {
+        Vec3d dh = new Vec3d(target.x - padBottomCenter.x, 0, target.z - padBottomCenter.z);
+        Vec3d h = dh.lengthSquared() < 1e-6 ? new Vec3d(0, 0, 1) : dh.normalize();
+        return toWorld(padBottomCenter, h, NOZZLE_LOCAL);
+    }
+
+    public final Vec3d launch, target, apex, apex2, h, rail;
     public final double dist, height;
     private final Vec3d b1, b2, f1, f2;
     private final double vFallMax, vBoostMax;
@@ -37,8 +60,9 @@ public final class KrlFlight {
         height = MathHelper.clamp(380 + 0.18 * dist, 380, 760);
         apex = new Vec3d(launch.x + h.x * dist * 0.5, baseY + height, launch.z + h.z * dist * 0.5);
         apex2 = apex.add(h.multiply(dist * 0.015 + 6)).add(0, -5, 0);
-        b1 = launch.add(UP.multiply(height * 0.8));
-        b2 = apex.subtract(h.multiply(Math.min(dist * 0.22 + 60, dist * 0.5 + 20)));
+        rail = h.multiply(CE).add(0, SE, 0);
+        b1 = launch.add(rail.multiply(Math.min(height * 0.5, dist * 0.6 + 40)));
+        b2 = apex.subtract(h.multiply(Math.min(dist * 0.22 + 60, dist * 0.45)));
         f1 = apex2.add(h.multiply(dist * 0.08 + 10)).add(0, -height * 0.25, 0);
         f2 = target.add(0, height * 0.45, 0).subtract(h.multiply(Math.min(dist * 0.02, 20)));
         vFallMax = speed(TOTAL - 0.5);
@@ -75,10 +99,10 @@ public final class KrlFlight {
 
     /** Where the nose points. */
     public Vec3d dir(double t) {
-        if (t <= 0) return UP;
+        if (t <= 0) return rail;
         if (t < BOOST * 0.97) {
             Vec3d d = bezD(launch, b1, b2, apex, smooth(t / BOOST));
-            return d.lengthSquared() < 1e-9 ? UP : d.normalize();
+            return d.lengthSquared() < 1e-9 ? rail : d.normalize();
         }
         Vec3d end = bezD(launch, b1, b2, apex, 0.999).normalize();
         Vec3d fallStart = f1.subtract(apex2).normalize();

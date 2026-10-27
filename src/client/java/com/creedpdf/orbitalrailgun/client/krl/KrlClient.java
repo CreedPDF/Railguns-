@@ -56,6 +56,7 @@ public final class KrlClient {
         public final long liftoff;
         @Nullable
         public final UUID rider;
+        public final int livery;
         public Vec3d launch, target;
         public KrlFlight path;
         /** Effects already started (smoke bursts, sounds). */
@@ -64,8 +65,9 @@ public final class KrlClient {
         /** The flight time at which the climb goes through Mach 1 (for the vapour cone). */
         double mach1 = -1;
 
-        CFlight(int id, Identifier world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID rider) {
+        CFlight(int id, Identifier world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID rider, int livery) {
             this.id = id;
+            this.livery = livery;
             this.world = world;
             this.pad = pad;
             this.launch = launch;
@@ -149,8 +151,8 @@ public final class KrlClient {
         KrlSettings.load();
         BlockEntityRendererFactories.register(Krl.LAUNCHER_BE, KrlLauncherRenderer::new);
         BlockEntityRendererFactories.register(Krl.CONSOLE_BE, KrlConsoleRenderer::new);
-        BuiltinItemRendererRegistry.INSTANCE.register(Krl.SPEAR, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.SPEAR, KrlModels.SPEAR_TEX,
-                KrlModels.SPEAR_GLOW, mode, ms, vcp, light, 7.2f, true));
+        BuiltinItemRendererRegistry.INSTANCE.register(Krl.SPEAR, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.SPEAR,
+                KrlModels.spearTex(com.creedpdf.orbitalrailgun.krl.KineticSpearItem.livery(stack)), KrlModels.SPEAR_GLOW, mode, ms, vcp, light, 7.2f, true));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.LAUNCHER_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.LAUNCHER,
                 KrlModels.LAUNCHER_TEX, KrlModels.LAUNCHER_GLOW, mode, ms, vcp, light, 10.3f, false));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.CONSOLE_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.CONSOLE,
@@ -213,7 +215,8 @@ public final class KrlClient {
         Vec3d t = new Vec3d(b.readDouble(), b.readDouble(), b.readDouble());
         long lift = b.readLong();
         UUID r = b.readBoolean() ? b.readUuid() : null;
-        return new CFlight(id, w, pad, l, t, lift, r);
+        int lv = b.readVarInt();
+        return new CFlight(id, w, pad, l, t, lift, r, lv);
     }
 
     /** A re-sent flight (its aim point settled onto the real ground) keeps the effects already played. */
@@ -264,7 +267,7 @@ public final class KrlClient {
                 gone.add(f.id);
                 continue;
             }
-            if (!f.loops && t > -Krl.IGNITION - 5) startLoops(mc, f);
+            if (!f.loops && t > -Krl.FLAME - 2) startLoops(mc, f);
             KrlFx.tick(f, t);
         }
         for (int id : gone) FLIGHTS.remove(id);
@@ -287,16 +290,10 @@ public final class KrlClient {
             CFlight c = FLIGHTS.get(id);
             if (c == null) return 0;
             double t = c.t(0);
-            double ramp = MathHelper.clamp((t + Krl.IGNITION) / 30.0, 0, 1);
+            double ramp = MathHelper.clamp((t + Krl.FLAME) / 6.0, 0, 1);
             double out = t < KrlFlight.BOOST * 0.7 ? 1 : MathHelper.clamp((KrlFlight.BOOST * 0.82 - t) / (KrlFlight.BOOST * 0.12), 0, 1);
             return (t < 0 ? 2.2 : 4.0) * ramp * out;
         });
-        // the pad siren, until ten seconds before liftoff
-        loop(mc, Krl.S_SIREN, () -> {
-            CFlight c = FLIGHTS.get(id);
-            if (c == null || c.t(0) > -200) return null;
-            return Vec3d.ofCenter(c.pad).add(c.front().multiply(-2)).add(0, 6, 0);
-        }, () -> 1.2);
     }
 
     private static void loop(MinecraftClient mc, SoundEvent ev, Supplier<Vec3d> where, DoubleSupplier vol) {
@@ -371,11 +368,11 @@ public final class KrlClient {
             if (!here(f)) continue;
             double t = f.t(pt);
             double dp = cam.distanceTo(f.launch);
-            if (t > -Krl.IGNITION && t < 0) amp += 0.035 * Math.max(0, 1 - dp / 90) * MathHelper.clamp((t + Krl.IGNITION) / 30, 0, 1);
+            if (t > -Krl.FLAME && t < 0) amp += 0.05 * Math.max(0, 1 - dp / 90) * MathHelper.clamp((t + Krl.FLAME) / 6, 0, 1);
             if (t >= 0 && t < 90) amp += 0.32 * Math.max(0, 1 - dp / 260) * Math.exp(-t / 22);
             double di = cam.distanceTo(f.target);
             double ti = t - KrlFlight.TOTAL;
-            if (ti >= 0 && ti < 160) amp += 0.9 * Math.exp(-di / 260) * Math.exp(-ti / 26);
+            if (ti >= 0 && ti < 100) amp += 0.6 * Math.exp(-di / 200) * Math.exp(-ti / 16);
         }
         amp *= KrlSettings.shake;
         if (amp < 1e-4) return Vec3d.ZERO;

@@ -63,6 +63,11 @@ def apply_mods(obj):
 
 
 def link_obj(name, bm):
+    # bm.to_mesh() clamps face material indices to the mesh's (still empty) slot list, so keep them in an attribute
+    # and restore them in tag() once the slots exist
+    lay = bm.faces.layers.int.new("krl_mat")
+    for f in bm.faces:
+        f[lay] = f.material_index
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -76,8 +81,14 @@ def tag(obj, part, mats, smooth=False):
     """Remember which part a primitive belongs to and give it its material slots."""
     obj["krl_part"] = part
     obj.data.materials.clear()
-    for m in (mats if isinstance(mats, (list, tuple)) else [mats]):
+    ml = mats if isinstance(mats, (list, tuple)) else [mats]
+    for m in ml:
         obj.data.materials.append(m.m)
+    att = obj.data.attributes.get("krl_mat")
+    if att is not None:
+        top = len(ml) - 1
+        for k, poly in enumerate(obj.data.polygons):
+            poly.material_index = max(0, min(top, att.data[k].value))
     # recalculating normals goes through edit mode, which clamps face material indices to the slots that exist -
     # so it must happen only once the slots are assigned
     if obj.get("krl_fix"):
@@ -975,12 +986,13 @@ def build_spear(assets, out):
             c.data.materials.append(preview_material(f"krl_prev_lv{i}", img, glow, 2.0))
             copies.append(c)
         o.hide_render = True
-        preview(copies[0], copies[0].data.materials[0], f"{out}/krl_liveries.png", (0.6, -9.5, 4.2), (0, 0, 3.4), lens=38)
+        preview(copies[0], copies[0].data.materials[0], f"{out}/krl_liveries.png", (0.8, -13.0, 4.0), (0, 0, 3.5), lens=40,
+                bg=(0.25, 0.27, 0.3))
         for c in copies:
             bpy.data.objects.remove(c)
         o.hide_render = False
     pm = preview_material("krl_prev_s", imgs[0], glow, 2.0)
-    preview(o, pm, f"{out}/krl_spear.png", (2.6, -3.4, 2.2), (0, 0, 1.6), lens=40)
+    preview(o, pm, f"{out}/krl_spear.png", (5.6, -7.0, 5.0), (0, 0, 3.5), lens=42, bg=(0.25, 0.27, 0.3))
     return o
 
 

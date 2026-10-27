@@ -24,8 +24,9 @@ import net.minecraft.util.Rarity;
 /**
  * KRL - the Kinetic Rail Launcher. A launch pad with a rail tower that takes a kinetic spear; a fire-control console
  * (3 blocks wide) that links up to five launchers and picks a target on its map up to 2000 blocks away. On launch the
- * spear's motor burns on the rail for a minute, then it leaves with a sonic boom, climbs to the stratosphere, stalls,
- * noses over and falls back at Mach 13 with its tip wrapped in plasma, and hits in a superheated plasma explosion.
+ * turret slews to the target, the motor lights and burns on the inclined rail for two seconds, then the missile leaves
+ * with a sonic boom, climbs to the stratosphere, stalls, noses over and falls back at Mach 13 with its tip glowing in
+ * a plasma sheath, and explodes on impact.
  */
 public final class Krl {
     private Krl() {}
@@ -33,8 +34,15 @@ public final class Krl {
     // ---- rules
     public static final double RANGE = 2000;
     public static final int MAX_LINKS = 5;
-    /** The motor burns on the rail this long before the spear leaves (a minute). */
-    public static final int IGNITION = 1200;
+    /** From LAUNCH to liftoff: the turret slews to the target, then the motor lights and burns on the rail for FLAME ticks. */
+    public static final int SLEW = 30, FLAME = 40, COUNTDOWN = SLEW + FLAME;
+    /** Paint schemes for the kinetic missile (textures/krl/spear_<name>.png). */
+    public static final String[] LIVERIES = {"standard", "olive", "arctic", "desert", "darkgrey", "test"};
+    public static final String[] LIVERY_NAMES = {"Standard Grey", "Olive Drab", "Arctic White", "Desert Tan", "Dark Gunship Grey", "Test Round"};
+
+    public static int livery(int i) {
+        return Math.floorMod(i, LIVERIES.length);
+    }
     /** How close a player must be to use a console, and how far a launcher may be linked from it. */
     public static final double USE_RANGE = 8, LINK_RANGE = 256;
 

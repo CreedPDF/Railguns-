@@ -22,7 +22,17 @@ public final class KrlModels {
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
     public static final Identifier LAUNCHER_TEX = tex("launcher"), LAUNCHER_GLOW = tex("launcher_glow");
-    public static final Identifier SPEAR_TEX = tex("spear"), SPEAR_GLOW = tex("spear_glow");
+    public static final Identifier SPEAR_GLOW = tex("spear_glow");
+    private static final Identifier[] SPEAR_TEX = new Identifier[com.creedpdf.orbitalrailgun.krl.Krl.LIVERIES.length];
+
+    static {
+        for (int i = 0; i < SPEAR_TEX.length; i++) SPEAR_TEX[i] = tex("spear_" + com.creedpdf.orbitalrailgun.krl.Krl.LIVERIES[i]);
+    }
+
+    /** The missile's albedo for a livery. */
+    public static Identifier spearTex(int livery) {
+        return SPEAR_TEX[com.creedpdf.orbitalrailgun.krl.Krl.livery(livery)];
+    }
     public static final Identifier CONSOLE_TEX = tex("console"), CONSOLE_GLOW = tex("console_glow");
 
     private static Identifier tex(String n) {

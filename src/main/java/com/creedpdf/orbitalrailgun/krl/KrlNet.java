@@ -148,7 +148,7 @@ public final class KrlNet {
         }
         if (lit > 0) {
             w.playSound(null, c, Krl.S_ARM, SoundCategory.BLOCKS, 1.6f, 1f);
-            p.sendMessage(Text.literal("IGNITION - " + lit + " motor" + (lit > 1 ? "s" : "") + " burning. Liftoff in 60 s.").formatted(Formatting.RED), true);
+            p.sendMessage(Text.literal("LAUNCH - " + lit + " rail" + (lit > 1 ? "s" : "") + " slewing to target. Ignition, then liftoff.").formatted(Formatting.YELLOW), true);
         } else if (refused > 0) {
             p.sendMessage(Text.literal("No launcher could take the shot (empty, burning, unloaded or out of range).").formatted(Formatting.GRAY), true);
         }
@@ -166,7 +166,7 @@ public final class KrlNet {
             BlockPos lp = links.get(i);
             if (w.isChunkLoaded(lp) && w.getBlockEntity(lp) instanceof KrlLauncherBlockEntity l && l.igniting() && KrlServer.abort(l.flight())) n++;
         }
-        if (n > 0) p.sendMessage(Text.literal("ABORT - " + n + " countdown" + (n > 1 ? "s" : "") + " safed. Motor" + (n > 1 ? "s" : "") + " quenched.").formatted(Formatting.RED), true);
+        if (n > 0) p.sendMessage(Text.literal("ABORT - " + n + " launch" + (n > 1 ? "es" : "") + " safed.").formatted(Formatting.YELLOW), true);
         sendState(p, be, false);
     }
 
@@ -234,6 +234,7 @@ public final class KrlNet {
         b.writeLong(f.liftoff);
         b.writeBoolean(f.rider != null);
         if (f.rider != null) b.writeUuid(f.rider);
+        b.writeVarInt(f.livery);
         return b;
     }
 

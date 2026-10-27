@@ -28,6 +28,8 @@ public class KrlLauncherBlockEntity extends BlockEntity {
     private long launchedAt = -1;
     /** The flight this launcher is counting down for (KrlServer), or -1. */
     private int flight = -1;
+    /** The loaded missile's paint scheme. */
+    private int livery;
 
     public KrlLauncherBlockEntity(BlockPos pos, BlockState state) {
         super(Krl.LAUNCHER_BE, pos, state);
@@ -53,24 +55,25 @@ public class KrlLauncherBlockEntity extends BlockEntity {
         return flight;
     }
 
+    public int livery() {
+        return livery;
+    }
+
     /** Ticks left before the spear leaves, or -1. */
     public int countdown() {
         if (ignitedAt < 0 || world == null) return -1;
-        return (int) Math.max(0, Krl.IGNITION - (world.getTime() - ignitedAt));
+        return (int) Math.max(0, Krl.COUNTDOWN - (world.getTime() - ignitedAt));
     }
 
-    /** Where the spear's nozzle sits on the rail. */
-    public Vec3d railPoint() {
-        return Vec3d.ofBottomCenter(pos).add(0, 0.45, 0);
-    }
 
     public String statusLine() {
         if (igniting()) return String.format(java.util.Locale.ROOT, "KRL-1: MOTOR BURNING - T-%.0fs", countdown() / 20.0);
         return loaded ? "KRL-1: SPEAR ON RAIL - awaiting fire control" : "KRL-1: RAIL EMPTY - load a kinetic spear";
     }
 
-    public void load() {
+    public void load(int livery) {
         loaded = true;
+        this.livery = Krl.livery(livery);
         sync();
     }
 
@@ -78,7 +81,6 @@ public class KrlLauncherBlockEntity extends BlockEntity {
     void ignited(int flightId) {
         ignitedAt = world == null ? 0 : world.getTime();
         flight = flightId;
-        world.playSound(null, pos, Krl.S_IGNITE, SoundCategory.BLOCKS, 6f, 1f);
         sync();
     }
 
@@ -106,9 +108,9 @@ public class KrlLauncherBlockEntity extends BlockEntity {
             return;
         }
         long t = world.getTime() - be.ignitedAt;
-        // the exhaust scorches anything standing on the pad
-        if (t % 10 == 0) {
-            Box blast = new Box(pos).expand(1.4, 0, 1.4).stretch(0, 2.5, 0);
+        // once the motor is lit, the exhaust scorches anything on or behind the pad
+        if (t >= Krl.SLEW && t % 5 == 0) {
+            Box blast = new Box(pos).expand(3, 0, 3).stretch(0, 3, 0);
             for (LivingEntity e : world.getEntitiesByClass(LivingEntity.class, blast, e -> e.isAlive() && !KrlServer.riding(e))) {
                 e.setOnFireFor(4);
                 e.damage(world.getDamageSources().onFire(), 3f);
@@ -132,6 +134,7 @@ public class KrlLauncherBlockEntity extends BlockEntity {
         nbt.putLong("ignited", ignitedAt);
         nbt.putLong("launched", launchedAt);
         nbt.putInt("flight", flight);
+        nbt.putInt("livery", livery);
     }
 
     @Override
@@ -141,6 +144,7 @@ public class KrlLauncherBlockEntity extends BlockEntity {
         ignitedAt = nbt.contains("ignited") ? nbt.getLong("ignited") : -1;
         launchedAt = nbt.contains("launched") ? nbt.getLong("launched") : -1;
         flight = nbt.contains("flight") ? nbt.getInt("flight") : -1;
+        livery = Krl.livery(nbt.getInt("livery"));
     }
 
     @Override
