@@ -157,7 +157,7 @@ public final class KrlClient {
         BlockEntityRendererFactories.register(Krl.STATION_BE, KrlStationRenderer::new);
         BlockEntityRendererFactories.register(Krl.MAGAZINE_BE, KrlMagazineRenderer::new);
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.MAGAZINE_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.MAGAZINE,
-                KrlModels.MAGAZINE_TEX, KrlModels.MAGAZINE_GLOW, mode, ms, vcp, light, 1.85f, false));
+                KrlModels.MAGAZINE_TEX, KrlModels.MAGAZINE_GLOW, mode, ms, vcp, light, 5.2f, false));
         ClientPlayNetworking.registerGlobalReceiver(KrlNet.AA, (client, h, buf, s) -> {
             KrlAa.Frame fr = KrlAa.read(buf);
             client.execute(() -> KrlAa.apply(fr));

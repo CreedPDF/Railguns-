@@ -22,14 +22,11 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.Heightmap;
-import net.minecraft.world.RaycastContext;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
@@ -111,16 +108,16 @@ public final class KrlDefense {
         return CONTACTS.getOrDefault(console.asLong(), List.of());
     }
 
-    /** Interceptors in the magazines standing within two blocks of a launcher. */
+    /** Interceptors in the magazines standing within three blocks of a launcher. */
     public static int rounds(World w, BlockPos launcher) {
         int n = 0;
-        for (BlockPos p : BlockPos.iterate(launcher.add(-2, -1, -2), launcher.add(2, 1, 2)))
+        for (BlockPos p : BlockPos.iterate(launcher.add(-3, -1, -3), launcher.add(3, 1, 3)))
             if (w.getBlockEntity(p) instanceof KrlMagazineBlockEntity m) n += m.rounds();
         return n;
     }
 
     private static KrlMagazineBlockEntity magazine(World w, BlockPos launcher) {
-        for (BlockPos p : BlockPos.iterate(launcher.add(-2, -1, -2), launcher.add(2, 1, 2)))
+        for (BlockPos p : BlockPos.iterate(launcher.add(-3, -1, -3), launcher.add(3, 1, 3)))
             if (w.getBlockEntity(p) instanceof KrlMagazineBlockEntity m && m.rounds() > 0) return m;
         return null;
     }
@@ -276,10 +273,9 @@ public final class KrlDefense {
         }
         Vec3d next = m.pos.add(v);
         if (m.age > 4) {
-            BlockHitResult hit = w.raycast(new RaycastContext(m.pos, next, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE,
-                    (Entity) null));
-            if (hit.getType() == HitResult.Type.BLOCK) {
-                detonate(w, m, hit.getPos(), null);
+            Vec3d hit = solidAlong(w, m.pos, next);
+            if (hit != null) {
+                detonate(w, m, hit, null);
                 return true;
             }
         }
@@ -290,6 +286,21 @@ public final class KrlDefense {
             return true;
         }
         return false;
+    }
+
+    /** The first point on the segment a-b inside a solid block (sampled every half block), or null. */
+    private static Vec3d solidAlong(ServerWorld w, Vec3d a, Vec3d b) {
+        double len = a.distanceTo(b);
+        int n = Math.max(1, (int) Math.ceil(len / 0.5));
+        BlockPos.Mutable bp = new BlockPos.Mutable();
+        for (int i = 1; i <= n; i++) {
+            Vec3d p = a.lerp(b, i / (double) n);
+            bp.set(p.x, p.y, p.z);
+            if (w.isOutOfHeightLimit(bp.getY()) || !w.isChunkLoaded(bp)) continue;
+            var st = w.getBlockState(bp);
+            if (!st.isAir() && !st.getCollisionShape(w, bp).isEmpty()) return p;
+        }
+        return null;
     }
 
     private static Entity reacquire(ServerWorld w, Missile m) {

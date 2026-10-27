@@ -40,7 +40,12 @@ public class KrlMagazineRenderer implements BlockEntityRenderer<KrlMagazineBlock
     }
 
     @Override
+    public boolean rendersOutsideBoundingBox(KrlMagazineBlockEntity be) {
+        return true;
+    }
+
+    @Override
     public int getRenderDistance() {
-        return 96;
+        return 128;
     }
 }

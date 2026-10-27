@@ -1497,70 +1497,104 @@ def build_station(assets, out):
 # ================================================================================================ the magazine
 
 def build_magazine(assets, out):
-    """KRL-M30 interceptor magazine: one block, an armoured box whose front is a 6 x 5 grid of launch tubes. Each loaded
-    tube shows its interceptor's nose cone (parts r00..r29, hidden by the renderer when that tube is empty)."""
+    """KRL-M30 interceptor magazine: a 3 x 3 x 2 block armoured launch-cell rack. Its front is a 6 x 5 grid of canisters;
+    each loaded canister shows its interceptor's nose cone (parts r00..r29, hidden by the renderer when empty). Origin at
+    the bottom centre of the middle block; the rack spans x, y in [-1.5, 1.5], z in [0, 2]."""
     reset()
-    olive = mil_mat("km_olive", (0.25, 0.27, 0.19), seams=2.8, wear=0.3, grime=0.35)
+    olive = mil_mat("km_olive", (0.25, 0.27, 0.19), seams=1.4, wear=0.3, grime=0.35)
     dgrey = mil_mat("km_dgrey", (0.17, 0.175, 0.17), wear=0.25, grime=0.3)
-    steel = metal_mat("km_steel", (0.36, 0.36, 0.35), 9.0)
-    haz = hazard_mat("km_haz", 10.0)
+    steel = metal_mat("km_steel", (0.36, 0.36, 0.35), 5.0)
+    haz = hazard_mat("km_haz", 4.0)
     dark = flat_mat("km_dark", (0.018, 0.018, 0.018))
-    nose = mil_mat("km_nose", (0.55, 0.56, 0.54), wear=0.1, grime=0.1, scale=6.0)
+    nose = mil_mat("km_nose", (0.55, 0.56, 0.54), wear=0.1, grime=0.1, scale=4.0)
     tip = flat_mat("km_tip", (0.55, 0.06, 0.04))
     white = flat_mat("km_white", (0.86, 0.86, 0.82))
     green = glow_mat("km_green", GREEN, 0.9)
     amber = glow_mat("km_amber", AMBER, 1.0)
+    tread = tread_mat("km_tread")
     body, rounds = [], []
 
     def add(o, m, smooth=False):
         body.append(tag(o, "body", m, smooth=smooth))
 
-    add(box("mag_body", (0, 0.02, 0.47), (0.94, 0.9, 0.86), bevel=0.015), olive)
-    add(box("mag_base", (0, 0, 0.025), (0.98, 0.98, 0.05)), dgrey)
-    add(box("mag_front", (0, -0.445, 0.45), (0.9, 0.02, 0.78)), dgrey)
-    add(box("mag_haz", (0, -0.46, 0.06), (0.94, 0.012, 0.05)), haz)
-    add(box("mag_lid", (0, 0.02, 0.92), (0.9, 0.86, 0.04), bevel=0.01), dgrey)
+    H = 1.96
+    # skid base, armoured body (front recessed behind a hood), deck
+    add(box("mag_skid", (0, 0, 0.06), (2.98, 2.98, 0.12)), dgrey)
     for sx in (-1, 1):
-        add(rod(f"mag_handle{sx}", (sx * 0.475, -0.2, 0.62), (sx * 0.475, 0.2, 0.62), 0.014, 8), steel)
-        for k in range(3):
-            add(box(f"mag_rib{sx}{k}", (sx * 0.471, 0.02, 0.2 + k * 0.25), (0.012, 0.86, 0.03)), dgrey)
-    add(box("mag_feed", (0, 0.47, 0.35), (0.3, 0.06, 0.5)), steel)
-    add(box("mag_led", (0.33, -0.457, 0.86), (0.18, 0.006, 0.02)), green)
-    add(box("mag_led2", (-0.33, -0.457, 0.86), (0.05, 0.006, 0.02)), amber)
-    body.append(label("mag_lbl", "KRL-M30  INTERCEPTOR MAGAZINE", 0.032, (-0.02, -0.458, 0.84), (math.radians(90), 0, 0), [white], "body"))
+        add(box(f"mag_skidrail{sx}", (sx * 1.2, 0, 0.14), (0.16, 2.98, 0.08)), steel)
+    add(box("mag_body", (0, 0.1, 1.04), (2.84, 2.66, 1.84), bevel=0.02), olive)
+    add(box("mag_deck", (0, 0, H - 0.03), (2.96, 2.96, 0.06), bevel=0.01), dgrey)
+    add(box("mag_deck_tread", (0, 0.25, H + 0.002), (2.4, 2.0, 0.004)), tread)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            add(box(f"mag_post{sx}{sy}", (sx * 1.42, sy * 1.42, H / 2), (0.14, 0.14, H)), dgrey)
+    # the hood round the canister face
+    add(box("mag_hood_top", (0, -1.38, 1.84), (2.84, 0.2, 0.08)), dgrey)
+    add(box("mag_hood_bot", (0, -1.38, 0.2), (2.84, 0.2, 0.08)), dgrey)
+    for sx in (-1, 1):
+        add(box(f"mag_hood_side{sx}", (sx * 1.38, -1.38, 1.02), (0.08, 0.2, 1.7)), dgrey)
+    add(box("mag_face", (0, -1.29, 1.02), (2.7, 0.02, 1.6)), dgrey)
+    add(box("mag_haz", (0, -1.49, 0.2), (2.84, 0.012, 0.07)), haz)
+    add(box("mag_haz2", (0, -1.49, 1.84), (2.84, 0.012, 0.07)), haz)
+    # sides: ribs, ladder, data plate
+    for sx in (-1, 1):
+        for k in range(5):
+            add(box(f"mag_rib{sx}{k}", (sx * 1.425, 0.1, 0.35 + k * 0.33), (0.02, 2.5, 0.05)), dgrey)
+        add(box(f"mag_plate{sx}", (sx * 1.43, 0.8, 1.3), (0.01, 0.5, 0.3)), steel)
+    for k in range(6):
+        add(rod(f"mag_rung{k}", (1.5, 0.95, 0.3 + k * 0.28), (1.5, 1.25, 0.3 + k * 0.28), 0.018, 8), steel)
+    for y in (0.95, 1.25):
+        add(rod(f"mag_ladder{y}", (1.5, y, 0.15), (1.5, y, H + 0.3), 0.02, 8), steel)
+    # deck: hatches, vents and the feed arm that hands rounds to the launcher
+    for k, x in enumerate((-0.8, 0.0, 0.8)):
+        add(box(f"mag_hatch{k}", (x, 0.4, H + 0.02), (0.6, 0.9, 0.03), bevel=0.01), olive)
+        add(rod(f"mag_hatch_h{k}", (x - 0.12, 0.0, H + 0.05), (x + 0.12, 0.0, H + 0.05), 0.012, 6), steel)
+    for k in range(7):
+        add(box(f"mag_vent{k}", (-0.9 + k * 0.3, -0.85, H + 0.01), (0.2, 0.3, 0.012)), dark)
+    add(box("mag_feed_base", (0, 1.2, H + 0.1), (0.5, 0.4, 0.2)), steel)
+    add(rod("mag_feed_arm", (0, 1.2, H + 0.2), (0, 1.75, H + 0.55), 0.06, 12), steel)
+    add(box("mag_feed_head", (0, 1.78, H + 0.55), (0.3, 0.2, 0.2)), haz)
+    # status lights and markings
+    add(box("mag_led", (0.95, -1.495, 1.92), (0.7, 0.008, 0.04)), green)
+    add(box("mag_led2", (-1.2, -1.495, 1.92), (0.15, 0.008, 0.04)), amber)
+    body.append(label("mag_lbl", "KRL-M30  INTERCEPTOR MAGAZINE", 0.07, (-0.2, -1.496, 1.89), (math.radians(90), 0, 0), [white], "body"))
+    for sx in (-1, 1):
+        body.append(label(f"mag_side_lbl{sx}", "EXPLOSIVES  1.1D", 0.08, (sx * 1.437, -0.3, 1.62), (math.radians(90), 0, math.radians(90 * sx)), [white], "body"))
     names = []
     for j in range(5):
         for i in range(6):
-            x = -0.3625 + i * 0.145
-            z = 0.73 - j * 0.14
-            ring = lathe(f"tube_ring{i}{j}", [(0.05, 0.0), (0.064, 0.0), (0.064, 0.012), (0.05, 0.012)], 20, closed=True)
-            add(orient(ring, (0, -1, 0), (x, -0.455, z)), steel, smooth=True)
-            hole = cyl(f"tube_hole{i}{j}", 0.05, 0.0, 0.004, 20)
-            add(orient(hole, (0, -1, 0), (x, -0.4545, z)), dark)
+            x = -1.1 + i * 0.44
+            z = 1.6 - j * 0.33
+            ring = lathe(f"tube_ring{i}{j}", [(0.13, 0.0), (0.16, 0.0), (0.16, 0.03), (0.13, 0.03)], 24, closed=True)
+            add(orient(ring, (0, -1, 0), (x, -1.3, z)), steel, smooth=True)
+            hole = cyl(f"tube_hole{i}{j}", 0.13, 0.0, 0.006, 24)
+            add(orient(hole, (0, -1, 0), (x, -1.302, z)), dark)
             n = f"r{j * 6 + i:02d}"
             names.append(n)
-            prof = [(0.0, -0.01), (0.044, -0.01), (0.044, 0.02)]
-            L, R = 0.07, 0.044
+            R, L = 0.115, 0.2
+            prof = [(0.0, -0.02), (R, -0.02), (R, 0.04)]
             rho = (R * R + L * L) / (2 * R)
             for k in range(1, 9):
                 xx = k / 8 * L
-                prof.append((max(0.0, math.sqrt(max(0.0, rho * rho - xx * xx)) + R - rho), 0.02 + xx))
-            cone = lathe(f"nose{n}", prof[:-2], 18)
-            rounds.append(tag(orient(cone, (0, -1, 0), (x, -0.455, z)), n, nose, smooth=True))
-            tp = lathe(f"tip{n}", prof[-3:] + [(0.0, 0.02 + L)], 18)
-            rounds.append(tag(orient(tp, (0, -1, 0), (x, -0.455, z)), n, tip, smooth=True))
+                prof.append((max(0.0, math.sqrt(max(0.0, rho * rho - xx * xx)) + R - rho), 0.04 + xx))
+            cone = lathe(f"nose{n}", prof[:-2], 20)
+            rounds.append(tag(orient(cone, (0, -1, 0), (x, -1.3, z)), n, nose, smooth=True))
+            tp = lathe(f"tip{n}", prof[-3:] + [(0.0, 0.04 + L)], 20)
+            rounds.append(tag(orient(tp, (0, -1, 0), (x, -1.3, z)), n, tip, smooth=True))
+            bd = lathe(f"band{n}", [(R + 0.002, 0.0), (R + 0.004, 0.0), (R + 0.004, 0.025), (R + 0.002, 0.025)], 20, closed=True)
+            rounds.append(tag(orient(bd, (0, -1, 0), (x, -1.3, z)), n, amber, smooth=True))
 
     parts = ["body"] + names
     allo = body + rounds
     stamp(allo, parts)
     o = join(allo, "magazine")
-    unwrap(o, 0.003)
-    mats = [olive, dgrey, steel, haz, dark, nose, tip, white, green, amber]
-    col = bake_one(o, mats, 1024, f"{assets}/textures/krl/magazine.png")
+    unwrap(o, 0.002)
+    mats = [olive, dgrey, steel, haz, dark, nose, tip, white, green, amber, tread]
+    col = bake_one(o, mats, 2048, f"{assets}/textures/krl/magazine.png")
     glow = bake_one(o, mats, 512, f"{assets}/textures/krl/magazine_glow.png", "glow")
     export(o, parts, {}, f"{assets}/models/krl/magazine.json")
     pm = preview_material("krl_prev_mag", col, glow, 3.0)
-    preview(o, pm, f"{out}/krl_magazine.png", (1.5, -2.2, 1.5), (0, 0, 0.45), lens=40, bg=(0.25, 0.27, 0.3))
+    preview(o, pm, f"{out}/krl_magazine.png", (4.2, -6.0, 3.8), (0, 0, 0.9), lens=40, bg=(0.25, 0.27, 0.3))
     return o
 
 

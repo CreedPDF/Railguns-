@@ -68,6 +68,10 @@ public final class Krl {
             new KrlMagazineBlock(AbstractBlock.Settings.create().mapColor(MapColor.DARK_GREEN).strength(5f, 1200f).requiresTool().nonOpaque()
                     .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).luminance(s -> 3)));
 
+    public static final KrlMagazinePartBlock MAGAZINE_PART = Registry.register(Registries.BLOCK, RailgunMod.id("krl_magazine_part"),
+            new KrlMagazinePartBlock(AbstractBlock.Settings.create().mapColor(MapColor.DARK_GREEN).strength(5f, 1200f).requiresTool().nonOpaque()
+                    .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).dropsNothing()));
+
     public static final Item LAUNCHER_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_launcher"),
             new KrlBlockItem(LAUNCHER, new Item.Settings().rarity(Rarity.EPIC), "Load with a kinetic missile. Sneak-use empty-handed to pick it for linking."));
     public static final Item CONSOLE_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_console"),
@@ -75,7 +79,7 @@ public final class Krl {
     public static final Item STATION_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_station"),
             new KrlBlockItem(STATION, new Item.Settings().rarity(Rarity.EPIC), "Use with a kinetic missile in hand to fit warheads, charges and motors."));
     public static final Item MAGAZINE_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_magazine"),
-            new KrlBlockItem(MAGAZINE, new Item.Settings().rarity(Rarity.EPIC), "Holds 30 interceptors. Place next to a launcher; the console radar fires them."));
+            new KrlBlockItem(MAGAZINE, new Item.Settings().rarity(Rarity.EPIC), "3x3x2 rack, 30 interceptors. Place beside a launcher; the console radar fires them."));
     public static final Item SPEAR = Registry.register(Registries.ITEM, RailgunMod.id("kinetic_spear"),
             new KineticSpearItem(new Item.Settings().maxCount(4).rarity(Rarity.EPIC).fireproof()));
 
@@ -121,5 +125,5 @@ public final class Krl {
     }
 
     @SuppressWarnings("unused")
-    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART, STATION, MAGAZINE};
+    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART, STATION, MAGAZINE, MAGAZINE_PART};
 }

@@ -25,13 +25,14 @@ import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * KRL-M30 interceptor magazine. Stand it next to a KRL-1 launcher (within two blocks) and load it with up to 30
+ * KRL-M30 interceptor magazine: a 3 x 3 x 2 block rack (this block is the bottom centre; the rest are
+ * {@link KrlMagazinePartBlock}s). Stand it next to a KRL-1 launcher (within three blocks) and load it with up to 30
  * kinetic missiles: use one on it to load it (sneak to load the whole stack), use it empty-handed to take one out.
  * When the linked fire-control console's radar is on, the launcher fires them from here at anything hostile in the air.
  */
 public class KrlMagazineBlock extends BlockWithEntity {
     public static final DirectionProperty FACING = HorizontalFacingBlock.FACING;
-    private static final VoxelShape SHAPE = Block.createCuboidShape(0, 0, 0, 16, 15.5, 16);
+    private static final VoxelShape SHAPE = Block.createCuboidShape(0, 0, 0, 16, 16, 16);
 
     public KrlMagazineBlock(Settings settings) {
         super(settings);
@@ -43,10 +44,35 @@ public class KrlMagazineBlock extends BlockWithEntity {
         builder.add(FACING);
     }
 
+    /** Each filler position (offset from this block) with its DX, DY, DZ. */
+    private static void forParts(BlockPos c, java.util.function.BiConsumer<BlockPos, int[]> f) {
+        for (int dy = 0; dy <= 1; dy++)
+            for (int dx = 0; dx <= 2; dx++)
+                for (int dz = 0; dz <= 2; dz++) {
+                    if (dx == 1 && dy == 0 && dz == 1) continue;
+                    f.accept(c.add(dx - 1, dy, dz - 1), new int[]{dx, dy, dz});
+                }
+    }
+
     @Nullable
     @Override
     public BlockState getPlacementState(ItemPlacementContext ctx) {
+        BlockPos c = ctx.getBlockPos();
+        World w = ctx.getWorld();
+        boolean[] ok = {true};
+        forParts(c, (p, d) -> {
+            if (!w.getBlockState(p).canReplace(ctx) || w.isOutOfHeightLimit(p.getY())) ok[0] = false;
+        });
+        if (!ok[0]) return null;
         return getDefaultState().with(FACING, ctx.getHorizontalPlayerFacing().getOpposite());
+    }
+
+    @Override
+    public void onPlaced(World world, BlockPos pos, BlockState state, @Nullable net.minecraft.entity.LivingEntity placer, ItemStack stack) {
+        super.onPlaced(world, pos, state, placer, stack);
+        if (world.isClient) return;
+        forParts(pos, (p, d) -> world.setBlockState(p, Krl.MAGAZINE_PART.getDefaultState().with(KrlMagazinePartBlock.DX, d[0])
+                .with(KrlMagazinePartBlock.DY, d[1]).with(KrlMagazinePartBlock.DZ, d[2]), Block.NOTIFY_ALL));
     }
 
     @Override
@@ -101,6 +127,12 @@ public class KrlMagazineBlock extends BlockWithEntity {
                 ItemScatterer.spawn(world, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, new ItemStack(Krl.SPEAR, k));
                 n -= k;
             }
+        }
+        if (!state.isOf(newState.getBlock()) && !world.isClient) {
+            forParts(pos, (p, d) -> {
+                BlockState ps = world.getBlockState(p);
+                if (ps.isOf(Krl.MAGAZINE_PART) && KrlMagazinePartBlock.center(ps, p).equals(pos)) world.setBlockState(p, net.minecraft.block.Blocks.AIR.getDefaultState(), Block.NOTIFY_ALL);
+            });
         }
         super.onStateReplaced(state, world, pos, newState, moved);
     }
