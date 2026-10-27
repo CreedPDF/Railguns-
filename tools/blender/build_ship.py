@@ -414,7 +414,7 @@ def build(assets, out):
     bulkhead("bh_rear", -5.56, 0.12, ((0, -5.56, 3.0), (3.0, 1.0, 2.0)), hull)
     bulkhead("bh_front", 5.55, 0.1, ((0, 5.55, 3.9), (3.1, 1.0, 1.7)), inner)
     bx("bh_window", (0, 5.55, 3.9), (3.12, 0.02, 1.72), glass, "glass")
-    for x, z, w, h in ((0, 3.02, 3.3, 0.08), (0, 4.78, 3.3, 0.08), (-1.6, 3.9, 0.1, 1.84), (1.6, 3.9, 0.1, 1.84), (0, 3.9, 0.05, 1.7)):
+    for x, z, w, h in ((0, 3.02, 3.3, 0.08), (0, 4.78, 3.3, 0.08), (-1.6, 3.9, 0.1, 1.84), (1.6, 3.9, 0.1, 1.84), ):
         bx("bh_wframe", (x, 5.49, z), (w, 0.08, h), steel)
     # door frame, outside and in
     for yy in (-5.64, -5.48):
@@ -574,19 +574,16 @@ def build(assets, out):
     # ------------------------------------------------------------------------------------------ wings, pylons, canards
     for sx in (-1, 1):
         secs = []
-        for x, le, te, zc, t in ((2.9, 1.8, -4.6, 1.72, 0.5), (3.6, 1.45, -4.2, 1.78, 0.46), (4.3, 0.85, -3.5, 1.86, 0.4),
-                                 (4.95, 0.25, -2.75, 1.95, 0.34)):
+        for x, le, te, zc, t in ((3.3, 1.7, -4.5, 2.55, 0.6), (3.9, 1.25, -3.95, 2.75, 0.55), (4.5, 0.82, -3.35, 2.95, 0.48),
+                                 (5.0, 0.45, -2.9, PIV_ENG["eng_r"][2], 0.44)):
             secs.append(airfoil(sx * x, le, te, zc, t))
         if sx < 0:
             secs = [list(reversed(s)) for s in secs]
         add(skin("wing", secs, cap_last=True), hull2, smooth=True)
-        bx("flap", (sx * 3.95, -3.55, 1.73), (1.7, 0.6, 0.05), dark, rot=("Z", sx * 10))
-        bx("wing_stripe", (sx * 4.1, 0.0, 2.06), (1.0, 0.18, 0.03), paint, rot=("Z", -sx * 35))
-        # tilt-shaft pylon at the tip
-        bx("pylon", (sx * 4.78, -1.25, 2.75), (0.42, 2.2, 1.7), hull2, bevel=0.14)
+        # tilt-shaft fairing at the tip
         o = K.rod("shaft_house", (sx * 4.5, -1.25, PIV_ENG["eng_r"][2]), (sx * 5.0, -1.25, PIV_ENG["eng_r"][2]), 0.5, 24)
         add(o, steel, smooth=True)
-        bx("pylon_light", (sx * 4.8, -0.45, 3.62), (0.12, 0.3, 0.05), l_red)
+        bx("wing_light", (sx * 4.75, -2.88, PIV_ENG["eng_r"][2]), (0.3, 0.05, 0.06), l_red)
         # canards
         cz = 2.05
         can = prism("canard", [(1.9, 11.35), (1.9, 9.55), (3.35, 10.05), (3.42, 10.45)], "z", cz - 0.06, cz + 0.06, rim_mat=1)
@@ -611,9 +608,9 @@ def build(assets, out):
             xx = fus_half_width_at(yy, zz)
             bx("rcs", (sx * (xx + 0.02), yy, zz), (0.1, 0.35, 0.22), dark)
             bx("rcs_port", (sx * (xx + 0.075), yy, zz), (0.01, 0.2, 0.1), l_hot)
-        add(K.label("name", "ARES KESTREL", 0.42, (sx * (fus_half_width_at(-0.6, 3.05) + 0.012), -0.6, 3.05),
+        add(K.label("name", "ARES KESTREL", 0.42, (sx * (fus_half_width_at(2.9, 3.05) + 0.012), 2.9, 3.05),
                     (math.radians(90), 0, math.radians(90 if sx > 0 else -90)), [white], "hull"), white)
-        add(K.label("hullno", "AK-07", 0.5, (sx * (fus_half_width_at(7.6, 3.0) + 0.012), 7.6, 3.0),
+        add(K.label("hullno", "AK-07", 0.5, (sx * (fus_half_width_at(5.3, 3.0) + 0.012), 5.3, 3.0),
                     (math.radians(90), 0, math.radians(90 if sx > 0 else -90)), [paint], "hull"), paint)
     for name, (x, y_, _z) in PIV_GEAR.items():
         bx("bay", (x, y_ + (0.2 if name == "gear_f" else 0.0), 0.775), (1.0, 1.5, 0.04), dark)
