@@ -979,5 +979,122 @@
         "attenuation_distance": 16
       }
     ]
+  },
+  "sc.link": {
+    "subtitle": "subtitles.orbital_railgun.sc.link",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_link",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "sc.deploy": {
+    "subtitle": "subtitles.orbital_railgun.sc.deploy",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_deploy",
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "sc.hum": {
+    "subtitle": "subtitles.orbital_railgun.sc.hum",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_hum",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "sc.alarm": {
+    "subtitle": "subtitles.orbital_railgun.sc.alarm",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_alarm",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "sc.rail_charge": {
+    "subtitle": "subtitles.orbital_railgun.sc.rail_charge",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_rail_charge",
+        "attenuation_distance": 96
+      }
+    ]
+  },
+  "sc.rail_fire": {
+    "subtitle": "subtitles.orbital_railgun.sc.rail_fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_rail_fire",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "sc.rail_hit": {
+    "subtitle": "subtitles.orbital_railgun.sc.rail_hit",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_rail_hit",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "sc.sat_uplink": {
+    "subtitle": "subtitles.orbital_railgun.sc.sat_uplink",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_sat_uplink",
+        "attenuation_distance": 8
+      }
+    ]
+  },
+  "sc.sat_charge": {
+    "subtitle": "subtitles.orbital_railgun.sc.sat_charge",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_sat_charge",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "sc.sat_fire": {
+    "subtitle": "subtitles.orbital_railgun.sc.sat_fire",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_sat_fire",
+        "attenuation_distance": 256
+      }
+    ]
+  },
+  "sc.strike_beam": {
+    "subtitle": "subtitles.orbital_railgun.sc.strike_beam",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_strike_beam",
+        "attenuation_distance": 640
+      }
+    ]
+  },
+  "sc.strike_impact": {
+    "subtitle": "subtitles.orbital_railgun.sc.strike_impact",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_strike_impact",
+        "attenuation_distance": 900
+      }
+    ]
+  },
+  "sc.strike_rumble": {
+    "subtitle": "subtitles.orbital_railgun.sc.strike_rumble",
+    "sounds": [
+      {
+        "name": "orbital_railgun:sc_strike_rumble",
+        "attenuation_distance": 640
+      }
+    ]
   }
 }

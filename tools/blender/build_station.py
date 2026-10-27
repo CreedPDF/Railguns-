@@ -141,23 +141,19 @@ def build_hub(assets, out):
     mats_e = [1, 0, 2, 2, 2, 3, 3, 3, 3, 3]
     b.lathe("drum", prof, [M["dark"], M["hull"], M["paint"], M["white"]], P, segs=64,
             mat_of_edge=lambda i: mats_e[min(i, len(mats_e) - 1)])
-    # cupola windows: eight panes round the dome shoulder, with frames
-    for k in range(8):
-        a = k * math.tau / 8
-        d = Vector((math.cos(a), math.sin(a), 0))
-        c = d * 1.235 + Vector((0, 0, 2.33))
-        o = K.box("pane", (0, 0, 0), (0.42, 0.02, 0.22))
-        o.rotation_euler = (math.radians(-38), 0, a + math.pi / 2)
-        o.location = c
-        K.active(o)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        b.add(o, M["glass"], P)
-        o = K.box("pane_glow", (0, 0, 0), (0.36, 0.012, 0.14))
-        o.rotation_euler = (math.radians(-38), 0, a + math.pi / 2)
-        o.location = c - d * 0.012
-        K.active(o)
-        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        b.add(o, M["lwarm"], P)
+    # portholes in the upper wall, two either side of each handrail
+    for k in range(4):
+        for off in (-9, 9):
+            a = math.radians(45 + 90 * k + off)
+            d = Vector((math.cos(a), math.sin(a), 0))
+            for name, rr, size, mat in (("pframe", R + 0.006, (0.34, 0.03, 0.26), M["steel"]), ("pane", R + 0.02, (0.27, 0.01, 0.19), M["glass"]),
+                                        ("pane_glow", R + 0.026, (0.2, 0.004, 0.06), M["lwarm"])):
+                o = K.box(name, (0, 0, 0), size)
+                o.rotation_euler = (0, 0, a + math.pi / 2)
+                o.location = d * rr + Vector((0, 0, 1.85 if name != "pane_glow" else 1.8))
+                K.active(o)
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                b.add(o, mat, P)
     # four docking ports
     for k in range(4):
         a = k * math.pi / 2
