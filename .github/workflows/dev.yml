@@ -70,7 +70,7 @@ jobs:
       - name: Build models in Blender
         id: blender
         env:
-          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || '' }}
+          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || startsWith(github.ref_name, 'dev-ship') && 'ship' || '' }}
         run: |
           set -o pipefail
           tools/blender/build.sh ~/blender/blender 2>&1 | tee blender.log
@@ -106,5 +106,6 @@ jobs:
             src/main/resources/assets/orbital_railgun/geo/
             src/main/resources/assets/orbital_railgun/textures/entity/
             src/main/resources/assets/orbital_railgun/textures/item/
+            src/main/resources/assets/orbital_railgun/textures/ship/
             src/main/resources/assets/orbital_railgun/textures/armor/
             src/main/resources/assets/orbital_railgun/models/

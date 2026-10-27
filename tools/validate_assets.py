@@ -65,6 +65,7 @@ try:
 except ImportError:
     pass
 
+import json as _json_mod
 errors = []
 glow = ASSETS / "textures/entity/railgun_glowmask.png"
 lit = sum(1 for p in pixels(glow) if p[-1] > 0)
@@ -74,7 +75,7 @@ red = sum(1 for p in pixels(ASSETS / "textures/entity/railgun.png") if len(p) >=
 if red == 0:
     errors.append("railgun.png: no glow colours baked")
 print(f"glowmask lit pixels: {lit}, red texels in atlas: {red}")
-for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glowmask.png", "textures/entity/ship_glowmask.png"):
+for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glowmask.png"):
     path = ASSETS / extra
     if not path.exists():
         errors.append(f"{extra}: missing")
@@ -83,6 +84,19 @@ for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glo
     print(f"{extra}: {n} lit pixels")
     if n == 0:
         errors.append(f"{extra}: no visible pixels (GeckoLib would crash)")
+# Blender-built (krl_mesh) models: mesh and both baked textures must be present, and the glow must light something
+for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.png", "textures/ship/starship_glow.png"),):
+    for f in (mesh, tex, glow):
+        if not (ASSETS / f).exists():
+            errors.append(f"{f}: missing")
+    if (ASSETS / glow).exists():
+        n = sum(1 for p in pixels(ASSETS / glow) if max(p[:3]) > 14)
+        print(f"{glow}: {n} lit pixels")
+        if n == 0:
+            errors.append(f"{glow}: nothing glows")
+    if (ASSETS / mesh).exists():
+        js = _json_mod.loads((ASSETS / mesh).read_text())
+        print(f"{mesh}: " + ", ".join(f"{p['name']}={len(p['quads']) // 4}q" for p in js["parts"]))
 # every geo bone's parent must be defined (GeckoLib aborts the whole resource reload otherwise)
 import json as _json
 for geo in sorted((ASSETS / "geo").glob("*.geo.json")):

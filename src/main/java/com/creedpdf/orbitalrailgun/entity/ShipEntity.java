@@ -42,10 +42,6 @@ import net.minecraft.world.Heightmap;
 import net.minecraft.world.World;
 import org.jetbrains.annotations.Nullable;
 import qouteall.imm_ptl.core.api.PortalAPI;
-import software.bernie.geckolib.animatable.GeoEntity;
-import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
-import software.bernie.geckolib.core.animation.AnimatableManager;
-import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,10 +72,10 @@ import java.util.UUID;
  *   <li>{@link Phase#DEPARTING}: back to orbit (stowed / recalled): everyone aboard is put down
  *       beside it, then it lifts and flies off.</li>
  * </ol>
- * The model is posed by bones (yaw / pitch on the root, roll on a bank bone, the nacelles), never
+ * The model is posed in code (ShipRenderer: yaw / pitch / bank, the VTOL pods, gear and ramp), never
  * by entity yaw, which stays 0.
  */
-public class ShipEntity extends Entity implements GeoEntity {
+public class ShipEntity extends Entity {
     /** Ordinals are saved: only append. */
     public enum Phase { PARKED, IGNITION, ASCENT, CRUISE, DESCENT, TOUCHDOWN, SURVEY, LANDING, DEPARTING }
 
@@ -108,7 +104,6 @@ public class ShipEntity extends Entity implements GeoEntity {
     private static final TrackedData<Boolean> GLIDE = DataTracker.registerData(ShipEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
     private static final TrackedData<Boolean> FLAT = DataTracker.registerData(ShipEntity.class, TrackedDataHandlerRegistry.BOOLEAN);
 
-    private final AnimatableInstanceCache cache = GeckoLibUtil.createInstanceCache(this);
     @Nullable private UUID pilot, owner;
     @Nullable private BlockPos home;          // overworld pad
     private boolean placed;
@@ -1081,12 +1076,4 @@ public class ShipEntity extends Entity implements GeoEntity {
         return new EntitySpawnS2CPacket(this);
     }
 
-    @Override
-    public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-    }
-
-    @Override
-    public AnimatableInstanceCache getAnimatableInstanceCache() {
-        return cache;
-    }
 }

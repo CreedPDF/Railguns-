@@ -19,6 +19,10 @@ public final class KrlModels {
     private KrlModels() {}
 
     public static KrlMesh LAUNCHER, SPEAR, CONSOLE, STATION, MAGAZINE;
+    /** The ARES Kestrel starship (tools/blender/build_ship.py). */
+    public static KrlMesh SHIP;
+    public static final Identifier SHIP_TEX = RailgunMod.id("textures/ship/starship.png");
+    public static final Identifier SHIP_GLOW = RailgunMod.id("textures/ship/starship_glow.png");
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -56,6 +60,7 @@ public final class KrlModels {
                 CONSOLE = load(rm, "console", CONSOLE_GLOW);
                 STATION = load(rm, "station", STATION_GLOW);
                 MAGAZINE = load(rm, "magazine", MAGAZINE_GLOW);
+                SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];
@@ -66,7 +71,11 @@ public final class KrlModels {
     }
 
     private static KrlMesh load(ResourceManager rm, String name, Identifier glow) {
-        KrlMesh m = load(rm, name);
+        return load(rm, RailgunMod.id("models/krl/" + name + ".json"), glow);
+    }
+
+    private static KrlMesh load(ResourceManager rm, Identifier id, Identifier glow) {
+        KrlMesh m = load(rm, id);
         if (m == null) return null;
         NativeImage img = null;
         try {
@@ -85,8 +94,7 @@ public final class KrlModels {
         return m;
     }
 
-    private static KrlMesh load(ResourceManager rm, String name) {
-        Identifier id = RailgunMod.id("models/krl/" + name + ".json");
+    private static KrlMesh load(ResourceManager rm, Identifier id) {
         Optional<Resource> r = rm.getResource(id);
         if (r.isEmpty()) {
             RailgunMod.LOGGER.warn("KRL model {} missing", id);

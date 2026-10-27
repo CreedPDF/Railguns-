@@ -1,31 +1,48 @@
 package com.creedpdf.orbitalrailgun.client.ship;
 
+import com.creedpdf.orbitalrailgun.client.krl.KrlCompat;
+import com.creedpdf.orbitalrailgun.client.krl.KrlMesh;
+import com.creedpdf.orbitalrailgun.client.krl.KrlModels;
 import com.creedpdf.orbitalrailgun.client.render.BeamRenderLayers;
 import com.creedpdf.orbitalrailgun.client.space.JetFlameFx;
 import com.creedpdf.orbitalrailgun.client.space.PlanetBlastFx;
 import com.creedpdf.orbitalrailgun.entity.ShipEntity;
 import net.minecraft.client.render.Frustum;
+import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
+import net.minecraft.client.render.entity.EntityRenderer;
 import net.minecraft.client.render.entity.EntityRendererFactory;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.RotationAxis;
 import net.minecraft.util.math.Vec3d;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
-import software.bernie.geckolib.renderer.GeoEntityRenderer;
-import software.bernie.geckolib.renderer.layer.AutoGlowingGeoLayer;
 
 /**
- * The starship model plus everything it emits: 3D red engine flames (two tilting VTOL nacelles,
- * twin dorsal main engines) that swell with thrust and blaze white-hot as the jump drive charges,
- * and, while it hovers over a landing zone, the holographic ground scan and the wide levelling laser.
+ * The ARES Kestrel starship: a smooth Blender-built mesh (tools/blender/build_ship.py, drawn with {@link KrlMesh}),
+ * posed from the entity's flight model exactly like {@link ShipEntity#modelToWorld} - yaw, pitch and bank about the
+ * model's centre, VTOL pods tilting nozzle-down to hover, gear folding into the belly, the rear hatch dropping into a
+ * ramp - with its canopy and cabin window drawn translucent and its lights and engines glowing (engines with thrust).
+ * Around it: 3D red engine flames (two tilting VTOL pods, twin dorsal main engines) that swell with thrust and blaze
+ * white-hot as the jump drive charges, and, while it hovers over a landing zone, the holographic ground scan and the
+ * wide levelling laser.
  */
-public class ShipRenderer extends GeoEntityRenderer<ShipEntity> {
+public class ShipRenderer extends EntityRenderer<ShipEntity> {
+    private static final float RAMP_OPEN = (float) Math.toRadians(123.5);
+    /** VTOL nozzle exit along the pod (model px, aft of the pivot) and where its flame points when horizontal. */
+    private static final double NOZZLE_Z = -64, NOZZLE_AFT = -171;
+
     public ShipRenderer(EntityRendererFactory.Context ctx) {
-        super(ctx, new ShipModel());
-        addRenderLayer(new AutoGlowingGeoLayer<>(this));
+        super(ctx);
         this.shadowRadius = 0f;
+    }
+
+    @Override
+    public Identifier getTexture(ShipEntity e) {
+        return KrlModels.SHIP_TEX;
     }
 
     @Override
@@ -35,16 +52,84 @@ public class ShipRenderer extends GeoEntityRenderer<ShipEntity> {
 
     @Override
     public void render(ShipEntity e, float yaw, float pt, MatrixStack ms, VertexConsumerProvider vcp, int light) {
-        super.render(e, yaw, pt, ms, vcp, light);
+        float t = e.getPhaseTicks() + pt;
+        float time = e.age + pt;
+        KrlMesh mesh = KrlModels.SHIP;
+        if (mesh != null) drawShip(e, mesh, t, time, ms, vcp, light);
+        if (KrlCompat.shadowPass()) return;
         Vec3d cam = dispatcher.camera.getPos();
         Vec3d pos = e.getLerpedPos(pt);
         ms.push();
         ms.translate(cam.x - pos.x, cam.y - pos.y, cam.z - pos.z);   // camera-relative world space
         Matrix4f m = ms.peek().getPositionMatrix();
-        float t = e.getPhaseTicks() + pt;
-        float time = e.age + pt;
         flames(e, m, vcp, cam, t, time, pt);
         if (e.getPhase() == ShipEntity.Phase.SURVEY) survey(e, m, vcp, cam, t, time, pt);
+        ms.pop();
+    }
+
+    // ---- the hull --------------------------------------------------------------------------------
+
+    private void drawShip(ShipEntity e, KrlMesh mesh, float t, float time, MatrixStack ms, VertexConsumerProvider vcp, int light) {
+        float[] pose = e.pose(t);
+        float th = e.thrust(t), hyper = e.hyperCharge(t);
+        ShipEntity.Phase ph = e.getPhase();
+        boolean pad = ph == ShipEntity.Phase.IGNITION || (ph == ShipEntity.Phase.ASCENT && t < 50)
+                || ph == ShipEntity.Phase.TOUCHDOWN || (ph == ShipEntity.Phase.DEPARTING && t < 50);
+        float rumble = pad ? 0.02f * th : 0f;
+        float vt = e.vtol(t), fold = e.legFold(t), ramp = e.rampOpen(t);
+        double d2 = dispatcher.camera.getPos().squaredDistanceTo(e.getLerpedPos(1f));
+        boolean shadow = KrlCompat.shadowPass();
+        int lod = shadow ? 2 : d2 < 24 * 24 ? 0 : d2 < 72 * 72 ? 1 : 2;
+
+        ms.push();
+        ms.translate(rumble * MathHelper.sin(time * 2.7f), 3.0, rumble * MathHelper.sin(time * 3.3f + 1f));
+        ms.multiply(RotationAxis.POSITIVE_Y.rotation(pose[0]));
+        ms.multiply(RotationAxis.POSITIVE_X.rotation(pose[1]));
+        ms.multiply(RotationAxis.POSITIVE_Z.rotation(-pose[2]));
+        ms.translate(0, -3.0, 0);
+
+        // which part is being drawn (the pose callback runs before each part's quads), for the glow's shade
+        String[] cur = {""};
+        KrlMesh.Pose body = (part, s) -> {
+            cur[0] = part;
+            switch (part) {
+                case "eng_l", "eng_r" -> s.multiply(RotationAxis.POSITIVE_X.rotation(MathHelper.HALF_PI * vt));
+                case "gear_f", "gear_l", "gear_r" -> {
+                    s.translate(0, 0.32f * fold, 0);
+                    s.multiply(RotationAxis.POSITIVE_X.rotation(MathHelper.HALF_PI * fold));
+                }
+                case "ramp" -> s.multiply(RotationAxis.POSITIVE_X.rotation(RAMP_OPEN * ramp));
+                case "glass" -> {
+                    return false;
+                }
+                default -> {
+                }
+            }
+            return true;
+        };
+        mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.SHIP_TEX)), light, body, null);
+        if (!shadow) {
+            float engine = Math.min(1f, 0.3f + 0.7f * th + hyper);
+            float pulse = 0.88f + 0.12f * MathHelper.sin(time * 0.12f);
+            mesh.glow(lod).render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.SHIP_GLOW)), light, body, (nx, ny, nz, o) -> {
+                float k = switch (cur[0]) {
+                    case "main", "eng_l", "eng_r" -> engine;
+                    default -> pulse;
+                };
+                o[0] = k;
+                o[1] = k;
+                o[2] = k;
+                o[3] = 1f;
+            });
+            KrlMesh.Pose glassOnly = (part, s) -> part.equals("glass");
+            mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityTranslucent(KrlModels.SHIP_TEX)), light, glassOnly,
+                    (nx, ny, nz, o) -> {
+                        o[0] = 1f;
+                        o[1] = 1f;
+                        o[2] = 1f;
+                        o[3] = 0.55f;
+                    });
+        }
         ms.pop();
     }
 
@@ -59,8 +144,8 @@ public class ShipRenderer extends GeoEntityRenderer<ShipEntity> {
         float flick = 0.9f + 0.1f * MathHelper.sin(time * 3.1f) * MathHelper.sin(time * 1.7f);
         // nacelles
         for (int s = -1; s <= 1; s += 2) {
-            Vec3d noz = e.modelToWorld(s * ShipEntity.NAC_X, ShipEntity.NAC_Y, -93, s, pt);
-            Vec3d aft = e.modelToWorld(s * ShipEntity.NAC_X, ShipEntity.NAC_Y, -200, s, pt);
+            Vec3d noz = e.modelToWorld(s * ShipEntity.NAC_X, ShipEntity.NAC_Y, NOZZLE_Z, s, pt);
+            Vec3d aft = e.modelToWorld(s * ShipEntity.NAC_X, ShipEntity.NAC_Y, NOZZLE_AFT, s, pt);
             float len = (2.2f + 6.5f * th + 6f * hyper) * flick;
             flame(g, m, rel(noz, cam), dir(noz, aft), len, 0.95f, time + s * 5.1f, th, hyper);
         }
