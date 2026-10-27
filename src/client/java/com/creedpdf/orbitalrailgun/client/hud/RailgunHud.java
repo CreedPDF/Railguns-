@@ -13,6 +13,7 @@ import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import org.jetbrains.annotations.Nullable;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.creedpdf.orbitalrailgun.client.ui.UiKit;
@@ -161,13 +162,18 @@ public final class RailgunHud {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(scale, scale, 1f);
-        ctx.drawText(font, t, 0, 0, color, false);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(ctx);
+        float px = com.creedpdf.orbitalrailgun.client.ui.Px.of(ctx);
+        // redraw the same string in the face resolution that matches its size on screen
+        boolean head = t.getStyle().getFont() != null && t.getStyle().getFont().getPath().startsWith("krl_head");
+        String str = t.getString();
+        ctx.drawText(font, head ? com.creedpdf.orbitalrailgun.krl.KrlText.h(str, px) : com.creedpdf.orbitalrailgun.krl.KrlText.t(str, px), 0, 0, color, false);
         ms.pop();
     }
 
     private static void renderTargetingReadout(DrawContext ctx, MinecraftClient client, TextRenderer font, int sw, int sh, float tickDelta) {
         boolean cooling = client.player.getItemCooldownManager().isCoolingDown(RailgunMod.RAILGUN_REMOTE);
-        HitResult hit = client.player.raycast(RailgunConfig.REMOTE_RANGE, tickDelta, false);
+        BlockPos aimed = AimAssist.aim(tickDelta);
         int cx = sw / 2, cy = sh / 2;
 
         String line;
@@ -176,9 +182,9 @@ public final class RailgunHud {
             float cd = client.player.getItemCooldownManager().getCooldownProgress(RailgunMod.RAILGUN_REMOTE, tickDelta);
             line = String.format(Locale.ROOT, "UPLINK RECHARGING %d%%", (int) ((1f - cd) * 100));
             color = 0xFF808080;
-        } else if (hit.getType() == HitResult.Type.BLOCK && hit instanceof BlockHitResult bh) {
-            BlockPos p = bh.getBlockPos();
-            double d = Math.sqrt(client.player.getEyePos().squaredDistanceTo(hit.getPos()));
+        } else if (aimed != null) {
+            BlockPos p = aimed;
+            double d = Math.sqrt(client.player.getEyePos().squaredDistanceTo(Vec3d.ofCenter(p)));
             line = String.format(Locale.ROOT, "[ %d %d %d  %.0fm ]  RMB: UPLINK", p.getX(), p.getY(), p.getZ(), d);
             color = RED;
             // Animated targeting reticle around the crosshair.
@@ -195,7 +201,9 @@ public final class RailgunHud {
             line = "NO TARGET LOCK";
             color = 0xFF808080;
         }
-        ctx.drawCenteredTextWithShadow(font, line, cx, cy + 16, color);
+        Text lt = com.creedpdf.orbitalrailgun.krl.KrlText.t(line);
+        float sc = 0.85f;
+        drawK(ctx, font, lt, cx - font.getWidth(lt) * sc / 2f, cy + 16, sc, color);
     }
 
     /** Sci-fi corner brackets. */

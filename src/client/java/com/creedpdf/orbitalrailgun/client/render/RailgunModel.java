@@ -57,5 +57,8 @@ public class RailgunModel extends GeoModel<RailgunEntity> {
         CoreGeoBone barrel = getAnimationProcessor().getBone("barrel");
         if (turret != null) turret.setRotY(YAW_SIGN * animatable.getAimYawRad(partialTick));
         if (barrel != null) barrel.setRotX(PITCH_SIGN * animatable.getAimPitchRad(partialTick));
+        // the old control panel on the pod is gone: everything is done from the uplink tablet
+        CoreGeoBone panel = getAnimationProcessor().getBone("pod_panel");
+        if (panel != null) panel.setHidden(true);
     }
 }

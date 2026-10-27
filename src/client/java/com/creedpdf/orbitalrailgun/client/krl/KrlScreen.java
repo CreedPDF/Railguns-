@@ -259,7 +259,8 @@ public class KrlScreen extends Screen {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(sc, sc, 1);
-        dc.drawText(tr, KrlText.t(str), 0, 0, color, false);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(dc);
+        dc.drawText(tr, KrlText.t(str, com.creedpdf.orbitalrailgun.client.ui.Px.of(dc)), 0, 0, color, false);
         ms.pop();
     }
 
@@ -273,7 +274,8 @@ public class KrlScreen extends Screen {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(sc, sc, 1);
-        dc.drawText(tr, KrlText.h(str), 0, 0, color, false);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(dc);
+        dc.drawText(tr, KrlText.h(str, com.creedpdf.orbitalrailgun.client.ui.Px.of(dc)), 0, 0, color, false);
         ms.pop();
     }
 

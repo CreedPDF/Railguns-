@@ -78,6 +78,7 @@ public final class RailgunModClient implements ClientModInitializer {
         @Override
         public void openTablet(BlockPos aimed) {
             MinecraftClient client = MinecraftClient.getInstance();
+            if (aimed == null) aimed = com.creedpdf.orbitalrailgun.client.hud.AimAssist.aim(1f);
             if (client.currentScreen == null) client.setScreen(new TabletScreen(aimed));
         }
 

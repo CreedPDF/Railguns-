@@ -123,18 +123,20 @@ public final class KrlUi {
 
     // ------------------------------------------------------------------------------------------- text
 
-    private void draw(Text t, float x, float y, int color, float sc, boolean shadow) {
+    private void draw(String s, boolean head, float x, float y, int color, float sc, boolean shadow) {
         var ms = dc.getMatrices();
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(sc, sc, 1);
-        dc.drawText(tr, t, 0, 0, color, shadow);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(dc);
+        float px = com.creedpdf.orbitalrailgun.client.ui.Px.of(dc);
+        dc.drawText(tr, head ? KrlText.h(s, px) : KrlText.t(s, px), 0, 0, color, shadow);
         ms.pop();
     }
 
     /** Read-out text (Share Tech Mono). */
     public void text(String s, float x, float y, int color, float sc) {
-        draw(KrlText.t(s), x, y, color, sc, false);
+        draw(s, false, x, y, color, sc, false);
     }
 
     public void textR(String s, float x, float y, int color, float sc) {
@@ -151,7 +153,7 @@ public final class KrlUi {
 
     /** Heading text (Rajdhani Bold). */
     public void head(String s, float x, float y, int color, float sc) {
-        draw(KrlText.h(s), x, y, color, sc, false);
+        draw(s, true, x, y, color, sc, false);
     }
 
     public void headC(String s, float x, float y, int color, float sc) {

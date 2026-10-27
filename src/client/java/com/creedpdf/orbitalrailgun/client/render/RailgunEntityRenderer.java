@@ -51,7 +51,7 @@ public class RailgunEntityRenderer extends GeoEntityRenderer<RailgunEntity> {
         poseStack.push();
         LoadoutVfx.always(entity, partialTick, poseStack, bufferSource);
         poseStack.pop();
-        renderPanelReadout(entity, partialTick, poseStack, bufferSource);
+        // (no panel read-out: the emplacement is run from the uplink tablet)
     }
 
     /**

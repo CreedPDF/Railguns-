@@ -318,7 +318,8 @@ public final class KrlCine {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(scale, scale, 1);
-        dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.t(s), 0, 0, color, true);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(dc);
+        dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.t(s, com.creedpdf.orbitalrailgun.client.ui.Px.of(dc)), 0, 0, color, true);
         ms.pop();
     }
 
@@ -335,6 +336,8 @@ public final class KrlCine {
         ms.push();
         ms.translate(W / 2f - w / 2f, y, 0);
         ms.scale(sc, sc, 1);
+        com.creedpdf.orbitalrailgun.client.ui.Px.snap(dc);
+        txt = com.creedpdf.orbitalrailgun.krl.KrlText.h(s, com.creedpdf.orbitalrailgun.client.ui.Px.of(dc));
         dc.drawText(tr, txt, 0, 0, ((int) (a * 235) << 24) | (color & 0xFFFFFF), false);
         ms.pop();
         int ai = (int) (a * 150) << 24;
