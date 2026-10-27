@@ -81,7 +81,8 @@ public class MeteorEntity extends Entity {
     @Override
     public void tick() {
         super.tick();
-        Vec3d v = getVelocity().add(0, -0.04, 0);
+        // in orbit debris drifts straight; everywhere else it falls
+        Vec3d v = getVelocity().add(0, com.creedpdf.orbitalrailgun.space.SpaceDims.isSpace(getWorld()) ? 0 : -0.04, 0);
         setVelocity(v);
         Vec3d pos = getPos();
         Vec3d next = pos.add(v);

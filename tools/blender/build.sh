@@ -3,7 +3,7 @@
 # Usage: tools/blender/build.sh [path/to/blender]
 # Headless Blender occasionally segfaults (exit 139) on CI runners; such runs are retried (the retries skip the
 # preview renders, where the crashes happen; committed icons / renders are kept).
-# ONLY=krl or ONLY=ship builds just that set (dev branches use it to iterate faster; other assets stay as committed).
+# ONLY=krl, ONLY=ship or ONLY=station builds just that set (dev branches use it to iterate faster; other assets stay as committed).
 set -uo pipefail
 BLENDER="${1:-${BLENDER:-blender}}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -34,5 +34,8 @@ if [ -z "$ONLY" ] || [ "$ONLY" = "krl" ]; then
 fi
 if [ -z "$ONLY" ] || [ "$ONLY" = "ship" ]; then
   run build_ship.py starship || exit 1
+fi
+if [ -z "$ONLY" ] || [ "$ONLY" = "station" ]; then
+  run build_station.py station || exit 1
 fi
 exit 0

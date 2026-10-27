@@ -33,6 +33,12 @@ public final class TabletStatus {
     public BlockPos shipPos = BlockPos.ORIGIN;
     public String shipDim = "";
 
+    // Space Command strike satellites: how many, the best charge, whether it is charging (or full), where, busy firing
+    public int satCount;
+    public float satCharge;
+    public boolean satPowered, satBusy;
+    public String satDim = "";
+
     /** Last orbital site survey for the tablet's landing zone. */
     public static volatile Survey survey = null;
 
@@ -73,6 +79,13 @@ public final class TabletStatus {
             s.shipState = buf.readVarInt();
             s.shipPos = buf.readBlockPos();
             s.shipDim = buf.readString();
+        }
+        if (buf.isReadable()) {
+            s.satCount = buf.readVarInt();
+            s.satCharge = buf.readFloat();
+            s.satPowered = buf.readBoolean();
+            s.satDim = buf.readString();
+            s.satBusy = buf.readBoolean();
         }
         return s;
     }

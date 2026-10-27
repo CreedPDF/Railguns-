@@ -13,8 +13,9 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - Creative tabs: "Deluxs Armory: Railguns" and "Deluxs Armory: Military".
 
 ## Pipelines
-- `tools/blender/build.sh` runs `build_models.py` (railgun, ship GeckoLib models) and `build_krl.py` (KRL models).
-  `dev-krl*` branches set `ONLY=krl` (skip the railgun models) and commit renders to `docs/renders/`.
+- `tools/blender/build.sh` runs `build_models.py` (railgun GeckoLib models), `build_krl.py` (KRL), `build_ship.py`
+  (starship) and `build_station.py` (Space Command). Dev branches build one set: `dev-krl*` -> ONLY=krl,
+  `dev-ship*` -> ONLY=ship, `dev-station*` -> ONLY=station; renders are committed to `docs/renders/`.
 - KRL meshes use the "krl_mesh" JSON format (`client/krl/KrlMesh.java`): named parts with pivots, Minecraft axes
   (Blender (x, y, z) -> (x, z, -y)), textures baked from procedural materials. `KrlMesh.prepare` builds distance LODs
   and glow-only subsets; `KrlCompat` detects Iris shadow passes.
@@ -29,19 +30,18 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - KRL: launcher, fire-control console (with air-defence radar), missile integration station, 3x3x2 interceptor
   magazine; flight path in `krl/KrlFlight.java`, impacts in `krl/KrlImpact.java`, air defence in `krl/KrlDefense.java`.
 
-## Planned next (requested by the owner)
-- **Starship redesign**: replace the cube-built GeckoLib model (`geo/ship.geo.json`) with a smooth, realistic
-  Blender mesh (lofted fuselage, canopy, wings with tilting engine pods, tail fins, ramp, landing gear, detailed
-  cabin), rendered with KrlMesh. Keep the cabin box x [-2.5, 2.5], y [-5.5, 5.5], floor z 2, the ramp hinge,
-  gear pivots and engine-pod pivot so the walk-in collision, flight console and flight code still line up.
-- **New creative tab "Space Command"** (likely also home for the starship, flight console and EVA suit):
-  - an orbital station built module by module in the Space dimension: a command hub, solar arrays that power it,
-    and a station-mounted railgun that shoots down meteorites during a meteor shower;
-  - an orbital strike satellite module, controlled from a new page on the uplink tablet, with its own
-    cutscene, new effects and new sounds.
-- Everything new: high-quality Blender models, proper cutscenes, new VFX and SFX (nothing reused), shader compatible.
+## Done (v4.15)
+- **Starship redesign**: smooth Blender mesh (`build_ship.py`) drawn with KrlMesh by `client/ship/ShipRenderer`
+  (posed exactly like `ShipEntity.modelToWorld`). Parts: hull, main, glass (translucent), eng_l/eng_r (pivots
+  +-6.25, -1.25, 3.125 blender), gear_f/l/r, ramp. VTOL nozzles end at y -4 (`NOZZLE_Z` = -64 px in the renderer).
+- **Space Command** (`station/` server, `client/station/`): hub grid (`ScHubBlockEntity`, `ScGrid`), solar
+  (`ScSolarBlockEntity`), point-defence railgun (`ScRailgunBlockEntity`), strike satellite (`ScSatelliteBlockEntity`,
+  charge persisted in `ScSatellites`), debris (`ScDebris`), strikes (`ScStrike`, timeline FIRE 50 / IMPACT 62 /
+  BEAM_END 112), effects `ScFx`, cutscene `ScCine`, hub console `ScHubScreen`, tablet page `SAT_STRIKE`.
 
 ## Other ideas discussed
+- Space Command: more station modules (docking port for the starship, habitat ring, cargo bay); let the strike
+  satellite target other dimensions / planets.
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set
   (reinforced concrete, blast door, periscope camera).
 - Railguns tab: an ARES-9 overwatch mode that fires on hostiles the KRL radar marks inside a painted zone.

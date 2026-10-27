@@ -23,6 +23,14 @@ public final class KrlModels {
     public static KrlMesh SHIP;
     public static final Identifier SHIP_TEX = RailgunMod.id("textures/ship/starship.png");
     public static final Identifier SHIP_GLOW = RailgunMod.id("textures/ship/starship_glow.png");
+    /** Space Command station modules (tools/blender/build_station.py). */
+    public static KrlMesh HUB, SOLAR, TURRET, SAT;
+    public static final Identifier HUB_TEX = st("hub"), HUB_GLOW = st("hub_glow"), SOLAR_TEX = st("solar"), SOLAR_GLOW = st("solar_glow"),
+            TURRET_TEX = st("turret"), TURRET_GLOW = st("turret_glow"), SAT_TEX = st("satellite"), SAT_GLOW = st("satellite_glow");
+
+    private static Identifier st(String n) {
+        return RailgunMod.id("textures/station/" + n + ".png");
+    }
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -61,6 +69,10 @@ public final class KrlModels {
                 STATION = load(rm, "station", STATION_GLOW);
                 MAGAZINE = load(rm, "magazine", MAGAZINE_GLOW);
                 SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
+                HUB = load(rm, RailgunMod.id("models/station/hub.json"), HUB_GLOW);
+                SOLAR = load(rm, RailgunMod.id("models/station/solar.json"), SOLAR_GLOW);
+                TURRET = load(rm, RailgunMod.id("models/station/turret.json"), TURRET_GLOW);
+                SAT = load(rm, RailgunMod.id("models/station/satellite.json"), SAT_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

@@ -190,11 +190,14 @@ away under too much of the footprint, the landing block is liquid, another railg
 or the site is buried too deep. The tablet shows the survey live before you call it down.
 
 ## ARES Starship
-A flyable gunship about 22 blocks long, built in Blender: dark gunmetal hull with red running
-lights, a long stepped nose under a smoked canopy, armoured chines, low swept wings with
-down-turned fins, two **tilting VTOL nacelles** and twin dorsal main engines, all burning with
-**3D red flames**. Tripod landing gear (one leg under the nose, two aft) and a rear hatch that
-drops into a ramp.
+The ARES Kestrel: a smooth, realistic gunship about 24 blocks long, modelled in Blender from lofted
+cross-sections (no cubes): a gunmetal fuselage running into a long drooping nose under a framed
+bubble canopy, a dorsal engine boom with twin main engines and canted tail fins, short swept
+tiltrotor wings carrying two **VTOL engine pods** that tilt nozzle-down to hover, canards, a chin
+sensor, red pin-striping, lit portholes and running lights, all burning with **3D red flames**.
+Tripod landing gear folds into the belly and the rear hatch drops into a ramp. The canopy and the
+cabin window are real glass: you can see the two-seat cockpit from outside, and out through it
+from the cabin.
 
 * **Commission it:** craft the *ARES Starship Command Key* (tinted glass, iron blocks, beacon,
   netherite, elytra) and use it. The ship is now yours and waits in orbit.
@@ -203,8 +206,10 @@ drops into a ramp.
   scan sweeps the zone and, if the ground is uneven, a wide laser burns it level row by row
   (cutting trees and bumps, filling holes); then it lowers itself on its thrusters, the gear
   takes the weight and the ramp drops.
-* **Walk in:** the cabin is real (collision walls, floor and roof around it): pilot seat, wall
-  consoles, benches, light strips and a real **Flight Console** block at the front.
+* **Walk in:** the cabin is real (collision walls, floor and roof around it): tread-plate deck,
+  ribbed walls, fold-down jump seats with harnesses, EVA lockers by the door, wall screens,
+  ceiling light panels and a real **Flight Console** block at the front, under the window into
+  the cockpit.
 * **Fly:** use the console, pick a destination (Moon, Mars, Venus, Europa, or Earth), confirm.
   The flight is a film with letterbox bars and a terminal caption:
   1. VTOL lift-off from a low ground camera, nacelles swinging aft in a close tracking shot;
@@ -236,7 +241,28 @@ Everything works **remotely, at any distance**: lock coordinates and fire ARES-9
 rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pick a planet and
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
-All the mod's items are in their own **Deluxs Armory** creative tab.
+## Space Command
+An orbital station you build module by module (best in the Space dimension, but it works anywhere).
+
+* **Command Hub** (3 x 3 x 3): the core. Every module within 32 blocks joins its power grid. Use it
+  for the station console: supply against demand, live modules, the strike satellite's charge, a
+  debris radar, **DEBRIS DRILL** (sends a 45-second swarm of rocks at the station) and point
+  defence **AUTO / HOLD**.
+* **Solar Array**: a gimballed mast whose two solar blankets roll out after you place it (about 11
+  blocks tip to tip), then track the sun. 40 kW in orbit, half that on a planet by day, nothing
+  at night. The hub's life support takes the first 20 kW.
+* **Station Railgun**: point defence on 30 kW. It tracks the nearest meteorite within 150 blocks,
+  charges its capacitor coils and fires a white-hot slug that bursts it. While a destroyed planet's
+  meteor shower rains on Earth, its debris also streams through orbit past every station.
+* **Strike Satellite**: a gold-foil satellite in a docking cradle. It charges from the grid (60 kW,
+  about two minutes) and keeps charging in orbit while you are away. Fire it from the uplink
+  tablet's new **STRIKE SAT** page at the ground you aimed at (up to 384 m away): a red reticle
+  spins up, the satellite charges overhead, a beam tears down through the sky and hits - flash,
+  shockwaves, a column of light boring into a glowing crater. You watch it in a cutscene, from the
+  satellite and then from the ground (sneak to skip).
+
+Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Space
+Command** (the starship, flight console, EVA suit and the station modules).
 
 ## Graphics settings
 Everything the mod draws itself (planets, sky, explosions, debris, flames, beams) follows an
@@ -267,6 +293,10 @@ Locally: `./gradlew build` (jar in `build/libs/`), `./gradlew runClient`.
 | Tool | Produces |
 |---|---|
 | `tools/blender/build_models.py` | The railgun (~380 cubes: an octagonal drop pod whose armour quarters, telescoping struts, decks, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
+| `tools/blender/build_ship.py` | The ARES Kestrel starship: lofted superellipse fuselage and engine boom, airfoil wings, lathed engine pods and nozzles, cabin and cockpit interiors; baked albedo + glow atlases; exported as a `krl_mesh` with movable parts (pods, gear, ramp, glass). |
+| `tools/blender/build_station.py` | Space Command modules (hub, solar array, station railgun, strike satellite) and their item icons, same pipeline. |
+| `tools/textures/station_textures.py` | Strike and railgun effect sprites (beam, core, spiral, reticle, shockwave, flare, tracer, scorch). |
+| `tools/sfx/sc_sounds.py` | 13 Space Command sounds synthesised from scratch. |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |
 

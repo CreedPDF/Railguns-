@@ -6,6 +6,11 @@
     "orbital_railgun:krl_console_part",
     "orbital_railgun:krl_station",
     "orbital_railgun:krl_magazine",
-    "orbital_railgun:krl_magazine_part"
+    "orbital_railgun:krl_magazine_part",
+    "orbital_railgun:sc_hub",
+    "orbital_railgun:sc_hub_part",
+    "orbital_railgun:sc_solar",
+    "orbital_railgun:sc_railgun",
+    "orbital_railgun:sc_satellite"
   ]
 }
