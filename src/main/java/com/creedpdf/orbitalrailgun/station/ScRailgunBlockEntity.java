@@ -107,8 +107,8 @@ public class ScRailgunBlockEntity extends ScModuleBlockEntity {
         if (world.isClient) return;
 
         ServerWorld sw = (ServerWorld) world;
-        ScHubBlockEntity hub = hub == null ? null : sw.getBlockEntity(hub) instanceof ScHubBlockEntity h ? h : null;
-        boolean armed = powered() && hub != null && hub.defenseAuto();
+        ScHubBlockEntity hubBe = hub == null ? null : sw.getBlockEntity(hub) instanceof ScHubBlockEntity h ? h : null;
+        boolean armed = powered() && hubBe != null && hubBe.defenseAuto();
         if (!armed) {
             setTarget(-1, IDLE, now);
             return;
