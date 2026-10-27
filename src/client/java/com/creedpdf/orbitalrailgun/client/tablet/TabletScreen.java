@@ -49,7 +49,7 @@ public class TabletScreen extends Screen {
     // palette: graphite glass, ARES red, status colours
     private static final int BG = 0xF40D0E0F, PANEL = 0xE0161819, PANEL_HI = 0xE01E2122, EDGE = 0xFF34373A, TICK = 0xFF6E7378;
     private static final int RED = 0xFFE8382E, RED_DIM = 0xFF7A2420, AMBER = 0xFFFFB02E, GREEN = 0xFF7FD67A, ORANGE = 0xFFFF7A1E,
-            VIOLET = 0xFFB07CFF, CYAN = 0xFF5FE3D0, WHITE = 0xFFEEF0EC, GREY = 0xFF9AA09C, DIM = 0xFF5E6462, FAINT = 0xFF33373A;
+            VIOLET = 0xFFB07CFF, CYAN = 0xFFE8E2D4, WHITE = 0xFFEEF0EC, GREY = 0xFF9AA09C, DIM = 0xFF5E6462, FAINT = 0xFF33373A;
 
     @Nullable private static TabletScreen open;
     /** Remembered between openings. */
@@ -698,7 +698,7 @@ public class TabletScreen extends Screen {
             case A9_STATUS -> a9Status(time);
             case A9_FIRE -> a9Fire(time);
             case A9_SCAN -> a9Simple("SCAN", "Holographic pulse from the emplacement: maps ores and tags hostiles within 96 m. Results paint the world for everyone nearby.",
-                    "RUN SCAN", 0xFF5FE3FF, st().state == RailgunState.IDLE, ClientPackets::sendScan, false);
+                    "RUN SCAN", AMBER, st().state == RailgunState.IDLE, ClientPackets::sendScan, false);
             case A9_RIFT -> a9Simple("RIFT", "Fires the rail into the sky for one second and tears a rift into deep space. Hostiles nearby are dragged through. "
                     + "The rift holds for 30 seconds; anyone still up there when it closes is stranded.", "TEAR RIFT", VIOLET,
                     st().state == RailgunState.IDLE, ClientPackets::sendRift, true);
