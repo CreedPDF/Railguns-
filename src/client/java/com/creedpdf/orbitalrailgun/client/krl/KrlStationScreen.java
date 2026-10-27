@@ -25,14 +25,14 @@ import java.util.Locale;
  * INTEGRATE applies it (the server checks and takes the materials).
  */
 public class KrlStationScreen extends Screen {
-    private static final float VW = 380, VH = 230;
+    private static final float VW = 470, VH = 230;
     private static final int BG = 0xF2141715, PANEL = 0xE01C201D, EDGE = 0xFF464E48, TICK = 0xFF8F9A90, AMBER = 0xFFFFB02E, WHITE = 0xFFEEF0E8,
             GREY = 0xFF939A92, DIM = 0xFF5E665F, GREEN = 0xFF7FD67A, RED = 0xFFFF5040;
-    private static final int[] WARHEAD_COLOUR = {0xFFB8BCB4, 0xFFFFC230, 0xFFFF7A1E, 0xFFFF4A2A, 0xFFA0A6A0, 0xFFE0D060};
+    private static final int[] WARHEAD_COLOUR = {0xFFB8BCB4, 0xFFFFC230, 0xFFFF7A1E, 0xFFFF4A2A, 0xFFA0A6A0, 0xFFE0D060, 0xFFE08A50, 0xFFFF6060, 0xFFC09060};
 
     private final BlockPos station;
     private final KrlUi ui = new KrlUi();
-    private int warhead, charge, motor, livery;
+    private int warhead, charge, motor, livery, fuze, casing;
     private boolean picked;
     private float s, ox, oy;
     private int ticks;
@@ -52,7 +52,7 @@ public class KrlStationScreen extends Screen {
     }
 
     private KrlLoadout want() {
-        return new KrlLoadout(warhead, charge, motor, livery);
+        return new KrlLoadout(warhead, charge, motor, livery, fuze, casing);
     }
 
     @Override
@@ -63,6 +63,8 @@ public class KrlStationScreen extends Screen {
             charge = h.charge();
             motor = h.motor();
             livery = h.livery();
+            fuze = h.fuze();
+            casing = h.casing();
             picked = true;
         }
     }
@@ -117,6 +119,7 @@ public class KrlStationScreen extends Screen {
         KrlLoadout have = have(), want = want();
         drawPreview(want, time);
         drawOptions(want);
+        drawFit(want);
         drawStats(have, want);
         drawCost(have, want);
         ms.pop();
@@ -144,8 +147,8 @@ public class KrlStationScreen extends Screen {
         ui.text(w.warhead() == KrlLoadout.KINETIC ? "NONE - INERT" : w.charge() + " / " + KrlLoadout.MAX_CHARGE + " BLOCKS TNT", 9, 156, WHITE, 0.5f);
         ui.text("MOTOR", 9, 164, DIM, 0.45f);
         ui.text(KrlLoadout.MOTORS[w.motor()] + "  //  HTPB / AP", 9, 169, WHITE, 0.5f);
-        ui.text("LIVERY", 9, 177, DIM, 0.45f);
-        ui.text(Krl.LIVERY_NAMES[w.livery()].toUpperCase(Locale.ROOT), 9, 182, WHITE, 0.5f);
+        ui.text("FUZE / CASING", 9, 177, DIM, 0.45f);
+        ui.text(KrlLoadout.FUZES[w.fuze()] + "  //  " + KrlLoadout.CASINGS[w.casing()], 9, 182, WHITE, 0.5f);
         ui.fill(9, 190, 116, 190.5f, EDGE);
         ui.para(KrlLoadout.WARHEAD_INFO[w.warhead()], 9, 193, 105, GREY, 0.45f, 5f);
         // a slow scan line over the assembly view
@@ -172,7 +175,7 @@ public class KrlStationScreen extends Screen {
                 click(1.2f);
             });
         }
-        y += 46;
+        y += 4 + 14 * ((KrlLoadout.WARHEADS.length + 1) / 2);
         ui.head("EXPLOSIVE CHARGE", x0 + 4, y, AMBER, 0.6f);
         boolean kin = warhead == KrlLoadout.KINETIC;
         ui.textR(kin ? "INERT" : charge + " / " + KrlLoadout.MAX_CHARGE, x1 - 4, y + 1.5f, kin ? DIM : WHITE, 0.5f);
@@ -201,37 +204,66 @@ public class KrlStationScreen extends Screen {
         }
         y += 16;
         ui.text(String.format(Locale.ROOT, "RANGE %,.0f m   MACH %.0f AT IMPACT", KrlLoadout.RANGE[motor], KrlLoadout.MACH[motor]), x0 + 4, y, GREY, 0.45f);
+    }
+
+    // ---- fuze, casing, paint
+
+    private void drawFit(KrlLoadout w) {
+        float x0 = 260, x1 = 350;
+        ui.panel(x0, 19, x1, 225, PANEL, EDGE, TICK);
+        float y = 21;
+        ui.head("FUZE", x0 + 4, y, AMBER, 0.6f);
         y += 10;
+        for (int i = 0; i < KrlLoadout.FUZES.length; i++) {
+            final int id = i;
+            ui.button(KrlLoadout.FUZES[i], x0 + 4, y, x1 - x0 - 8, 11, 0xFF9AD0FF, 0xFF101311, fuze == i, true, 0.5f, () -> {
+                fuze = id;
+                click(1.15f);
+            });
+            y += 13;
+        }
+        y = ui.para(KrlLoadout.FUZE_INFO[fuze], x0 + 4, y + 1, x1 - x0 - 8, GREY, 0.42f, 5f) + 4;
+        ui.head("CASING", x0 + 4, y, AMBER, 0.6f);
+        y += 10;
+        for (int i = 0; i < KrlLoadout.CASINGS.length; i++) {
+            final int id = i;
+            ui.button(KrlLoadout.CASINGS[i], x0 + 4, y, x1 - x0 - 8, 11, 0xFFD0D4CC, 0xFF101311, casing == i, true, 0.5f, () -> {
+                casing = id;
+                click(1.05f);
+            });
+            y += 13;
+        }
+        y = ui.para(KrlLoadout.CASING_INFO[casing], x0 + 4, y + 1, x1 - x0 - 8, GREY, 0.42f, 5f) + 4;
         ui.head("LIVERY", x0 + 4, y, AMBER, 0.6f);
         y += 10;
         int[] swatch = {0xFF9A9C9A, 0xFF41452A, 0xFFD9D9D4, 0xFFA1875E, 0xFF333536, 0xFFEEEEEA};
         for (int i = 0; i < Krl.LIVERIES.length; i++) {
-            float bx = x0 + 4 + i * 20.5f;
-            boolean sel = livery == i, hvv = ui.hover(bx, y, 18, 12);
-            ui.fill(bx, y, bx + 18, y + 12, swatch[i]);
+            float bx = x0 + 4 + (i % 3) * 28, by = y + (i / 3) * 15;
+            boolean sel = livery == i, hvv = ui.hover(bx, by, 24, 12);
+            ui.fill(bx, by, bx + 24, by + 12, swatch[i]);
             if (i == 5) {
-                ui.fill(bx, y, bx + 9, y + 6, 0xFF101010);
-                ui.fill(bx + 9, y + 6, bx + 18, y + 12, 0xFF101010);
+                ui.fill(bx, by, bx + 12, by + 6, 0xFF101010);
+                ui.fill(bx + 12, by + 6, bx + 24, by + 12, 0xFF101010);
             }
-            ui.outline(bx - 0.8f, y - 0.8f, bx + 18.8f, y + 12.8f, sel ? 1f : 0.5f, sel ? AMBER : hvv ? WHITE : EDGE);
+            ui.outline(bx - 0.8f, by - 0.8f, bx + 24.8f, by + 12.8f, sel ? 1f : 0.5f, sel ? AMBER : hvv ? WHITE : EDGE);
             final int id = i;
-            ui.hits.add(new KrlUi.Hit(bx, y, 18, 12, () -> {
+            ui.hits.add(new KrlUi.Hit(bx, by, 24, 12, () -> {
                 livery = id;
                 click(1.3f);
             }, true));
         }
-        y += 15;
+        y += 32;
         ui.text(Krl.LIVERY_NAMES[livery].toUpperCase(Locale.ROOT), x0 + 4, y, WHITE, 0.48f);
     }
 
     // ---- what it will do
 
     private void drawStats(KrlLoadout have, KrlLoadout w) {
-        float x0 = 260, x1 = 375;
+        float x0 = 355, x1 = 465;
         ui.panel(x0, 19, x1, 112, PANEL, EDGE, TICK);
         ui.head("PERFORMANCE", x0 + 4, 21, AMBER, 0.6f);
         float y = 31;
-        float rad = w.power() * 2f;
+        float rad = Math.max(w.power() * 1.3f, w.crater());
         row("YIELD", String.format(Locale.ROOT, "%.1f TNT-EQ", w.power() / 4f), x0, x1, y, cmp(w.power(), have.power()));
         y += 6;
         row("BLAST RADIUS", String.format(Locale.ROOT, "~%.0f m", rad), x0, x1, y, cmp(w.power(), have.power()));
@@ -240,11 +272,17 @@ public class KrlStationScreen extends Screen {
             case KrlLoadout.THERMOBARIC -> "FIREBALL";
             case KrlLoadout.INCENDIARY -> String.format(Locale.ROOT, "FIRES %d m", 10 + 2 * w.charge());
             case KrlLoadout.BUNKER -> String.format(Locale.ROOT, "DEPTH %d m", 8 + 3 * w.charge());
-            case KrlLoadout.CLUSTER -> String.format(Locale.ROOT, "%d BOMBLETS", 6 + w.charge());
+            case KrlLoadout.CLUSTER -> String.format(Locale.ROOT, "%d BOMBLETS", 8 + 2 * w.charge());
+            case KrlLoadout.SHAPED -> String.format(Locale.ROOT, "SHAFT %d m", 34 + 9 * w.charge());
+            case KrlLoadout.MIRV -> "4 RE-ENTRY VEHICLES";
+            case KrlLoadout.SEISMIC -> String.format(Locale.ROOT, "COLLAPSE %.0f m", w.crater());
             case KrlLoadout.HE -> "BLAST";
-            default -> "IMPACT ONLY";
+            default -> "IMPACT";
         };
         row("EFFECT", eff, x0, x1, y, WHITE);
+        y += 6;
+        row("CRATER", w.crater() > 0 ? String.format(Locale.ROOT, "%.0f m  x%.1f DEEP", w.crater(), w.craterDepth()) : "NONE", x0, x1, y,
+                cmp(w.crater(), have.crater()));
         y += 6;
         row("RANGE", String.format(Locale.ROOT, "%,.0f m", w.range()), x0, x1, y, cmp((float) w.range(), (float) have.range()));
         y += 6;
@@ -257,7 +295,7 @@ public class KrlStationScreen extends Screen {
         y += 9;
         // yield bar
         ui.text("YIELD", x0 + 4, y, DIM, 0.42f);
-        ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, w.power() / 25f, WARHEAD_COLOUR[w.warhead()], 0xFF262B27);
+        ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, w.power() / 33f, WARHEAD_COLOUR[w.warhead()], 0xFF262B27);
         y += 6;
         ui.text("RANGE", x0 + 4, y, DIM, 0.42f);
         ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, (float) (w.range() / KrlLoadout.MAX_RANGE), 0xFFF0D060, 0xFF262B27);
@@ -274,7 +312,7 @@ public class KrlStationScreen extends Screen {
     // ---- what it costs, and the button
 
     private void drawCost(KrlLoadout have, KrlLoadout w) {
-        float x0 = 260, x1 = 375;
+        float x0 = 355, x1 = 465;
         ui.panel(x0, 116, x1, 225, PANEL, EDGE, TICK);
         ui.head("BILL OF MATERIALS", x0 + 4, 118, AMBER, 0.6f);
         List<ItemStack> cost = have.costTo(w);

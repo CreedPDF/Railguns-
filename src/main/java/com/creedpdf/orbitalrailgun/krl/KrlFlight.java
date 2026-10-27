@@ -57,7 +57,11 @@ public final class KrlFlight {
     /** The climb runs to the apex at T_UP ticks, the dive from there to impact. */
     static final double T_UP = BOOST + STALL * 0.5, T_DOWN = TOTAL - T_UP;
     /** Speed at the apex, as a fraction of the climb's peak shape. */
-    private static final double APEX_FRAC = 0.32;
+    private static final double APEX_FRAC = 0.24;
+    /** The motor burns out at this many ticks after liftoff (top speed). */
+    public static final int BURNOUT = 92;
+    /** Peak Mach number of the climb. */
+    public static final double CLIMB_MACH = 8.0;
 
     /** The Mach number at impact for this missile's motor. */
     public final double machMax;
@@ -79,12 +83,13 @@ public final class KrlFlight {
         dist = dh.length();
         h = dist < 1e-3 ? new Vec3d(0, 0, 1) : dh.multiply(1 / dist);
         double baseY = Math.max(launch.y, target.y);
-        height = MathHelper.clamp(380 + 0.18 * dist, 380, 760) * missile.heightMul();
+        // up past the Karman line: 1300-2000 blocks over the higher end (shown as 78-120 km)
+        height = MathHelper.clamp(1300 + 0.25 * dist, 1300, 2000) * missile.heightMul();
         apex = new Vec3d(launch.x + h.x * dist * 0.45, baseY + height, launch.z + h.z * dist * 0.45);
         apex2 = apex;
         rail = h.multiply(CE).add(0, SE, 0);
         // the arc's broad top: control points well ahead and behind the apex keep the pitch-over gentle
-        double lead = MathHelper.clamp(dist * 0.3, 70, 260);
+        double lead = Math.max(MathHelper.clamp(dist * 0.3, 70, 260), height * 0.22);
         b1 = launch.add(rail.multiply(Math.min(height * 0.55, dist * 0.6 + 60)));
         b2 = apex.subtract(h.multiply(lead));
         f1 = apex.add(h.multiply(lead * 1.1));
@@ -109,10 +114,13 @@ public final class KrlFlight {
         vBoostMax = Math.max(m, 1e-3);
     }
 
-    /** Climb speed shape over x = t / T_UP: 0 on the rail, peak around burnout, APEX_FRAC at the apex. */
+    /** Climb speed shape over x = t / T_UP: off the rail at full thrust to top speed by burnout, then coasting up, slowing to APEX_FRAC. */
     private static double upShape(double x) {
-        double a = smooth(x / 0.62), b = smooth((x - 0.62) / 0.38);
-        return a * (1 - (1 - APEX_FRAC) * b);
+        double xb = BURNOUT / T_UP;
+        double a = x < xb ? Math.sin(Math.PI * 0.5 * x / xb) : 1;
+        a = Math.pow(a, 1.35);
+        double b = smooth((x - xb) / (1 - xb));
+        return a * (1 - (1 - APEX_FRAC) * Math.pow(b, 0.8));
     }
 
     private static void tabulate(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double[] out) {
@@ -199,10 +207,10 @@ public final class KrlFlight {
         return k2 * (c + y * y);
     }
 
-    /** The Mach number shown for time t: about 4 at burnout, slowing over the apex, up to the motor's top speed at impact. */
+    /** The Mach number shown for time t: about 8 at burnout, slowing over the apex, up to the motor's top speed at impact. */
     public double mach(double t) {
-        double apexMach = 4.2 * vApex / vBoostMax;
-        if (t < T_UP) return 4.2 * speed(t) / vBoostMax;
+        double apexMach = CLIMB_MACH * vApex / vBoostMax;
+        if (t < T_UP) return CLIMB_MACH * speed(t) / vBoostMax;
         double k = (speed(t) - vApex) / Math.max(1e-3, vFallMax - vApex);
         return apexMach + (machMax - apexMach) * MathHelper.clamp(k, 0, 1);
     }

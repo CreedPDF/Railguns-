@@ -223,6 +223,19 @@ public final class ModPackets {
     private static void handleRemote(ServerPlayerEntity player, int action, int bodyIdx) {
         com.creedpdf.orbitalrailgun.space.Body body = bodyIdx >= 0 && bodyIdx < com.creedpdf.orbitalrailgun.space.Body.ALL.length
                 ? com.creedpdf.orbitalrailgun.space.Body.ALL[bodyIdx] : null;
+        if (action >= 4 && action <= 7) {
+            RailgunEntity railgun = owned(player);
+            if (railgun == null) { deny(player, "no_railgun"); return; }
+            boolean ok = switch (action) {
+                case 4 -> railgun.remoteConfigure(bodyIdx);
+                case 5 -> railgun.remoteAction(RailgunEntity.PanelAction.DEPLOY);
+                case 6 -> railgun.remoteAction(RailgunEntity.PanelAction.RETRACT);
+                default -> railgun.remoteAction(RailgunEntity.PanelAction.RETURN);
+            };
+            if (!ok) deny(player, action == 4 ? "loadout" : "busy");
+            else player.playSound(ModSounds.UI_TARGET_LOCK, SoundCategory.PLAYERS, 1.0f, 1.2f);
+            return;
+        }
         if (action == 0) {
             RailgunEntity railgun = owned(player);
             if (railgun == null) { deny(player, "no_railgun"); return; }

@@ -29,7 +29,7 @@ public class KineticSpearItem extends Item {
 
     public static ItemStack withLivery(ItemStack stack, int livery) {
         KrlLoadout l = KrlLoadout.of(stack);
-        return new KrlLoadout(l.warhead(), l.charge(), l.motor(), livery).applyTo(stack);
+        return l.withLivery(livery).applyTo(stack);
     }
 
     @Override
@@ -54,6 +54,8 @@ public class KineticSpearItem extends Item {
     public void appendTooltip(ItemStack stack, @Nullable World world, List<Text> tooltip, TooltipContext context) {
         KrlLoadout l = KrlLoadout.of(stack);
         tooltip.add(KrlText.t("WARHEAD  " + KrlLoadout.WARHEADS[l.warhead()] + (l.warhead() == KrlLoadout.KINETIC ? "" : "  CHARGE " + l.charge() + "/5"), KrlText.AMBER));
+        if (l.fuze() != 0 || l.casing() != 0)
+            tooltip.add(KrlText.t("FUZE     " + KrlLoadout.FUZES[l.fuze()] + "  CASING " + KrlLoadout.CASINGS[l.casing()], KrlText.GREY));
         tooltip.add(KrlText.t("MOTOR    " + KrlLoadout.MOTORS[l.motor()] + String.format(java.util.Locale.ROOT, "  %.0f m  MACH %.0f", l.range(), l.mach()), KrlText.GREY));
         tooltip.add(KrlText.t("LIVERY   " + Krl.LIVERY_NAMES[l.livery()].toUpperCase(java.util.Locale.ROOT), KrlText.GREY));
         tooltip.add(KrlText.t("Load into a KRL-1 rail. Refit at a Missile Station.", 0x7E867E));

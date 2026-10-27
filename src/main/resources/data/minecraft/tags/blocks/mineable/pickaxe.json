@@ -4,6 +4,7 @@
     "orbital_railgun:krl_launcher",
     "orbital_railgun:krl_console",
     "orbital_railgun:krl_console_part",
-    "orbital_railgun:krl_station"
+    "orbital_railgun:krl_station",
+    "orbital_railgun:krl_magazine"
   ]
 }

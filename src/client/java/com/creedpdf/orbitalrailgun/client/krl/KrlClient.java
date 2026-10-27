@@ -155,6 +155,13 @@ public final class KrlClient {
         BlockEntityRendererFactories.register(Krl.LAUNCHER_BE, KrlLauncherRenderer::new);
         BlockEntityRendererFactories.register(Krl.CONSOLE_BE, KrlConsoleRenderer::new);
         BlockEntityRendererFactories.register(Krl.STATION_BE, KrlStationRenderer::new);
+        BlockEntityRendererFactories.register(Krl.MAGAZINE_BE, KrlMagazineRenderer::new);
+        BuiltinItemRendererRegistry.INSTANCE.register(Krl.MAGAZINE_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.MAGAZINE,
+                KrlModels.MAGAZINE_TEX, KrlModels.MAGAZINE_GLOW, mode, ms, vcp, light, 1.85f, false));
+        ClientPlayNetworking.registerGlobalReceiver(KrlNet.AA, (client, h, buf, s) -> {
+            KrlAa.Frame fr = KrlAa.read(buf);
+            client.execute(() -> KrlAa.apply(fr));
+        });
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.STATION_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.STATION,
                 KrlModels.STATION_TEX, KrlModels.STATION_GLOW, mode, ms, vcp, light, 1.85f, false));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.SPEAR, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.SPEAR,
@@ -205,6 +212,7 @@ public final class KrlClient {
             riding = -1;
             KrlFx.clear();
             KrlSurvey.clear();
+            KrlAa.clear();
         });
 
         KrlClientHooks.launcher = be -> {};
@@ -285,6 +293,7 @@ public final class KrlClient {
         }
         for (int id : gone) FLIGHTS.remove(id);
         KrlFx.tickParticles();
+        KrlAa.tick();
         KrlCine.tick(mc);
     }
 
@@ -293,14 +302,17 @@ public final class KrlClient {
      * kilometre away hears it three seconds after the flash. Loud, and audible a long way off.
      */
     private static void boom(MinecraftClient mc, CFlight f, double t) {
-        if (f.boomHeard || t < 0) return;
+        if (f.boomHeard || t < 0 || f.mach1 < 0) return;
+        // the shock leaves the missile where it went supersonic and travels at the speed of sound
         Vec3d ear = mc.gameRenderer.getCamera().getPos();
-        double d = ear.distanceTo(f.launch);
-        if (t > 400 || d > 2200) {
-            if (t > 400) f.boomHeard = true;
+        Vec3d src = f.path.pos(f.mach1);
+        double d = ear.distanceTo(src);
+        if (t > 500 || d > 2600) {
+            if (t > 500) f.boomHeard = true;
             return;
         }
-        if (t < d / 17.15) return;
+        if (t < f.mach1 + d / 17.15) return;
+        com.creedpdf.orbitalrailgun.client.hud.RailgunHud.shake((float) MathHelper.clamp(1.6 - d / 300, 0.15, 1.6));
         f.boomHeard = true;
         float vol = (float) MathHelper.clamp(1.25 - d / 1600, 0.12, 1.25);
         float pitch = (float) MathHelper.clamp(1.0 - d / 4000, 0.7, 1.0);
@@ -317,7 +329,7 @@ public final class KrlClient {
             if (c == null) return null;
             double t = c.t(0);
             if (t < 0) return c.launch;
-            if (t > KrlFlight.BOOST * 0.82) return null;
+            if (t > KrlFlight.BURNOUT) return null;
             return c.path.pos(t);
         }, () -> {
             CFlight c = FLIGHTS.get(id);

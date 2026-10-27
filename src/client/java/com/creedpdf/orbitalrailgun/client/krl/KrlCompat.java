@@ -45,15 +45,23 @@ public final class KrlCompat {
         }
     }
 
-    /** True when a shader pack is active. */
+    private static boolean shadersCached;
+    private static long shadersAt;
+
+    /** True when a shader pack is active (re-checked twice a second). */
     public static boolean shaders() {
         init();
         if (api == null) return false;
-        try {
-            return (boolean) inUse.invoke(api);
-        } catch (Throwable t) {
-            return false;
+        long now = System.nanoTime();
+        if (now - shadersAt > 500_000_000L) {
+            shadersAt = now;
+            try {
+                shadersCached = (boolean) inUse.invoke(api);
+            } catch (Throwable t) {
+                shadersCached = false;
+            }
         }
+        return shadersCached;
     }
 
     /** Detail level for a model at a block: 0 within 12 blocks, 1 within 32, else 2; always 2 in the shadow pass. */

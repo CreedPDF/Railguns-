@@ -44,9 +44,13 @@ import java.util.Locale;
 public class KrlScreen extends Screen {
     // ------------------------------------------------------------------------------------------- the board
 
-    public record Link(BlockPos pos, int status, int countdown, int flight, long launchedAt, KrlLoadout missile) {}
+    public record Link(BlockPos pos, int status, int countdown, int flight, long launchedAt, KrlLoadout missile, int rounds) {}
 
-    public record Board(boolean open, BlockPos console, int facing, @Nullable BlockPos target, List<Link> links, long time) {
+    /** A radar contact: position, kind (0 flyer, 1 projectile, 2 meteorite) and whether an interceptor is on it. */
+    public record Contact(float x, float y, float z, int kind, boolean engaged) {}
+
+    public record Board(boolean open, BlockPos console, int facing, @Nullable BlockPos target, List<Link> links, long time, boolean radar,
+                        List<Contact> contacts) {
         public static Board read(PacketByteBuf b) {
             boolean open = b.readBoolean();
             BlockPos c = b.readBlockPos();
@@ -54,8 +58,14 @@ public class KrlScreen extends Screen {
             BlockPos t = b.readBoolean() ? b.readBlockPos() : null;
             int n = b.readVarInt();
             List<Link> l = new ArrayList<>();
-            for (int i = 0; i < n; i++) l.add(new Link(b.readBlockPos(), b.readVarInt(), b.readVarInt() - 1, b.readInt(), b.readLong(), KrlLoadout.read(b)));
-            return new Board(open, c, facing, t, l, b.readLong());
+            for (int i = 0; i < n; i++)
+                l.add(new Link(b.readBlockPos(), b.readVarInt(), b.readVarInt() - 1, b.readInt(), b.readLong(), KrlLoadout.read(b), b.readVarInt()));
+            long time = b.readLong();
+            boolean radar = b.readBoolean();
+            int nc = b.readVarInt();
+            List<Contact> cs = new ArrayList<>();
+            for (int i = 0; i < nc; i++) cs.add(new Contact(b.readFloat(), b.readFloat(), b.readFloat(), b.readByte(), b.readBoolean()));
+            return new Board(open, c, facing, t, l, time, radar, cs);
         }
     }
 
@@ -377,6 +387,7 @@ public class KrlScreen extends Screen {
             text(name, 10, y + 2.5f, sel ? WHITE : GREY, 0.65f);
             BlockPos lp = l.pos();
             text(String.format(Locale.ROOT, "%d %d %d", lp.getX(), lp.getY(), lp.getZ()), 40, y + 3.5f, GREY, 0.42f);
+            if (l.rounds() > 0) textR("AA " + l.rounds(), 108, y + 3.5f, 0xFF7FD67A, 0.42f);
             int st = l.status();
             String sts;
             int sc;
@@ -426,19 +437,41 @@ public class KrlScreen extends Screen {
 
     // ---- gauges
 
+    /** Air defence: the radar switch, the sweep's picture and the interceptors left in the magazines. */
     private void drawGauges(float time) {
         frame(4, 176, 122, 222, PANEL, EDGE);
-        heading("CAPACITOR BUS", 8, 178.5f);
-        int ready = 0, burning = 0;
-        for (Link l : board.links()) {
-            if (l.status() == KrlNet.L_READY) ready++;
-            if (l.status() == KrlNet.L_BURNING) burning++;
+        heading("AIR DEFENCE", 8, 178.5f);
+        boolean on = board.radar();
+        int rounds = 0;
+        for (Link l : board.links()) rounds += l.rounds();
+        int threats = board.contacts().size(), eng = 0;
+        for (Contact c : board.contacts()) if (c.engaged()) eng++;
+        // the switch
+        fillf(8, 186, 48, 200, on ? 0xFF1E3A22 : 0xFF202522);
+        frame(8, 186, 48, 200, 0x00000000, on ? 0xFF7FD67A : EDGE);
+        textC(on ? "RADAR ON" : "RADAR OFF", 28, 190.5f, on ? 0xFF7FD67A : GREY, 0.5f);
+        // a small sweep scope
+        float cx = 104, cy = 199, r = 15;
+        circle(cx, cy, r, 0.6f, 0xFF2C322E, 0);
+        circle(cx, cy, r * 0.5f, 0.4f, 0xFF2C322E, 3);
+        if (on) {
+            float a0 = time * 0.12f;
+            for (int k = 0; k < 8; k++) {
+                float a1 = a0 - k * 0.07f;
+                line(cx, cy, cx + MathHelper.cos(a1) * r, cy + MathHelper.sin(a1) * r, 0.6f, ((int) (150 * (1 - k / 8f)) << 24) | 0x7FD67A, 0);
+            }
+            BlockPos c = board.console();
+            for (Contact k : board.contacts()) {
+                float dx = (float) ((k.x() - c.getX()) / com.creedpdf.orbitalrailgun.krl.KrlDefense.RADIUS), dz = (float) ((k.z() - c.getZ()) / com.creedpdf.orbitalrailgun.krl.KrlDefense.RADIUS);
+                float px = cx + dx * r, py = cy + dz * r;
+                int col = k.kind() == 2 ? 0xFFFF8A30 : 0xFFFF5040;
+                fillf(px - 0.9f, py - 0.9f, px + 0.9f, py + 0.9f, col);
+            }
         }
-        float charge = 0.6f + 0.4f * MathHelper.sin(time * 0.05f) - burning * 0.08f;
-        charge = MathHelper.clamp(charge, 0.1f, 1f);
-        gauge(26, 200, 13, charge, "BUS", String.format(Locale.ROOT, "%.0f%%", charge * 100), time);
-        gauge(62, 200, 13, ready / (float) Krl.MAX_LINKS, "ARMED", ready + "/" + Krl.MAX_LINKS, time);
-        gauge(98, 200, 13, burning > 0 ? 1f : 0f, "FLUX", burning > 0 ? "LIVE" : "IDLE", time);
+        text(on ? String.format(Locale.ROOT, "SEARCH %d m", (int) com.creedpdf.orbitalrailgun.krl.KrlDefense.RADIUS) : "STANDBY", 8, 203, on ? 0xFF7FD67A : 0xFF5E665F, 0.42f);
+        text(String.format(Locale.ROOT, "TRACKS %d  ENGAGED %d", threats, eng), 8, 208, threats > 0 ? RED : GREY, 0.42f);
+        text(String.format(Locale.ROOT, "INTERCEPTORS %d", rounds), 8, 213, rounds > 0 ? WHITE : 0xFFFF5040, 0.42f);
+        if (rounds == 0) text("PLACE A MAGAZINE BY A RAIL", 8, 218, 0xFF5E665F, 0.36f);
     }
 
     private void gauge(float cx, float cy, float r, float v, String label, String read, float time) {
@@ -581,6 +614,25 @@ public class KrlScreen extends Screen {
                 float lmx = (lx + tx) / 2, lmy = (ly + ty) / 2;
                 fillf(lmx - 1, lmy - 1, lmx + tw(dl, 0.4f) + 1, lmy + 3.6f, 0xB0000000);
                 text(dl, lmx, lmy - 0.3f, d <= l.missile().range() ? 0xFFFFB02E : 0xFFFF5040, 0.4f);
+            }
+        }
+        // the radar's reach and its contacts
+        if (board.radar()) {
+            float rr = (float) (com.creedpdf.orbitalrailgun.krl.KrlDefense.RADIUS / scaleMap());
+            circle(ccx, ccy, rr, 0.5f, 0xA07FD67A, 5);
+            float a0 = time * 0.12f;
+            line(ccx, ccy, ccx + MathHelper.cos(a0) * rr, ccy + MathHelper.sin(a0) * rr, 0.5f, 0x707FD67A, 0);
+            for (Contact k : board.contacts()) {
+                float px = mapPx(k.x()), py = mapPy(k.z());
+                int col = k.kind() == 2 ? 0xFFFF8A30 : 0xFFFF5040;
+                float d = 2.2f;
+                line(px - d, py, px, py - d, 0.5f, col, 0);
+                line(px, py - d, px + d, py, 0.5f, col, 0);
+                line(px + d, py, px, py + d, 0.5f, col, 0);
+                line(px, py + d, px - d, py, 0.5f, col, 0);
+                if (k.engaged() && ((int) (time / 4)) % 2 == 0) circle(px, py, 3.6f, 0.4f, 0xFFFFFFFF, 0);
+                String lbl = (k.kind() == 2 ? "MET " : k.kind() == 1 ? "AIR " : "AIR ") + String.format(Locale.ROOT, "%.0f", k.y());
+                text(lbl, px + 3.5f, py - 1.5f, col, 0.34f);
             }
         }
         // console marker
@@ -856,6 +908,16 @@ public class KrlScreen extends Screen {
                 sendTarget(0, 0, true);
                 click();
             }
+            return true;
+        }
+        // radar
+        if (hit(mx, my, 8, 186, 40, 14)) {
+            PacketByteBuf o = PacketByteBufs.create();
+            o.writeBlockPos(board.console());
+            o.writeBoolean(!board.radar());
+            ClientPlayNetworking.send(KrlNet.RADAR, o);
+            say(board.radar() ? "RADAR STANDBY" : "RADAR ACTIVE  SEARCHING");
+            click();
             return true;
         }
         // master arm

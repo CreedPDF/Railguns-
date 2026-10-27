@@ -43,7 +43,7 @@ public final class KrlFx {
 
     private static final VertexConsumerProvider.Immediate BUF = VertexConsumerProvider.immediate(new BufferBuilder(1 << 20));
     private static final Random RND = Random.create();
-    static final float BURNOUT = KrlFlight.BOOST * 0.82f;
+    static final float BURNOUT = KrlFlight.BURNOUT;
     /** The contrail starts this far from the launcher (no smoke at the pad). */
     private static final double TRAIL_CLEAR = 28;
 
@@ -151,6 +151,24 @@ public final class KrlFx {
             }
             f.lastTrailT = tt;
         }
+        // breaking the sound barrier: a ring of condensation blasted out round the missile
+        if (f.mach1 > 0 && !f.mach1Puffed && t >= f.mach1) {
+            f.mach1Puffed = true;
+            Vec3d d = p.dir(f.mach1), c = nozzle(f, f.mach1).add(d.multiply(3));
+            Vec3d e1 = d.crossProduct(Math.abs(d.y) < 0.9 ? new Vec3d(0, 1, 0) : new Vec3d(1, 0, 0)).normalize(), e2 = d.crossProduct(e1).normalize();
+            int n = (int) (64 * Math.max(0.5f, q));
+            for (int i = 0; i < n; i++) {
+                double a = i * Math.PI * 2 / n + rs() * 0.05;
+                Vec3d rd = e1.multiply(Math.cos(a)).add(e2.multiply(Math.sin(a)));
+                double sp = 0.9 + RND.nextDouble() * 0.5;
+                puff(c.x + rd.x * 1.5, c.y + rd.y * 1.5, c.z + rd.z * 1.5, rd.x * sp - d.x * 0.3, rd.y * sp - d.y * 0.3, rd.z * sp - d.z * 0.3,
+                        r(50, 90), 1.4f, 6.5f, 1f, 0.6f, 0, 0.9f, 0);
+            }
+            for (int i = 0; i < n / 2; i++) {
+                Vec3d at = c.subtract(d.multiply(RND.nextDouble() * 9));
+                puff(at.x + rs(), at.y + rs(), at.z + rs(), rs() * 0.2, rs() * 0.2, rs() * 0.2, r(40, 70), 2f, 5f, 1f, 0.45f, 0, 0.92f, 0);
+            }
+        }
         // the re-entry trail: a white smoke streak behind the glowing nose, so the dive reads against a daylit sky too
         double tf0 = KrlFlight.BOOST + KrlFlight.STALL + 6;
         if (t > tf0 && t < KrlFlight.TOTAL - 1) {
@@ -226,7 +244,7 @@ public final class KrlFx {
         boolean any = false;
         for (KrlClient.CFlight f : KrlClient.flights()) if (KrlClient.here(f)) any = true;
         if (KrlCine.active()) KrlCine.farTerrain(ctx);
-        if (!any && PUFFS.isEmpty()) return;
+        if (!any && PUFFS.isEmpty() && !KrlAa.any()) return;
 
         ms.push();
         Matrix4f m = ms.peek().getPositionMatrix();
@@ -249,6 +267,9 @@ public final class KrlFx {
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(fogStart);
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(fogEnd);
 
+        // interceptors in flight
+        drawInterceptors(ms, cam, pt);
+
         // 2. the contrail (alpha blended, back to front)
         drawSmoke(m, cam, pt);
 
@@ -257,6 +278,7 @@ public final class KrlFx {
             if (!KrlClient.here(f)) continue;
             drawLight(ms, m, cam, eye, f, f.t(pt));
         }
+        drawInterceptorLight(m, cam, eye, pt);
         ms.pop();
     }
 
@@ -439,18 +461,34 @@ public final class KrlFx {
                 KrlDraw.sprite(gl, m, a.x, a.y, a.z, 0.6f, 0, 1f, 0.3f, 0.08f, 0.6f * k);
                 BUF.draw();
             }
-            // the vapour cone as it goes through Mach 1
-            if (f.mach1 > 0 && t >= f.mach1 - 2 && t < f.mach1 + 14) {
-                float k = (float) ((t - f.mach1 + 2) / 16);
-                Vec3d mid = n.add(d.multiply(3.3));
+            // the sonic boom: the vapour cone riding the missile, a flash and the shock front racing out
+            if (f.mach1 > 0 && t >= f.mach1 - 2 && t < f.mach1 + 34) {
+                double tb = t - f.mach1;
                 Vector3f e1 = new Vector3f(), e2 = new Vector3f();
                 basis(d, e1, e2);
-                float day = 0.35f + 0.65f * KrlClient.daylight();
-                VertexConsumer vap = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.VAPOR));
-                for (int i = 0; i < 3; i++) {
-                    Vec3d c = mid.subtract(d.multiply(i * 0.7));
-                    KrlDraw.flat(vap, m, rel(c, cam), e1, e2, 1.2f + i * 0.5f + k * 0.7f, day, day, day, 0.6f * (float) Math.sin(Math.PI * k) * (1 - i * 0.25f));
+                float day = 0.45f + 0.55f * KrlClient.daylight();
+                if (tb < 16) {
+                    float k = (float) ((tb + 2) / 18);
+                    Vec3d mid = n.add(d.multiply(3.3));
+                    VertexConsumer vap = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.VAPOR));
+                    for (int i = 0; i < 6; i++) {
+                        Vec3d c = mid.subtract(d.multiply(i * 0.9));
+                        KrlDraw.flat(vap, m, rel(c, cam), e1, e2, 1.6f + i * 0.9f + k * 2.2f, day, day, day,
+                                0.75f * (float) Math.sin(Math.PI * k) * (1 - i * 0.13f));
+                    }
+                    BUF.draw();
                 }
+                Vec3d at = p.pos(Math.max(0, f.mach1));
+                Vector3f a = rel(at, cam);
+                float k = (float) MathHelper.clamp((tb + 2) / 36, 0, 1);
+                VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
+                if (tb < 5) KrlDraw.sprite(fl, m, a.x, a.y, a.z, 16f * (float) (1 - Math.max(0, tb) / 5) + 3, 0.3f, 1f, 0.95f, 0.85f, 0.9f * (float) (1 - Math.max(0, tb) / 5));
+                BUF.draw();
+                VertexConsumer ring = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.RING));
+                float rr = 3 + (float) Math.max(0, tb + 2) * 7f;
+                float al = 0.85f * (float) Math.pow(1 - k, 1.4);
+                KrlDraw.sprite(ring, m, a.x, a.y, a.z, rr, 0, 1f, 0.97f, 0.92f, al);
+                KrlDraw.flat(ring, m, a, e1, e2, rr * 0.8f, 1f, 0.97f, 0.92f, al * 0.8f);
                 BUF.draw();
             }
         }
@@ -459,6 +497,79 @@ public final class KrlFx {
         if (h > 0.01f && t < KrlFlight.TOTAL) {
             float vis = fallVis(f, t, cam);
             if (vis > 0.02f) drawSheath(ms, m, cam, eye, f, t, h * vis);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------- interceptors
+
+    /** Interceptor scale (a smaller, slimmer round than the strike missile). */
+    private static final float AA_SCALE = 0.55f;
+
+    private static void drawInterceptors(MatrixStack ms, Vec3d cam, float pt) {
+        KrlMesh mesh = KrlModels.SPEAR;
+        if (mesh == null || KrlAa.SHOTS.isEmpty()) return;
+        for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+            Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+            double dist = cam.distanceTo(p);
+            ms.push();
+            ms.translate(p.x - cam.x, p.y - cam.y, p.z - cam.z);
+            Vec3d z = d.crossProduct(Math.abs(d.y) < 0.95 ? new Vec3d(0, 1, 0) : new Vec3d(1, 0, 0)).normalize();
+            Vec3d x = d.crossProduct(z);
+            org.joml.Matrix3f rm = new org.joml.Matrix3f((float) x.x, (float) x.y, (float) x.z, (float) d.x, (float) d.y, (float) d.z, (float) z.x,
+                    (float) z.y, (float) z.z);
+            ms.multiply(new Quaternionf().setFromNormalized(rm));
+            float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+            ms.scale(sc, sc, sc);
+            // the round is drawn nose-first from its tail
+            ms.translate(0, -KrlModels.NOSE_TIP, 0);
+            int lod = dist < 14 ? 0 : dist < 40 ? 1 : 2;
+            mesh.lod(lod).render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(4))), KrlDraw.FULL, null, null);
+            ms.pop();
+        }
+        BUF.draw();
+    }
+
+    private static void drawInterceptorLight(Matrix4f m, Vec3d cam, Vector3f eye, float pt) {
+        float time = (float) (KrlClient.now() % 100000) + pt;
+        if (!KrlAa.SHOTS.isEmpty()) {
+            VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
+            for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+                Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+                double dist = cam.distanceTo(p);
+                float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+                Vec3d tail = p.subtract(d.multiply(KrlModels.NOSE_TIP * sc));
+                float sp = (float) s.vel.length();
+                KrlFlame.plume(m, pl, relv(tail, cam), d.multiply(-1), (2.5f + sp * 0.35f) * sc / AA_SCALE, 0.16f * sc / AA_SCALE, 1f, time + s.id);
+            }
+            BUF.draw();
+            VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
+            for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+                Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+                double dist = cam.distanceTo(p);
+                float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+                Vector3f a = rel(p.subtract(d.multiply(KrlModels.NOSE_TIP * sc * 1.2)), cam);
+                float sz = minSize(1.1f, p, cam, 0.006f);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, sz, 0, 1f, 0.78f, 0.45f, 0.85f);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, sz * 2.6f, 0, 1f, 0.5f, 0.2f, 0.25f + 0.25f * KrlClient.night());
+            }
+            BUF.draw();
+        }
+        if (!KrlAa.BURSTS.isEmpty()) {
+            VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
+            for (KrlAa.Burst b : KrlAa.BURSTS) {
+                float k = MathHelper.clamp((b.age + pt) / 24f, 0, 1);
+                Vector3f a = rel(b.at, cam);
+                float big = minSize(1, b.at, cam, 0.02f);
+                KrlDraw.sprite(fl, m, a.x, a.y, a.z, (6 + 10 * k) * Math.max(1, big / 3), k * 2, 1f, 0.85f, 0.55f, (1 - k) * (1 - k));
+            }
+            BUF.draw();
+            VertexConsumer ring = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.RING));
+            for (KrlAa.Burst b : KrlAa.BURSTS) {
+                float k = MathHelper.clamp((b.age + pt) / 24f, 0, 1);
+                Vector3f a = rel(b.at, cam);
+                KrlDraw.sprite(ring, m, a.x, a.y, a.z, 3 + 30 * k, 0, 1f, 0.95f, 0.85f, 0.7f * (1 - k));
+            }
+            BUF.draw();
         }
     }
 
