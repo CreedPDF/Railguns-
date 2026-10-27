@@ -257,7 +257,7 @@ public class KrlStationScreen extends Screen {
         y += 9;
         // yield bar
         ui.text("YIELD", x0 + 4, y, DIM, 0.42f);
-        ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, w.power() / 15.5f, WARHEAD_COLOUR[w.warhead()], 0xFF262B27);
+        ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, w.power() / 25f, WARHEAD_COLOUR[w.warhead()], 0xFF262B27);
         y += 6;
         ui.text("RANGE", x0 + 4, y, DIM, 0.42f);
         ui.meter(x0 + 26, y + 0.5f, x1 - x0 - 30, 3, (float) (w.range() / KrlLoadout.MAX_RANGE), 0xFFF0D060, 0xFF262B27);

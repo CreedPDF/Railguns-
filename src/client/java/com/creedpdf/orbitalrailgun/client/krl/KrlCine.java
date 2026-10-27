@@ -322,16 +322,23 @@ public final class KrlCine {
         ms.pop();
     }
 
+    /** A small, quiet caption under the top letterbox bar with a hairline rule. */
     private static void caption(DrawContext dc, TextRenderer tr, int W, int H, double t, double at, double len, String s, int color) {
         double k = (t - at) / len;
         if (k < 0 || k > 1) return;
-        float a = (float) Math.min(1, Math.min(k * 6, (1 - k) * 4));
+        float a = MathHelper.clamp((float) Math.min(1, Math.min(k * 6, (1 - k) * 4)), 0, 1);
+        var txt = com.creedpdf.orbitalrailgun.krl.KrlText.h(s);
+        float sc = 0.85f;
+        float w = tr.getWidth(txt) * sc;
+        float y = H * 0.105f + 8;
         var ms = dc.getMatrices();
         ms.push();
-        ms.translate(W / 2f - tr.getWidth(com.creedpdf.orbitalrailgun.krl.KrlText.h(s)) * 0.75f, H * 0.2f, 0);
-        ms.scale(1.5f, 1.5f, 1);
-        dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.h(s), 0, 0, ((int) (MathHelper.clamp(a, 0, 1) * 255) << 24) | (color & 0xFFFFFF), true);
+        ms.translate(W / 2f - w / 2f, y, 0);
+        ms.scale(sc, sc, 1);
+        dc.drawText(tr, txt, 0, 0, ((int) (a * 235) << 24) | (color & 0xFFFFFF), false);
         ms.pop();
+        int ai = (int) (a * 150) << 24;
+        dc.fill((int) (W / 2f - w / 2f), (int) (y + 10), (int) (W / 2f + w / 2f), (int) (y + 10) + 1, ai | (color & 0xFFFFFF));
     }
 
     private static double progress(KrlClient.CFlight f, double t) {

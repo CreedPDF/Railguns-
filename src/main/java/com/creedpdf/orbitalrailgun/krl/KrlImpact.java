@@ -37,8 +37,8 @@ public final class KrlImpact {
 
     public static void explode(ServerWorld w, Vec3d at, @Nullable UUID owner, KrlLoadout m) {
         switch (m.warhead()) {
-            case KrlLoadout.BUNKER -> boom(w, at.x, at.y - 0.5, at.z, 3f, false, owner);
-            case KrlLoadout.CLUSTER -> boom(w, at.x, at.y - 0.5, at.z, 3f, false, owner);
+            case KrlLoadout.BUNKER -> boom(w, at.x, at.y - 0.5, at.z, 5f, false, owner);
+            case KrlLoadout.CLUSTER -> boom(w, at.x, at.y - 0.5, at.z, 6f, false, owner);
             case KrlLoadout.INCENDIARY -> {
                 boom(w, at.x, at.y - 0.5, at.z, m.power(), true, owner);
                 ignite(w, BlockPos.ofFloored(at), 10 + 2 * m.charge(), w.random);

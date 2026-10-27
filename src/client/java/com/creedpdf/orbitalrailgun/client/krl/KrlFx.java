@@ -151,16 +151,24 @@ public final class KrlFx {
             }
             f.lastTrailT = tt;
         }
-        // attitude-control puffs at the stall
-        double ts = t - KrlFlight.BOOST;
-        if (ts > 4 && ts < KrlFlight.STALL - 4 && ((int) t) % 5 == 0) {
-            Vec3d tip = nose(f, t), d = p.dir(t);
-            Vec3d sd = d.crossProduct(new Vec3d(0, 1, 0));
-            if (sd.lengthSquared() < 1e-4) sd = new Vec3d(1, 0, 0);
-            sd = sd.normalize().multiply(((int) t / 5) % 2 == 0 ? 1 : -1);
-            Vec3d at = tip.subtract(d.multiply(2.6)).add(sd.multiply(0.3));
-            for (int i = 0; i < 2; i++)
-                puff(at.x, at.y, at.z, sd.x * 0.16 + rs() * 0.02, sd.y * 0.16, sd.z * 0.16 + rs() * 0.02, r(26, 40), 0.22f, 1.3f, 1f, 0.5f, 0, 0.9f, 0);
+        // the re-entry trail: a white smoke streak behind the glowing nose, so the dive reads against a daylit sky too
+        double tf0 = KrlFlight.BOOST + KrlFlight.STALL + 6;
+        if (t > tf0 && t < KrlFlight.TOTAL - 1) {
+            double tt = f.lastFallT < tf0 ? tf0 : f.lastFallT;
+            while (tt < t) {
+                double sp = p.speed(tt);
+                float hh = heat(f, tt);
+                Vec3d d = p.dir(tt);
+                Vec3d at = nose(f, tt).subtract(d.multiply(2.5));
+                if (hh > 0.08f) {
+                    float s0 = 0.6f + 0.8f * hh, s1 = s0 * 4.5f + 2f;
+                    Vec3d v = d.multiply(-0.03).add(rs() * 0.02, rs() * 0.02, rs() * 0.02);
+                    puff(at.x + rs() * 0.3, at.y + rs() * 0.3, at.z + rs() * 0.3, v.x, v.y, v.z, r(200, 320) * (0.7f + 0.3f * q), s0, s1,
+                            0.96f, 0.42f * Math.min(1f, hh * 1.6f), 1.2f * hh, 0.98f, 0.0004f);
+                }
+                tt += Math.max(0.25, 2.2 / Math.max(0.3, sp)) / Math.max(0.5, q);
+            }
+            f.lastFallT = tt;
         }
     }
 
@@ -199,11 +207,9 @@ public final class KrlFx {
         return KrlClient.riding == f.id;
     }
 
-    /** Daylight hides the falling missile from anyone not riding it (or right next to it). */
+    /** The falling missile is always drawn, day or night. */
     static float fallVis(KrlClient.CFlight f, double t, Vec3d cam) {
-        if (isRider(f) && KrlCine.onSpear(t)) return 1;
-        if (cam.distanceTo(nose(f, t)) < 40) return 1;
-        return KrlClient.night();
+        return 1;
     }
 
     // ------------------------------------------------------------------------------------------- render
@@ -235,7 +241,13 @@ public final class KrlFx {
             if (vis < 0.03f) continue;
             drawSpear(ms, cam, f, t, vis);
         }
+        // high above, the missile is far past the fog line: draw it without fog so it stays visible
+        float fogStart = com.mojang.blaze3d.systems.RenderSystem.getShaderFogStart(), fogEnd = com.mojang.blaze3d.systems.RenderSystem.getShaderFogEnd();
+        com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(1e7f);
+        com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(2e7f);
         BUF.draw();
+        com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(fogStart);
+        com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(fogEnd);
 
         // 2. the contrail (alpha blended, back to front)
         drawSmoke(m, cam, pt);
@@ -255,15 +267,27 @@ public final class KrlFx {
         ms.push();
         ms.translate(n.x - cam.x, n.y - cam.y, n.z - cam.z);
         ms.multiply(frame(f, d, t));
+        // far away, scale the missile up about its flight point so it never shrinks below a few pixels
+        double dist = cam.distanceTo(n);
+        float big = (float) Math.max(1, dist / 160);
+        if (big > 1) {
+            float yp = KrlModels.NOSE_TIP * shift(t);
+            ms.translate(0, yp, 0);
+            ms.scale(big, big, big);
+            ms.translate(0, -yp, 0);
+        }
         int light = WorldRenderer.getLightmapCoordinates(KrlClient.world(), BlockPos.ofFloored(n.add(d.multiply(3))));
+        // lit at least by the open sky, so it isn't a black speck at dusk
+        light = Math.max(light & 0xFFFF, 0xA0) | (Math.max(light >>> 16, 0xF0) << 16);
         float h = heat(f, t);
-        mesh.render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(f.livery))), light, null, (nx, ny, nz, o) -> {
+        int lod = dist < 14 ? 0 : dist < 40 ? 1 : 2;
+        mesh.lod(lod).render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(f.livery))), light, null, (nx, ny, nz, o) -> {
             o[0] = vis;
             o[1] = vis * (1 - h * 0.35f);
             o[2] = vis * (1 - h * 0.5f);
             o[3] = 1;
         });
-        mesh.render(ms, BUF.getBuffer(RenderLayer.getEyes(KrlModels.SPEAR_GLOW)), light, null, (nx, ny, nz, o) -> {
+        mesh.glow(lod).render(ms, BUF.getBuffer(RenderLayer.getEyes(KrlModels.SPEAR_GLOW)), light, null, (nx, ny, nz, o) -> {
             o[0] = vis;
             o[1] = vis;
             o[2] = vis;
@@ -496,6 +520,14 @@ public final class KrlFx {
         VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
         KrlDraw.sprite(fl, m, a.x, a.y, a.z, core * 4.5f, time * 0.01f, 1f, 0.8f, 0.55f, (0.35f + 0.35f * night) * h);
         BUF.draw();
+        // additive light vanishes against a bright sky: in daylight lay an alpha-blended hot core over it
+        float day = KrlClient.daylight();
+        if (day > 0.05f) {
+            VertexConsumer dc = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.GLOW));
+            KrlDraw.sprite(dc, m, a.x, a.y, a.z, core * 1.5f, 0, 1f, 0.62f, 0.25f, 0.55f * h * day);
+            KrlDraw.sprite(dc, m, a.x, a.y, a.z, core * 0.75f, 0, 1f, 0.93f, 0.8f, 0.9f * h * day);
+            BUF.draw();
+        }
         // the ionised wake streaming back along the body
         VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
         Vector3f b0 = rel(tip.subtract(d.multiply(0.3)), cam), b1 = rel(tip.subtract(d.multiply(7 + 12 * h)), cam),

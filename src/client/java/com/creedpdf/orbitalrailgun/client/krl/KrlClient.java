@@ -62,7 +62,7 @@ public final class KrlClient {
         public KrlFlight path;
         /** Effects already started (smoke bursts, sounds). */
         boolean boomed, impacted, loops, mach1Puffed, boomHeard;
-        double lastTrailT = 0;
+        double lastTrailT = 0, lastFallT = -1;
         /** The flight time at which the climb goes through Mach 1 (for the vapour cone). */
         double mach1 = -1;
 
@@ -235,6 +235,7 @@ public final class KrlClient {
             n.loops = o.loops;
             n.mach1Puffed = o.mach1Puffed;
             n.lastTrailT = o.lastTrailT;
+            n.lastFallT = o.lastFallT;
         }
         return n;
     }
@@ -257,8 +258,12 @@ public final class KrlClient {
             ms.translate(0, -0.2, 0);
         }
         ms.scale(s, s, s);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(tex)), light, null, null);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEyes(glow)), light, null, null);
+        // inventory icons are a few pixels across: the coarsest level; in the hand, the middle one
+        int lod = mode == net.minecraft.client.render.model.json.ModelTransformationMode.GUI || mode == net.minecraft.client.render.model.json.ModelTransformationMode.GROUND
+                || mode == net.minecraft.client.render.model.json.ModelTransformationMode.FIXED ? 2 : 1;
+        if (KrlCompat.shadowPass()) lod = 2;
+        mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(tex)), light, null, null);
+        if (!KrlCompat.shadowPass()) mesh.glow(lod).render(ms, vcp.getBuffer(RenderLayer.getEyes(glow)), light, null, null);
         ms.pop();
     }
 

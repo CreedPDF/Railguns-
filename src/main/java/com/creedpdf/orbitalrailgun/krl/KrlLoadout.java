@@ -62,12 +62,12 @@ public record KrlLoadout(int warhead, int charge, int motor, int livery) {
     /** Explosion power (TNT is 4). */
     public float power() {
         return switch (warhead) {
-            case HE -> 5f + 1.6f * charge;
-            case THERMOBARIC -> 6f + 1.9f * charge;
-            case INCENDIARY -> 3f + 1.0f * charge;
-            case BUNKER -> 5f + 1.5f * charge;
-            case CLUSTER -> 2.5f + 0.45f * charge;
-            default -> 4f;
+            case HE -> 9f + 2.6f * charge;
+            case THERMOBARIC -> 10f + 3f * charge;
+            case INCENDIARY -> 5.5f + 1.6f * charge;
+            case BUNKER -> 8f + 2.4f * charge;
+            case CLUSTER -> 4f + 0.8f * charge;
+            default -> 6.5f + 1.5f * motor; // kinetic: the impact alone, harder the faster it hits
         };
     }
 
