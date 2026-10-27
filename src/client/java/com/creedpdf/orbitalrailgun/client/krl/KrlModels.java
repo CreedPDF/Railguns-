@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.fabricmc.fabric.api.resource.ResourceManagerHelper;
 import net.fabricmc.fabric.api.resource.SimpleSynchronousResourceReloadListener;
+import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
@@ -49,10 +50,10 @@ public final class KrlModels {
 
             @Override
             public void reload(ResourceManager rm) {
-                LAUNCHER = load(rm, "launcher");
-                SPEAR = load(rm, "spear");
-                CONSOLE = load(rm, "console");
-                STATION = load(rm, "station");
+                LAUNCHER = load(rm, "launcher", LAUNCHER_GLOW);
+                SPEAR = load(rm, "spear", SPEAR_GLOW);
+                CONSOLE = load(rm, "console", CONSOLE_GLOW);
+                STATION = load(rm, "station", STATION_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];
@@ -60,6 +61,26 @@ public final class KrlModels {
                 }
             }
         });
+    }
+
+    private static KrlMesh load(ResourceManager rm, String name, Identifier glow) {
+        KrlMesh m = load(rm, name);
+        if (m == null) return null;
+        NativeImage img = null;
+        try {
+            Optional<Resource> g = rm.getResource(glow);
+            if (g.isPresent()) try (var in = g.get().getInputStream()) {
+                img = NativeImage.read(in);
+            }
+        } catch (Exception e) {
+            RailgunMod.LOGGER.warn("KRL glow texture {} unreadable", glow, e);
+        }
+        try {
+            m.prepare(img);
+        } finally {
+            if (img != null) img.close();
+        }
+        return m;
     }
 
     private static KrlMesh load(ResourceManager rm, String name) {

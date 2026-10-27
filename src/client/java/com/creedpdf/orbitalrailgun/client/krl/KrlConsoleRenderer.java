@@ -53,13 +53,19 @@ public class KrlConsoleRenderer implements BlockEntityRenderer<KrlConsoleBlockEn
             if (part.equals("cover")) st.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-105 * cover));
             return true;
         };
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.CONSOLE_TEX)), light, pose, null);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> {
+        int lod = KrlCompat.lod(be.getPos());
+        mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.CONSOLE_TEX)), light, pose, null);
+        if (KrlCompat.shadowPass()) {
+            ms.pop();
+            return;
+        }
+        KrlMesh glow = mesh.glow(lod);
+        glow.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> {
             if (part.equals("cover")) st.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-105 * cover));
             return true;
         }, null);
         // the annunciators again, modulated
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> part.equals("annunciators"), (nx, ny, nz, o) -> {
+        glow.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> part.equals("annunciators"), (nx, ny, nz, o) -> {
             o[0] = ann * 0.6f;
             o[1] = ann * 0.6f;
             o[2] = ann * 0.6f;

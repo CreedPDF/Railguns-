@@ -25,8 +25,9 @@ public class KrlStationRenderer implements BlockEntityRenderer<KrlStationBlockEn
         ms.push();
         ms.translate(0.5, 0, 0.5);
         ms.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-facing.asRotation()));
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.STATION_TEX)), light, null, null);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.STATION_GLOW)), light, null, (nx, ny, nz, o) -> {
+        int lod = KrlCompat.lod(be.getPos());
+        mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.STATION_TEX)), light, null, null);
+        if (!KrlCompat.shadowPass()) mesh.glow(lod).render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.STATION_GLOW)), light, null, (nx, ny, nz, o) -> {
             o[0] = g;
             o[1] = g;
             o[2] = g;

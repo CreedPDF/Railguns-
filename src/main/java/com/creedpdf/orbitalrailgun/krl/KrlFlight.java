@@ -8,10 +8,10 @@ import net.minecraft.util.math.Vec3d;
  * <ol>
  *   <li><b>BOOST</b> - off the inclined rail (60 degrees, turned toward the target), accelerating, then a gravity turn; the motor burns
  *   out as it climbs into the stratosphere (apogee 380-760 blocks over the higher of launcher and target);</li>
- *   <li><b>STALL</b> - at apogee it hangs, nearly still, and noses over toward the target;</li>
- *   <li><b>FALL</b> - it drops, steepening and accelerating all the way to Mach 13 at impact.</li>
+ *   <li><b>STALL</b> - over the top of the arc it slows and pitches over smoothly, following its own flight path;</li>
+ *   <li><b>FALL</b> - the dive, steepening to nearly vertical and accelerating all the way to impact.</li>
  * </ol>
- * Each leg is a cubic Bezier curve with an easing that matches speeds across the joins (zero at the stall).
+ * The climb and the dive are cubic Bezier curves joined level at the apex, travelled at arc-length speeds that match there.
  */
 public final class KrlFlight {
     public static final int BOOST = 220, STALL = 60, FALL = 200, TOTAL = BOOST + STALL + FALL, AFTER = 90;
@@ -48,7 +48,16 @@ public final class KrlFlight {
     public final Vec3d launch, target, apex, apex2, h, rail;
     public final double dist, height;
     private final Vec3d b1, b2, f1, f2;
-    private final double vFallMax, vBoostMax;
+    /** Arc-length tables of the climb and the dive (distance along each curve at N+1 evenly spaced u). */
+    private static final int N = 256;
+    private final double[] upLen = new double[N + 1], downLen = new double[N + 1];
+    /** Speed shape constants: climb scale k1 (blocks per unit shape), dive scale k2 and floor c. */
+    private final double k1, k2, c;
+    private final double vFallMax, vBoostMax, vApex;
+    /** The climb runs to the apex at UP ticks, the dive from there to impact. */
+    static final double UP = BOOST + STALL * 0.5, DOWN = TOTAL - UP;
+    /** Speed at the apex, as a fraction of the climb's peak shape. */
+    private static final double APEX_FRAC = 0.32;
 
     /** The Mach number at impact for this missile's motor. */
     public final double machMax;
@@ -57,6 +66,11 @@ public final class KrlFlight {
         this(launch, target, KrlLoadout.DEFAULT);
     }
 
+    /**
+     * One continuous ballistic arc: a climb off the rail curving over into level flight at the apex, then a dive that
+     * steepens to nearly vertical over the target. The nose always points along the path, so the missile pitches over
+     * smoothly through the top of the arc (it slows there but never stops).
+     */
     public KrlFlight(Vec3d launch, Vec3d target, KrlLoadout missile) {
         this.machMax = missile.mach();
         this.launch = launch;
@@ -66,15 +80,79 @@ public final class KrlFlight {
         h = dist < 1e-3 ? new Vec3d(0, 0, 1) : dh.multiply(1 / dist);
         double baseY = Math.max(launch.y, target.y);
         height = MathHelper.clamp(380 + 0.18 * dist, 380, 760) * missile.heightMul();
-        apex = new Vec3d(launch.x + h.x * dist * 0.5, baseY + height, launch.z + h.z * dist * 0.5);
-        apex2 = apex.add(h.multiply(dist * 0.015 + 6)).add(0, -5, 0);
+        apex = new Vec3d(launch.x + h.x * dist * 0.45, baseY + height, launch.z + h.z * dist * 0.45);
+        apex2 = apex;
         rail = h.multiply(CE).add(0, SE, 0);
-        b1 = launch.add(rail.multiply(Math.min(height * 0.5, dist * 0.6 + 40)));
-        b2 = apex.subtract(h.multiply(Math.min(dist * 0.22 + 60, dist * 0.45)));
-        f1 = apex2.add(h.multiply(dist * 0.08 + 10)).add(0, -height * 0.25, 0);
-        f2 = target.add(0, height * 0.45, 0).subtract(h.multiply(Math.min(dist * 0.02, 20)));
-        vFallMax = speed(TOTAL - 0.5);
-        vBoostMax = maxBoostSpeed();
+        // the arc's broad top: control points well ahead and behind the apex keep the pitch-over gentle
+        double lead = MathHelper.clamp(dist * 0.3, 70, 260);
+        b1 = launch.add(rail.multiply(Math.min(height * 0.55, dist * 0.6 + 60)));
+        b2 = apex.subtract(h.multiply(lead));
+        f1 = apex.add(h.multiply(lead * 1.1));
+        // the dive: comes in from high above the target, nearly straight down at the end
+        f2 = target.add(0, height * 0.55, 0).subtract(h.multiply(Math.min(dist * 0.03, 14)));
+        tabulate(launch, b1, b2, apex, upLen);
+        tabulate(apex, f1, f2, target, downLen);
+        double l1 = upLen[N], l2 = downLen[N];
+        // climb: accelerating to burnout, then slowing under gravity to APEX_FRAC of the peak at the apex
+        double ia = 0;
+        for (int i = 0; i < 400; i++) ia += upShape((i + 0.5) / 400) / 400;
+        k1 = l1 / (UP * ia);
+        // dive: speed = k2 (c + y^2); continuous with the climb at the apex (k2 c = apex speed)
+        double q = k1 * upShape(1);
+        double cc = l2 > q * DOWN * 1.05 ? q * DOWN / (3 * (l2 - q * DOWN)) : 4.0;
+        c = cc;
+        k2 = l2 / (DOWN * (cc + 1.0 / 3.0));
+        vApex = k2 * c;
+        vFallMax = k2 * (c + 1);
+        double m = 0;
+        for (int i = 1; i < UP; i += 3) m = Math.max(m, speed(i));
+        vBoostMax = Math.max(m, 1e-3);
+    }
+
+    /** Climb speed shape over x = t / UP: 0 on the rail, peak around burnout, APEX_FRAC at the apex. */
+    private static double upShape(double x) {
+        double a = smooth(x / 0.62), b = smooth((x - 0.62) / 0.38);
+        return a * (1 - (1 - APEX_FRAC) * b);
+    }
+
+    private static void tabulate(Vec3d p0, Vec3d p1, Vec3d p2, Vec3d p3, double[] out) {
+        Vec3d prev = p0;
+        out[0] = 0;
+        for (int i = 1; i <= N; i++) {
+            Vec3d p = bez(p0, p1, p2, p3, i / (double) N);
+            out[i] = out[i - 1] + p.distanceTo(prev);
+            prev = p;
+        }
+    }
+
+    /** The curve parameter u at which `d` blocks along it have been covered. */
+    private static double uAt(double[] len, double d) {
+        if (d <= 0) return 0;
+        if (d >= len[N]) return 1;
+        int lo = 0, hi = N;
+        while (hi - lo > 1) {
+            int mid = (lo + hi) >>> 1;
+            if (len[mid] < d) lo = mid;
+            else hi = mid;
+        }
+        double span = len[hi] - len[lo];
+        return (lo + (span < 1e-9 ? 0 : (d - len[lo]) / span)) / N;
+    }
+
+    /** Distance covered along the climb by time t (0..UP). */
+    private double upDist(double t) {
+        double x = MathHelper.clamp(t / UP, 0, 1);
+        // Simpson over the speed shape
+        int n = 24;
+        double hh = x / n, sum = upShape(0) + upShape(x);
+        for (int i = 1; i < n; i++) sum += upShape(i * hh) * (i % 2 == 0 ? 2 : 4);
+        return k1 * UP * sum * hh / 3;
+    }
+
+    /** Distance covered along the dive by time t since the apex (0..DOWN). */
+    private double downDist(double t) {
+        double y = MathHelper.clamp(t / DOWN, 0, 1);
+        return k2 * DOWN * (c * y + y * y * y / 3);
     }
 
     // ------------------------------------------------------------------------------------------- curves
@@ -99,48 +177,34 @@ public final class KrlFlight {
     /** Position at flight time t (ticks since it left the rail; fractional for rendering). */
     public Vec3d pos(double t) {
         if (t <= 0) return launch;
-        if (t < BOOST) return bez(launch, b1, b2, apex, smooth(t / BOOST));
-        if (t < BOOST + STALL) return apex.add(apex2.subtract(apex).multiply(smooth((t - BOOST) / STALL)));
-        if (t < TOTAL) return bez(apex2, f1, f2, target, Math.pow((t - BOOST - STALL) / FALL, 2.3));
+        if (t < UP) return bez(launch, b1, b2, apex, uAt(upLen, upDist(t)));
+        if (t < TOTAL) return bez(apex, f1, f2, target, uAt(downLen, downDist(t - UP)));
         return target;
     }
 
-    /** Where the nose points. */
+    /** Where the nose points: always along the path. */
     public Vec3d dir(double t) {
         if (t <= 0) return rail;
-        if (t < BOOST * 0.97) {
-            Vec3d d = bezD(launch, b1, b2, apex, smooth(t / BOOST));
-            return d.lengthSquared() < 1e-9 ? rail : d.normalize();
-        }
-        Vec3d end = bezD(launch, b1, b2, apex, 0.999).normalize();
-        Vec3d fallStart = f1.subtract(apex2).normalize();
-        if (t < BOOST + STALL) {
-            double k = smooth((t - BOOST * 0.97) / (STALL + BOOST * 0.03));
-            return end.multiply(1 - k).add(fallStart.multiply(k)).normalize();
-        }
-        if (t < TOTAL) {
-            double u = Math.max(0.002, Math.pow((t - BOOST - STALL) / FALL, 2.3));
-            return bezD(apex2, f1, f2, target, u).normalize();
-        }
-        return bezD(apex2, f1, f2, target, 1).normalize();
+        Vec3d d;
+        if (t < UP) d = bezD(launch, b1, b2, apex, Math.max(0.002, uAt(upLen, upDist(t))));
+        else d = bezD(apex, f1, f2, target, Math.min(1, uAt(downLen, downDist(Math.min(t, TOTAL) - UP))));
+        return d.lengthSquared() < 1e-9 ? rail : d.normalize();
     }
 
     /** Speed in blocks per tick. */
     public double speed(double t) {
-        return pos(t + 0.25).distanceTo(pos(t - 0.25)) / 0.5;
+        if (t <= 0) return 0;
+        if (t < UP) return k1 * upShape(t / UP);
+        double y = MathHelper.clamp((t - UP) / DOWN, 0, 1);
+        return k2 * (c + y * y);
     }
 
-    private double maxBoostSpeed() {
-        double m = 0;
-        for (int i = 1; i < BOOST; i += 5) m = Math.max(m, speed(i));
-        return Math.max(m, 1e-3);
-    }
-
-    /** The Mach number shown for time t: about 4 at the end of the boost's fastest stretch, 13 at impact. */
+    /** The Mach number shown for time t: about 4 at burnout, slowing over the apex, up to the motor's top speed at impact. */
     public double mach(double t) {
-        if (t < BOOST) return 4.2 * speed(t) / vBoostMax;
-        if (t < BOOST + STALL) return 0.3 * (1 - (t - BOOST) / STALL) + 0.05;
-        return machMax * Math.min(1, speed(t) / Math.max(1e-3, vFallMax));
+        double apexMach = 4.2 * vApex / vBoostMax;
+        if (t < UP) return 4.2 * speed(t) / vBoostMax;
+        double k = (speed(t) - vApex) / Math.max(1e-3, vFallMax - vApex);
+        return apexMach + (machMax - apexMach) * MathHelper.clamp(k, 0, 1);
     }
 
     /** Altitude shown in kilometres (one block of height above the target is scaled to 60 m). */

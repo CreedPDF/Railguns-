@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.client.render.OverlayTexture;
+import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.util.math.MatrixStack;
 import org.joml.Matrix3f;
@@ -41,6 +42,81 @@ public final class KrlMesh {
 
     private static final int S = 8;
     public final List<Part> parts = new ArrayList<>();
+    /** Detail levels (0 near .. 2 far / shadow pass) and the glow-only subsets of each; null until {@link #prepare}. */
+    private KrlMesh[] lods, glows;
+    /** Minimum quad area (square blocks) kept at each level: bevel slivers and bolt heads drop out with distance. */
+    private static final float[] LOD_AREA = {3e-6f, 1e-4f, 1e-3f}, GLOW_AREA = {1e-7f, 3e-5f, 1e-4f};
+
+    /** This mesh at a detail level (0 = everything). */
+    public KrlMesh lod(int level) {
+        return lods == null ? this : lods[Math.max(0, Math.min(2, level))];
+    }
+
+    /** Only the quads that sample a lit part of the glow texture, at a detail level. */
+    public KrlMesh glow(int level) {
+        return glows == null ? lod(level) : glows[Math.max(0, Math.min(2, level))];
+    }
+
+    /** Builds the detail levels, and the glow subsets from the glow texture (may be null: then every quad counts). */
+    public void prepare(NativeImage glowTex) {
+        lods = new KrlMesh[3];
+        glows = new KrlMesh[3];
+        for (int l = 0; l < 3; l++) {
+            KrlMesh lm = new KrlMesh(), gm = new KrlMesh();
+            for (Part p : parts) {
+                int[] keep = new int[p.q.length], glow = new int[p.q.length];
+                int nk = 0, ng = 0;
+                for (int i = 0; i + 3 < p.q.length; i += 4) {
+                    float a = area(p, i);
+                    if (a >= LOD_AREA[l]) {
+                        System.arraycopy(p.q, i, keep, nk, 4);
+                        nk += 4;
+                    }
+                    if (a >= GLOW_AREA[l] && (glowTex == null || lit(p, i, glowTex))) {
+                        System.arraycopy(p.q, i, glow, ng, 4);
+                        ng += 4;
+                    }
+                }
+                lm.parts.add(new Part(p.name, p.pivot, p.v, java.util.Arrays.copyOf(keep, nk)));
+                gm.parts.add(new Part(p.name, p.pivot, p.v, java.util.Arrays.copyOf(glow, ng)));
+            }
+            lods[l] = lm;
+            glows[l] = gm;
+        }
+    }
+
+    private static float area(Part p, int i) {
+        int a = p.q[i] * S, b = p.q[i + 1] * S, c = p.q[i + 2] * S, d = p.q[i + 3] * S;
+        float ux = p.v[c] - p.v[a], uy = p.v[c + 1] - p.v[a + 1], uz = p.v[c + 2] - p.v[a + 2];
+        float vx = p.v[d] - p.v[b], vy = p.v[d + 1] - p.v[b + 1], vz = p.v[d + 2] - p.v[b + 2];
+        float cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+        return 0.5f * (float) Math.sqrt(cx * cx + cy * cy + cz * cz);
+    }
+
+    /** Does the quad sample anything brighter than black in the glow texture (corners and middle)? */
+    private static boolean lit(Part p, int i, NativeImage img) {
+        float mu = 0, mv = 0;
+        for (int k = 0; k < 4; k++) {
+            int b = p.q[i + k] * S;
+            float u = p.v[b + 3], v = p.v[b + 4];
+            mu += u / 4;
+            mv += v / 4;
+            if (bright(img, u, v)) return true;
+        }
+        return bright(img, mu, mv);
+    }
+
+    private static boolean bright(NativeImage img, float u, float v) {
+        int w = img.getWidth(), h = img.getHeight();
+        int x = Math.floorMod((int) Math.floor(u * w), w), y = Math.floorMod((int) Math.floor(v * h), h);
+        for (int dy = -1; dy <= 1; dy++)
+            for (int dx = -1; dx <= 1; dx++) {
+                int c = img.getColor(Math.floorMod(x + dx, w), Math.floorMod(y + dy, h)); // ABGR
+                int a = (c >>> 24) & 255, r = c & 255, g = (c >> 8) & 255, bl = (c >> 16) & 255;
+                if (a > 8 && Math.max(r, Math.max(g, bl)) > 14) return true;
+            }
+        return false;
+    }
 
     public static KrlMesh parse(JsonObject o) {
         KrlMesh m = new KrlMesh();

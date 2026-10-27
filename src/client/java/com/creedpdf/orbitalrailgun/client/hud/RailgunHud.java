@@ -113,35 +113,56 @@ public final class RailgunHud {
         }
     }
 
+    /**
+     * The drop countdown: one low-profile strip at the top of the screen - who is coming, the clock, the distance to
+     * the landing zone and a hairline progress bar. No animation beyond a tick on the status block in the last seconds.
+     */
     private static void renderCountdown(DrawContext ctx, MinecraftClient client, TextRenderer font, int sw, float tickDelta) {
         float remaining = (countdownEnd - client.world.getTime()) - tickDelta;
         float progress = MathHelper.clamp(1f - remaining / countdownTotal, 0f, 1f);
         boolean released = remaining <= 0;
         float time = client.world.getTime() + tickDelta;
-        boolean blink = ((int) (time / 5)) % 2 == 0;
-        int col = released ? UiKit.RED : UiKit.CYAN;
+        boolean last = !released && remaining < 60;
+        boolean tick = ((int) (time / 4)) % 2 == 0;
+        int amber = 0xFFFFB02E, red = 0xFFE8382E, grey = 0xFF8E948F, white = 0xFFEDEFEA;
+        int accent = released ? red : amber;
 
-        int w = 260, h = 70;
-        int x = (sw - w) / 2, y = 8;
-        // slide/glitch in
-        float in = MathHelper.clamp((countdownTotal - remaining) / 8f, 0f, 1f);
-        x += (int) ((1 - in) * -40);
-        UiKit.chamfer(ctx, x, y, w, h, 10, 0xD0050A10, UiKit.alpha(col, 0.9f));
-        UiKit.hexGrid(ctx, x + 2, y + 2, w - 4, h - 4, time, 0x1433E0FF);
-        UiKit.brackets(ctx, x - 3, y - 3, w + 6, h + 6, 10, UiKit.alpha(col, blink ? 1f : 0.5f));
-
-        String title = Text.translatable(released ? "hud.orbital_railgun.released" : "hud.orbital_railgun.inbound").getString();
-        float tw = UiKit.spacedWidth(font, title, 2f, 1f);
-        UiKit.spaced(ctx, font, title, sw / 2f - tw / 2f, y + 6, released || blink ? col : UiKit.alpha(col, 0.6f), 2f, 1f, true);
-
-        String clock = released ? "IMPACT" : String.format(Locale.ROOT, "T-%05.2f", Math.max(0f, remaining / 20f));
-        float cw = UiKit.spacedWidth(font, clock, 2f, 2f);
-        UiKit.spaced(ctx, font, clock, sw / 2f - cw / 2f, y + 19, 0xFFFFFFFF, 2f, 2f, true);
-
-        UiKit.segBar(ctx, x + 12, y + 41, w - 24, 6, progress, 40, 0xFF1A8FB0, col, 0xFF0C1A22);
+        int w = 172, h = 19;
+        int x = (sw - w) / 2, y = 5;
+        float in = MathHelper.clamp((countdownTotal - remaining) / 6f, 0f, 1f);
+        int a = (int) (in * 255);
+        if (a < 8) return;
+        ctx.fill(x, y, x + w, y + h, (Math.min(a, 0xC8) << 24) | 0x0E0F10);
+        ctx.fill(x, y, x + w, y + 1, (a << 24) | 0x2E3134);
+        // status block
+        int blk = released || (last && tick) ? accent : UiKit.alpha(accent, 0.55f);
+        ctx.fill(x, y, x + 3, y + h, blk);
+        var ms = ctx.getMatrices();
+        drawK(ctx, font, com.creedpdf.orbitalrailgun.krl.KrlText.h("ARES-9"), x + 7, y + 2.5f, 0.72f, grey);
+        drawK(ctx, font, com.creedpdf.orbitalrailgun.krl.KrlText.h(released ? "RELEASED" : "INBOUND"), x + 7, y + 10.5f, 0.72f, accent);
+        // landing zone distance, middle
         double dist = Math.sqrt(client.player.getBlockPos().getSquaredDistance(landing));
-        String info = String.format(Locale.ROOT, "LZ %d %d %d  //  %.0f m", landing.getX(), landing.getY(), landing.getZ(), dist);
-        ctx.drawCenteredTextWithShadow(font, info, sw / 2, y + 55, 0xFFA8C4D4);
+        String lz = String.format(Locale.ROOT, "LZ  %d %d", landing.getX(), landing.getZ());
+        String rng = String.format(Locale.ROOT, "%.0f m", dist);
+        drawK(ctx, font, com.creedpdf.orbitalrailgun.krl.KrlText.t(lz), x + 52, y + 2.5f, 0.66f, grey);
+        drawK(ctx, font, com.creedpdf.orbitalrailgun.krl.KrlText.t(rng), x + 52, y + 10.5f, 0.66f, dist < 12 ? red : white);
+        // the clock, right
+        String clock = released ? "IMPACT" : String.format(Locale.ROOT, "T-%05.2f", Math.max(0f, remaining / 20f));
+        Text ct = com.creedpdf.orbitalrailgun.krl.KrlText.t(clock);
+        float cs = 1.15f;
+        drawK(ctx, font, ct, x + w - 6 - font.getWidth(ct) * cs, y + 4.5f, cs, released ? red : white);
+        // hairline progress
+        ctx.fill(x, y + h, x + w, y + h + 1, (a << 24) | 0x26292B);
+        ctx.fill(x, y + h, x + (int) (w * progress), y + h + 1, accent);
+    }
+
+    private static void drawK(DrawContext ctx, TextRenderer font, Text t, float x, float y, float scale, int color) {
+        var ms = ctx.getMatrices();
+        ms.push();
+        ms.translate(x, y, 0);
+        ms.scale(scale, scale, 1f);
+        ctx.drawText(font, t, 0, 0, color, false);
+        ms.pop();
     }
 
     private static void renderTargetingReadout(DrawContext ctx, MinecraftClient client, TextRenderer font, int sw, int sh, float tickDelta) {

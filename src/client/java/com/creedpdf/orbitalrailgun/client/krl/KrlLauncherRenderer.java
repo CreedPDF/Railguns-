@@ -53,8 +53,7 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
         boolean reloaded = be.loaded() && tp > 10;
         float open = reloaded ? 0 : (float) (smooth((tp + Krl.FLAME + 8) / 6) * (1 - smooth((tp - 60) / 30)));
         float umb = reloaded ? 0 : (float) (smooth((tp + Krl.FLAME + 14) / 10) * (1 - smooth((tp - 70) / 30)));
-        float beacon = (float) ((now + pt) * (burning ? 14.0 : 3.0));
-        float lamp = burning ? 0.7f + 0.3f * MathHelper.sin((now + pt) * 1.1f) : be.loaded() ? 0.8f : 0.45f;
+                float lamp = burning ? 0.7f + 0.3f * MathHelper.sin((now + pt) * 1.1f) : be.loaded() ? 0.8f : 0.45f;
 
         float[] pc = pivot(mesh, "clamps"), pu = pivot(mesh, "umbilical");
         Quaternionf qYaw = new Quaternionf().rotationY(yaw);
@@ -77,10 +76,12 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
             }
             return true;
         };
+        int lod = KrlCompat.lod(be.getPos());
+        boolean shadow = KrlCompat.shadowPass();
         ms.push();
         ms.translate(0.5, 0, 0.5);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.LAUNCHER_TEX)), light, pose, null);
-        mesh.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.LAUNCHER_GLOW)), light, pose, (nx, ny, nz, o) -> {
+        mesh.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.LAUNCHER_TEX)), light, pose, null);
+        if (!shadow) mesh.glow(lod).render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.LAUNCHER_GLOW)), light, pose, (nx, ny, nz, o) -> {
             o[0] = lamp;
             o[1] = lamp;
             o[2] = lamp;
@@ -94,8 +95,8 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
             ms.translate(nz.x, nz.y, nz.z);
             ms.multiply(railBasis());
             int lv = f != null && !reloaded ? f.livery : be.livery();
-            KrlModels.SPEAR.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(lv))), light, null, null);
-            KrlModels.SPEAR.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.SPEAR_GLOW)), light, null, null);
+            KrlModels.SPEAR.lod(lod).render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(lv))), light, null, null);
+            if (!shadow) KrlModels.SPEAR.glow(lod).render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.SPEAR_GLOW)), light, null, null);
             ms.pop();
         }
         ms.pop();
