@@ -57,24 +57,27 @@ public final class KrlClient {
         @Nullable
         public final UUID rider;
         public final int livery;
+        public final com.creedpdf.orbitalrailgun.krl.KrlLoadout missile;
         public Vec3d launch, target;
         public KrlFlight path;
         /** Effects already started (smoke bursts, sounds). */
-        boolean boomed, impacted, loops, mach1Puffed;
+        boolean boomed, impacted, loops, mach1Puffed, boomHeard;
         double lastTrailT = 0;
         /** The flight time at which the climb goes through Mach 1 (for the vapour cone). */
         double mach1 = -1;
 
-        CFlight(int id, Identifier world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID rider, int livery) {
+        CFlight(int id, Identifier world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID rider,
+                com.creedpdf.orbitalrailgun.krl.KrlLoadout missile) {
             this.id = id;
-            this.livery = livery;
+            this.missile = missile;
+            this.livery = missile.livery();
             this.world = world;
             this.pad = pad;
             this.launch = launch;
             this.target = target;
             this.liftoff = liftoff;
             this.rider = rider;
-            this.path = new KrlFlight(launch, target);
+            this.path = new KrlFlight(launch, target, missile);
             for (int i = 2; i < KrlFlight.BOOST; i++) {
                 if (path.mach(i) >= 1.0) {
                     mach1 = i;
@@ -151,6 +154,9 @@ public final class KrlClient {
         KrlSettings.load();
         BlockEntityRendererFactories.register(Krl.LAUNCHER_BE, KrlLauncherRenderer::new);
         BlockEntityRendererFactories.register(Krl.CONSOLE_BE, KrlConsoleRenderer::new);
+        BlockEntityRendererFactories.register(Krl.STATION_BE, KrlStationRenderer::new);
+        BuiltinItemRendererRegistry.INSTANCE.register(Krl.STATION_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.STATION,
+                KrlModels.STATION_TEX, KrlModels.STATION_GLOW, mode, ms, vcp, light, 1.85f, false));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.SPEAR, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.SPEAR,
                 KrlModels.spearTex(com.creedpdf.orbitalrailgun.krl.KineticSpearItem.livery(stack)), KrlModels.SPEAR_GLOW, mode, ms, vcp, light, 7.2f, true));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.LAUNCHER_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.LAUNCHER,
@@ -190,6 +196,10 @@ public final class KrlClient {
             KrlSurvey m = KrlSurvey.read(buf);
             client.execute(() -> KrlSurvey.put(m));
         });
+        ClientPlayNetworking.registerGlobalReceiver(KrlNet.STATION_OPEN, (client, h, buf, s) -> {
+            BlockPos at = buf.readBlockPos();
+            client.execute(() -> client.setScreen(new KrlStationScreen(at)));
+        });
         ClientPlayConnectionEvents.DISCONNECT.register((h, c) -> {
             FLIGHTS.clear();
             riding = -1;
@@ -201,10 +211,6 @@ public final class KrlClient {
         ClientTickEvents.END_CLIENT_TICK.register(KrlClient::tick);
         WorldRenderEvents.AFTER_TRANSLUCENT.register(KrlFx::render);
         HudRenderCallback.EVENT.register(KrlCine::hud);
-        ItemTooltipCallback.EVENT.register((stack, ctx, lines) -> {
-            if (stack.isOf(Krl.LAUNCHER_ITEM)) lines.add(Text.translatable("item.orbital_railgun.krl_launcher.tooltip.1").formatted(Formatting.GRAY));
-            if (stack.isOf(Krl.CONSOLE_ITEM)) lines.add(Text.translatable("item.orbital_railgun.krl_console.tooltip.1").formatted(Formatting.GRAY));
-        });
     }
 
     private static CFlight readFlight(PacketByteBuf b) {
@@ -215,8 +221,8 @@ public final class KrlClient {
         Vec3d t = new Vec3d(b.readDouble(), b.readDouble(), b.readDouble());
         long lift = b.readLong();
         UUID r = b.readBoolean() ? b.readUuid() : null;
-        int lv = b.readVarInt();
-        return new CFlight(id, w, pad, l, t, lift, r, lv);
+        var m = com.creedpdf.orbitalrailgun.krl.KrlLoadout.read(b);
+        return new CFlight(id, w, pad, l, t, lift, r, m);
     }
 
     /** A re-sent flight (its aim point settled onto the real ground) keeps the effects already played. */
@@ -224,6 +230,7 @@ public final class KrlClient {
         CFlight o = FLIGHTS.get(n.id);
         if (o != null) {
             n.boomed = o.boomed;
+            n.boomHeard = o.boomHeard;
             n.impacted = o.impacted;
             n.loops = o.loops;
             n.mach1Puffed = o.mach1Puffed;
@@ -268,11 +275,32 @@ public final class KrlClient {
                 continue;
             }
             if (!f.loops && t > -Krl.FLAME - 2) startLoops(mc, f);
+            boom(mc, f, t);
             KrlFx.tick(f, t);
         }
         for (int id : gone) FLIGHTS.remove(id);
         KrlFx.tickParticles();
         KrlCine.tick(mc);
+    }
+
+    /**
+     * The sonic boom of liftoff, heard when the sound gets to you: sound covers about 17 blocks a tick, so someone a
+     * kilometre away hears it three seconds after the flash. Loud, and audible a long way off.
+     */
+    private static void boom(MinecraftClient mc, CFlight f, double t) {
+        if (f.boomHeard || t < 0) return;
+        Vec3d ear = mc.gameRenderer.getCamera().getPos();
+        double d = ear.distanceTo(f.launch);
+        if (t > 400 || d > 2200) {
+            if (t > 400) f.boomHeard = true;
+            return;
+        }
+        if (t < d / 17.15) return;
+        f.boomHeard = true;
+        float vol = (float) MathHelper.clamp(1.25 - d / 1600, 0.12, 1.25);
+        float pitch = (float) MathHelper.clamp(1.0 - d / 4000, 0.7, 1.0);
+        mc.getSoundManager().play(new net.minecraft.client.sound.PositionedSoundInstance(Krl.S_BOOM.getId(), SoundCategory.BLOCKS, vol, pitch,
+                Random.create(), false, 0, SoundInstance.AttenuationType.NONE, 0, 0, 0, true));
     }
 
     private static void startLoops(MinecraftClient mc, CFlight f) {

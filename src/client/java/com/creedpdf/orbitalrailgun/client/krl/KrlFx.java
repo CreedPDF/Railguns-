@@ -191,7 +191,8 @@ public final class KrlFx {
     static float heat(KrlClient.CFlight f, double t) {
         if (t < KrlFlight.BOOST + KrlFlight.STALL || t >= KrlFlight.TOTAL) return 0;
         double m = f.path.mach(t);
-        return (float) Math.pow(MathHelper.clamp((m - 3.5) / 9.5, 0, 1), 1.25);
+        // glowing from about Mach 2.5, white-hot by 70 % of the motor's top speed
+        return (float) Math.pow(MathHelper.clamp((m - 2.5) / (0.7 * f.path.machMax - 2.5), 0, 1), 0.85);
     }
 
     static boolean isRider(KrlClient.CFlight f) {
@@ -391,8 +392,9 @@ public final class KrlFx {
             double alt = Math.max(0, n.y - f.launch.y);
             float burn = (float) MathHelper.clamp((BURNOUT - t) / 18.0, 0, 1);
             if (burn > 0) {
-                float len = (float) (4.5 + 13 * Math.min(1, sp / 4) + alt / 55) * (0.6f + 0.4f * burn);
-                float rad = (float) (0.26 + 0.2 * Math.min(1, sp / 4) + alt / 420) * burn;
+                float fm = f.missile.flameMul();
+                float len = (float) (4.5 + 13 * Math.min(1, sp / 4) + alt / 55) * (0.6f + 0.4f * burn) * fm;
+                float rad = (float) (0.26 + 0.2 * Math.min(1, sp / 4) + alt / 420) * burn * (0.7f + 0.3f * fm);
                 VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
                 KrlFlame.plume(m, pl, relv(n, cam), back, len, rad, burn * flick, time);
                 BUF.draw();
@@ -451,26 +453,27 @@ public final class KrlFx {
         KrlMesh mesh = KrlModels.SPEAR;
         Vec3d n = nozzle(f, t), d = f.path.dir(t), tip = nose(f, t);
         float time = (float) t;
-        // white-hot at the very tip, orange and red further out in the sheath
+        float flick = 0.92f + 0.08f * MathHelper.sin(time * 3.7f) * MathHelper.sin(time * 1.9f + 1);
+        // the sheath itself: nested shells of the nose, white-hot inside, orange and red further out
         if (mesh != null) {
             ms.push();
             ms.translate(n.x - cam.x, n.y - cam.y, n.z - cam.z);
             ms.multiply(frame(f, d, t));
             float base = KrlModels.NOSE_FROM;
-            float[][] shells = {{1.02f, 1.0f, 0.95f, 0.85f, 0.55f}, {1.10f, 1.0f, 0.7f, 0.35f, 0.42f}, {1.24f, 1.0f, 0.42f, 0.12f, 0.3f},
-                    {1.45f, 0.9f, 0.18f, 0.05f, 0.2f}};
+            float[][] shells = {{1.03f, 1.0f, 0.98f, 0.92f, 0.95f}, {1.16f, 1.0f, 0.82f, 0.5f, 0.8f}, {1.38f, 1.0f, 0.55f, 0.2f, 0.62f},
+                    {1.7f, 1.0f, 0.32f, 0.08f, 0.45f}, {2.15f, 0.9f, 0.16f, 0.04f, 0.3f}};
             VertexConsumer vc = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.WHITE_TEX));
             for (int i = 0; i < shells.length; i++) {
                 float[] sh = shells[i];
-                float s = 1 + (sh[0] - 1) * (0.5f + 0.5f * h) + 0.015f * MathHelper.sin(time * 1.9f + i);
-                float al = sh[4] * h;
+                float sc = 1 + (sh[0] - 1) * (0.45f + 0.55f * h) + 0.02f * MathHelper.sin(time * 1.9f + i);
+                float al = sh[4] * h * flick;
                 ms.push();
                 ms.translate(0, base, 0);
-                ms.scale(s, 1 + (s - 1) * 0.6f, s);
+                ms.scale(sc, 1 + (sc - 1) * 0.55f, sc);
                 ms.translate(0, -base, 0);
                 mesh.renderNoOverlay(ms, vc, KrlDraw.FULL, (part, st) -> part.equals("nose"), (nx, ny, nz, o) -> {
                     float rim = 1 - Math.abs(nz);
-                    float k = al * (0.35f + 0.65f * rim * rim);
+                    float k = al * (0.45f + 0.55f * rim * rim);
                     o[0] = sh[1] * k;
                     o[1] = sh[2] * k;
                     o[2] = sh[3] * k;
@@ -481,16 +484,24 @@ public final class KrlFx {
             ms.pop();
             BUF.draw();
         }
-        // the glow wrapped round the tip, and a short hot wake along the body
+        // the glow round the tip: a white core, an orange halo, a wide red bloom, and a flare star
         VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
-        Vector3f a = rel(tip.subtract(d.multiply(0.5)), cam);
-        float far = minSize(1.2f + 1.6f * h, tip, cam, 0.0055f * h);
-        KrlDraw.sprite(gl, m, a.x, a.y, a.z, far, 0, 1f, 0.85f, 0.65f, 0.95f * h);
-        KrlDraw.sprite(gl, m, a.x, a.y, a.z, far * 2.6f, 0, 1f, 0.42f, 0.15f, 0.45f * h);
+        Vector3f a = rel(tip.subtract(d.multiply(0.8)), cam);
+        float night = KrlClient.night();
+        float core = minSize(2.4f + 3.4f * h, tip, cam, 0.008f * h);
+        KrlDraw.sprite(gl, m, a.x, a.y, a.z, core, 0, 1f, 0.95f, 0.85f, h * flick);
+        KrlDraw.sprite(gl, m, a.x, a.y, a.z, core * 2.6f, 0, 1f, 0.6f, 0.25f, 0.85f * h * flick);
+        KrlDraw.sprite(gl, m, a.x, a.y, a.z, core * 6.5f, 0, 1f, 0.35f, 0.1f, (0.25f + 0.3f * night) * h);
         BUF.draw();
+        VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
+        KrlDraw.sprite(fl, m, a.x, a.y, a.z, core * 4.5f, time * 0.01f, 1f, 0.8f, 0.55f, (0.35f + 0.35f * night) * h);
+        BUF.draw();
+        // the ionised wake streaming back along the body
         VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
-        Vector3f b0 = rel(tip.subtract(d.multiply(0.4)), cam), b1 = rel(tip.subtract(d.multiply(4.5 + 5 * h)), cam);
-        KrlDraw.beam(pl, m, b0, b1, eye, 0.45f + 0.35f * h, -time * 0.35f, 3f, 1f, 0.45f, 0.14f, 0.55f * h * h);
+        Vector3f b0 = rel(tip.subtract(d.multiply(0.3)), cam), b1 = rel(tip.subtract(d.multiply(7 + 12 * h)), cam),
+                b2 = rel(tip.subtract(d.multiply(3 + 4 * h)), cam);
+        KrlDraw.beam(pl, m, b0, b1, eye, 0.7f + 0.8f * h, -time * 0.4f, 4f, 1f, 0.42f, 0.12f, 0.75f * h * h);
+        KrlDraw.beam(pl, m, b0, b2, eye, 0.4f + 0.4f * h, -time * 0.6f, 2f, 1f, 0.85f, 0.6f, 0.8f * h * h);
         BUF.draw();
     }
 }

@@ -39,7 +39,8 @@ public final class KrlNet {
     public static final Identifier POLL = RailgunMod.id("krl_poll"), MAP = RailgunMod.id("krl_map"), TARGET = RailgunMod.id("krl_target"),
             LAUNCH = RailgunMod.id("krl_launch"), ABORT = RailgunMod.id("krl_abort"), UNLINK = RailgunMod.id("krl_unlink"), SKIP = RailgunMod.id("krl_skip"),
             STATE = RailgunMod.id("krl_state"), MAP_DATA = RailgunMod.id("krl_map_data"), FLIGHT = RailgunMod.id("krl_flight"),
-            END = RailgunMod.id("krl_end"), RIDE = RailgunMod.id("krl_ride");
+            END = RailgunMod.id("krl_end"), RIDE = RailgunMod.id("krl_ride"), TILE = RailgunMod.id("krl_tile"),
+            STATION_OPEN = RailgunMod.id("krl_station_open"), STATION_APPLY = RailgunMod.id("krl_station_apply");
 
     /** Launcher states on the board. */
     public static final int L_UNKNOWN = 0, L_EMPTY = 1, L_READY = 2, L_BURNING = 3, L_GONE = 4;
@@ -89,6 +90,22 @@ public final class KrlNet {
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(SKIP, (server, p, h, buf, s) -> server.execute(() -> KrlServer.release(p)));
+        ServerPlayNetworking.registerGlobalReceiver(TILE, (server, p, h, buf, s) -> {
+            BlockPos c = buf.readBlockPos();
+            int tx = buf.readInt(), tz = buf.readInt();
+            server.execute(() -> {
+                if (console(p, c) == null) return;
+                // only tiles within the map's reach
+                double cx = (tx + 0.5) * KrlMap.TILE - c.getX(), cz = (tz + 0.5) * KrlMap.TILE - c.getZ();
+                if (cx * cx + cz * cz > Math.pow(KrlLoadout.MAX_RANGE + 1200, 2)) return;
+                KrlMap.requestTile(p, c, tx, tz);
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(STATION_APPLY, (server, p, h, buf, s) -> {
+            BlockPos at = buf.readBlockPos();
+            KrlLoadout want = KrlLoadout.read(buf);
+            server.execute(() -> refit(p, at, want));
+        });
     }
 
     // ------------------------------------------------------------------------------------------- requests
@@ -107,9 +124,9 @@ public final class KrlNet {
             be.setTarget(null);
         } else {
             double dx = x - c.getX(), dz = z - c.getZ();
-            double lim = Krl.RANGE + Krl.LINK_RANGE;
+            double lim = KrlLoadout.MAX_RANGE + Krl.LINK_RANGE;
             if (dx * dx + dz * dz > lim * lim || !w.getWorldBorder().contains(x, z)) {
-                p.sendMessage(Text.literal("Aim point outside the survey.").formatted(Formatting.GRAY), true);
+                p.sendMessage(KrlText.t("AIM POINT OUTSIDE THE SURVEY", KrlText.GREY), true);
                 return;
             }
             int y = KrlMap.surfaceY(w, x, z);
@@ -125,7 +142,7 @@ public final class KrlNet {
         BlockPos t = be.target();
         ServerWorld w = p.getServerWorld();
         if (t == null) {
-            p.sendMessage(Text.literal("No aim point marked.").formatted(Formatting.GRAY), true);
+            p.sendMessage(KrlText.t("NO AIM POINT MARKED", KrlText.GREY), true);
             return;
         }
         List<BlockPos> links = be.links();
@@ -139,7 +156,7 @@ public final class KrlNet {
             }
             double dx = t.getX() - lp.getX(), dz = t.getZ() - lp.getZ();
             double d = Math.sqrt(dx * dx + dz * dz);
-            if (d > Krl.RANGE || d < MIN_RANGE) {
+            if (d > l.missile().range() || d < MIN_RANGE) {
                 refused++;
                 continue;
             }
@@ -148,9 +165,9 @@ public final class KrlNet {
         }
         if (lit > 0) {
             w.playSound(null, c, Krl.S_ARM, SoundCategory.BLOCKS, 1.6f, 1f);
-            p.sendMessage(Text.literal("LAUNCH - " + lit + " rail" + (lit > 1 ? "s" : "") + " slewing to target. Ignition, then liftoff.").formatted(Formatting.YELLOW), true);
+            p.sendMessage(KrlText.t("LAUNCH  //  " + lit + " RAIL" + (lit > 1 ? "S" : "") + " SLEWING TO TARGET  //  IGNITION, THEN LIFTOFF", KrlText.AMBER), true);
         } else if (refused > 0) {
-            p.sendMessage(Text.literal("No launcher could take the shot (empty, burning, unloaded or out of range).").formatted(Formatting.GRAY), true);
+            p.sendMessage(KrlText.t("NO RAIL COULD TAKE THE SHOT  //  EMPTY, BUSY, UNLOADED OR OUT OF RANGE", KrlText.RED), true);
         }
         sendState(p, be, false);
     }
@@ -166,7 +183,7 @@ public final class KrlNet {
             BlockPos lp = links.get(i);
             if (w.isChunkLoaded(lp) && w.getBlockEntity(lp) instanceof KrlLauncherBlockEntity l && l.igniting() && KrlServer.abort(l.flight())) n++;
         }
-        if (n > 0) p.sendMessage(Text.literal("ABORT - " + n + " launch" + (n > 1 ? "es" : "") + " safed.").formatted(Formatting.YELLOW), true);
+        if (n > 0) p.sendMessage(KrlText.t("ABORT  //  " + n + " LAUNCH" + (n > 1 ? "ES" : "") + " SAFED", KrlText.AMBER), true);
         sendState(p, be, false);
     }
 
@@ -191,32 +208,89 @@ public final class KrlNet {
             b.writeBlockPos(lp);
             int st = L_UNKNOWN, cd = -1, fl = -1;
             long launched = -1;
+            KrlLoadout m = KrlLoadout.DEFAULT;
             if (w.isChunkLoaded(lp) && w.getBlockEntity(lp) instanceof KrlLauncherBlockEntity l) {
                 st = l.igniting() ? L_BURNING : l.loaded() ? L_READY : L_EMPTY;
                 cd = l.countdown();
                 fl = l.flight();
                 launched = l.launchedAt();
+                m = l.missile();
             } else if (w.isChunkLoaded(lp)) st = L_GONE;
             b.writeVarInt(st);
             b.writeVarInt(cd + 1);
             b.writeInt(fl);
             b.writeLong(launched);
+            m.write(b);
         }
         b.writeLong(w.getTime());
         ServerPlayNetworking.send(p, STATE, b);
     }
 
-    public static void sendMap(ServerPlayerEntity p, BlockPos console, KrlMap.Survey s) {
+    public static void sendMap(ServerPlayerEntity p, BlockPos console, KrlMap.Survey s, boolean tile) {
         PacketByteBuf b = PacketByteBufs.create();
+        b.writeBoolean(tile);
         b.writeBlockPos(console);
-        b.writeInt(s.cx());
-        b.writeInt(s.cz());
-        b.writeVarInt(KrlMap.N);
-        b.writeVarInt(KrlMap.CELL);
+        b.writeInt(s.x0());
+        b.writeInt(s.z0());
+        b.writeVarInt(s.n());
+        b.writeVarInt(s.cell());
         for (short h : s.height()) b.writeShort(h);
         b.writeByteArray(s.kind());
+        for (int c : s.rgb()) b.writeMedium(c == 0 ? 0 : (c & 0xFFFFFF) | (c == 0xFF000000 ? 1 : 0));
         b.writeVarInt(p.getServerWorld().getSeaLevel());
         ServerPlayNetworking.send(p, MAP_DATA, b);
+    }
+
+    // ------------------------------------------------------------------------------------------- the missile station
+
+    public static void openStation(ServerPlayerEntity p, BlockPos at) {
+        PacketByteBuf b = PacketByteBufs.create();
+        b.writeBlockPos(at);
+        ServerPlayNetworking.send(p, STATION_OPEN, b);
+    }
+
+    /** Refit the missile in the player's main hand, charging the materials it takes. */
+    private static void refit(ServerPlayerEntity p, BlockPos at, KrlLoadout want) {
+        ServerWorld w = p.getServerWorld();
+        if (!w.getBlockState(at).isOf(Krl.STATION) || p.squaredDistanceTo(Vec3d.ofCenter(at)) > 64) return;
+        var stack = p.getMainHandStack();
+        if (!stack.isOf(Krl.SPEAR)) {
+            p.sendMessage(KrlText.t("HOLD THE MISSILE IN YOUR MAIN HAND", KrlText.RED), true);
+            return;
+        }
+        KrlLoadout have = KrlLoadout.of(stack);
+        if (have.equals(want)) return;
+        var cost = have.costTo(want);
+        if (!p.getAbilities().creativeMode) {
+            var inv = p.getInventory();
+            for (var c : cost) {
+                if (inv.count(c.getItem()) < c.getCount()) {
+                    p.sendMessage(KrlText.t("NOT ENOUGH MATERIALS  //  NEED " + c.getCount() + " x " + c.getName().getString().toUpperCase(java.util.Locale.ROOT), KrlText.RED), true);
+                    w.playSound(null, at, Krl.S_CLICK, SoundCategory.BLOCKS, 0.8f, 0.5f);
+                    return;
+                }
+            }
+            for (var c : cost) {
+                int left = c.getCount();
+                for (int i = 0; i < inv.size() && left > 0; i++) {
+                    var s = inv.getStack(i);
+                    if (!s.isOf(c.getItem())) continue;
+                    int take = Math.min(left, s.getCount());
+                    s.decrement(take);
+                    left -= take;
+                }
+            }
+        }
+        // a stack of missiles is refitted one at a time
+        if (stack.getCount() > 1) {
+            var one = stack.split(1);
+            want.applyTo(one);
+            if (!p.getInventory().insertStack(one)) p.dropItem(one, false);
+        } else {
+            want.applyTo(stack);
+        }
+        w.playSound(null, at, Krl.S_LOAD, SoundCategory.BLOCKS, 1f, 1.1f);
+        p.sendMessage(KrlText.t("REFIT COMPLETE  //  " + want.summary(), KrlText.GREEN), true);
     }
 
     private static PacketByteBuf flightBuf(KrlServer.Flight f) {
@@ -234,7 +308,7 @@ public final class KrlNet {
         b.writeLong(f.liftoff);
         b.writeBoolean(f.rider != null);
         if (f.rider != null) b.writeUuid(f.rider);
-        b.writeVarInt(f.livery);
+        f.missile.write(b);
         return b;
     }
 

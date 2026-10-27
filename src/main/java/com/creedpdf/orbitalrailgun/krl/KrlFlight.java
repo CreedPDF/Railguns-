@@ -50,14 +50,22 @@ public final class KrlFlight {
     private final Vec3d b1, b2, f1, f2;
     private final double vFallMax, vBoostMax;
 
+    /** The Mach number at impact for this missile's motor. */
+    public final double machMax;
+
     public KrlFlight(Vec3d launch, Vec3d target) {
+        this(launch, target, KrlLoadout.DEFAULT);
+    }
+
+    public KrlFlight(Vec3d launch, Vec3d target, KrlLoadout missile) {
+        this.machMax = missile.mach();
         this.launch = launch;
         this.target = target;
         Vec3d dh = new Vec3d(target.x - launch.x, 0, target.z - launch.z);
         dist = dh.length();
         h = dist < 1e-3 ? new Vec3d(0, 0, 1) : dh.multiply(1 / dist);
         double baseY = Math.max(launch.y, target.y);
-        height = MathHelper.clamp(380 + 0.18 * dist, 380, 760);
+        height = MathHelper.clamp(380 + 0.18 * dist, 380, 760) * missile.heightMul();
         apex = new Vec3d(launch.x + h.x * dist * 0.5, baseY + height, launch.z + h.z * dist * 0.5);
         apex2 = apex.add(h.multiply(dist * 0.015 + 6)).add(0, -5, 0);
         rail = h.multiply(CE).add(0, SE, 0);
@@ -132,7 +140,7 @@ public final class KrlFlight {
     public double mach(double t) {
         if (t < BOOST) return 4.2 * speed(t) / vBoostMax;
         if (t < BOOST + STALL) return 0.3 * (1 - (t - BOOST) / STALL) + 0.05;
-        return MACH_MAX * Math.min(1, speed(t) / Math.max(1e-3, vFallMax));
+        return machMax * Math.min(1, speed(t) / Math.max(1e-3, vFallMax));
     }
 
     /** Altitude shown in kilometres (one block of height above the target is scaled to 60 m). */

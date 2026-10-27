@@ -49,12 +49,14 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
             yaw = rest + (float) Math.toRadians(d) * out * (1 - back);
         }
         boolean burning = f != null && tp < 0;
-        float open = (float) (smooth((tp + Krl.FLAME + 8) / 6) * (1 - smooth((tp - 220) / 50)));
-        float umb = (float) (smooth((tp + Krl.FLAME + 14) / 10) * (1 - smooth((tp - 230) / 50)));
+        // a fresh missile on the rail after an earlier launch: that launch's animation is over
+        boolean reloaded = be.loaded() && tp > 10;
+        float open = reloaded ? 0 : (float) (smooth((tp + Krl.FLAME + 8) / 6) * (1 - smooth((tp - 60) / 30)));
+        float umb = reloaded ? 0 : (float) (smooth((tp + Krl.FLAME + 14) / 10) * (1 - smooth((tp - 70) / 30)));
         float beacon = (float) ((now + pt) * (burning ? 14.0 : 3.0));
         float lamp = burning ? 0.7f + 0.3f * MathHelper.sin((now + pt) * 1.1f) : be.loaded() ? 0.8f : 0.45f;
 
-        float[] pc = pivot(mesh, "clamps"), pu = pivot(mesh, "umbilical"), pb = pivot(mesh, "beacon");
+        float[] pc = pivot(mesh, "clamps"), pu = pivot(mesh, "umbilical");
         Quaternionf qYaw = new Quaternionf().rotationY(yaw);
         Quaternionf qRest = new Quaternionf().rotationY(rest);
         Vec3d rd = KrlFlight.RAIL_D;
@@ -69,10 +71,6 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
                 case "umbilical" -> {
                     turn(st, pu, qYaw);
                     st.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(60 * umb));
-                }
-                case "beacon" -> {
-                    turn(st, pb, qYaw);
-                    st.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(beacon));
                 }
                 default -> {
                 }
@@ -89,13 +87,13 @@ public class KrlLauncherRenderer implements BlockEntityRenderer<KrlLauncherBlock
             o[3] = 1;
         });
         // the missile on the rail, lugs down onto the rail
-        if (be.loaded() && (f == null || tp < 0) && KrlModels.SPEAR != null) {
+        if (be.loaded() && (f == null || tp < 0 || reloaded) && KrlModels.SPEAR != null) {
             Vec3d nz = KrlFlight.NOZZLE_LOCAL;
             ms.push();
             ms.multiply(qYaw);
             ms.translate(nz.x, nz.y, nz.z);
             ms.multiply(railBasis());
-            int lv = f != null ? f.livery : be.livery();
+            int lv = f != null && !reloaded ? f.livery : be.livery();
             KrlModels.SPEAR.render(ms, vcp.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(lv))), light, null, null);
             KrlModels.SPEAR.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.SPEAR_GLOW)), light, null, null);
             ms.pop();

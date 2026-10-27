@@ -78,7 +78,7 @@ public class KrlConsoleBlock extends BlockWithEntity {
             }
             if (n > 0) {
                 world.playSound(null, pos, Krl.S_LINK, SoundCategory.BLOCKS, 1f, 1f);
-                if (placer instanceof PlayerEntity pl) pl.sendMessage(Text.literal("Fire control linked " + n + " launcher" + (n > 1 ? "s" : "") + ".").formatted(Formatting.YELLOW), true);
+                if (placer instanceof PlayerEntity pl) pl.sendMessage(KrlText.t("FIRE CONTROL LINKED " + n + " LAUNCHER" + (n > 1 ? "S" : ""), KrlText.AMBER), true);
             }
         }
     }
@@ -120,14 +120,14 @@ public class KrlConsoleBlock extends BlockWithEntity {
         if (player.isSneaking() && pending != null) {
             KrlLinking.clear(sp);
             if (!pending.isWithinDistance(center, Krl.LINK_RANGE)) {
-                player.sendMessage(Text.literal("Launcher out of link range (" + (int) Krl.LINK_RANGE + " blocks).").formatted(Formatting.GRAY), true);
+                player.sendMessage(KrlText.t("LAUNCHER OUT OF LINK RANGE (" + (int) Krl.LINK_RANGE + " BLOCKS)", KrlText.GREY), true);
             } else if (c.links().contains(pending)) {
-                player.sendMessage(Text.literal("That launcher is already linked.").formatted(Formatting.GRAY), true);
+                player.sendMessage(KrlText.t("LAUNCHER ALREADY LINKED", KrlText.GREY), true);
             } else if (!c.link(pending)) {
-                player.sendMessage(Text.literal("Fire control holds " + Krl.MAX_LINKS + " launchers at most.").formatted(Formatting.GRAY), true);
+                player.sendMessage(KrlText.t("FIRE CONTROL HOLDS " + Krl.MAX_LINKS + " LAUNCHERS AT MOST", KrlText.GREY), true);
             } else {
                 world.playSound(null, center, Krl.S_LINK, SoundCategory.BLOCKS, 1f, 1f);
-                player.sendMessage(Text.literal("Launcher linked (" + c.links().size() + "/" + Krl.MAX_LINKS + ").").formatted(Formatting.YELLOW), true);
+                player.sendMessage(KrlText.t("LAUNCHER LINKED  " + c.links().size() + "/" + Krl.MAX_LINKS, KrlText.AMBER), true);
             }
             return ActionResult.CONSUME;
         }

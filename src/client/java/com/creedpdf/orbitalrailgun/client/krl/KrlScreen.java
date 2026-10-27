@@ -2,6 +2,9 @@ package com.creedpdf.orbitalrailgun.client.krl;
 
 import com.creedpdf.orbitalrailgun.krl.Krl;
 import com.creedpdf.orbitalrailgun.krl.KrlFlight;
+import com.creedpdf.orbitalrailgun.krl.KrlLoadout;
+import com.creedpdf.orbitalrailgun.krl.KrlMap;
+import com.creedpdf.orbitalrailgun.krl.KrlText;
 import com.creedpdf.orbitalrailgun.krl.KrlNet;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -41,7 +44,7 @@ import java.util.Locale;
 public class KrlScreen extends Screen {
     // ------------------------------------------------------------------------------------------- the board
 
-    public record Link(BlockPos pos, int status, int countdown, int flight, long launchedAt) {}
+    public record Link(BlockPos pos, int status, int countdown, int flight, long launchedAt, KrlLoadout missile) {}
 
     public record Board(boolean open, BlockPos console, int facing, @Nullable BlockPos target, List<Link> links, long time) {
         public static Board read(PacketByteBuf b) {
@@ -51,7 +54,7 @@ public class KrlScreen extends Screen {
             BlockPos t = b.readBoolean() ? b.readBlockPos() : null;
             int n = b.readVarInt();
             List<Link> l = new ArrayList<>();
-            for (int i = 0; i < n; i++) l.add(new Link(b.readBlockPos(), b.readVarInt(), b.readVarInt() - 1, b.readInt(), b.readLong()));
+            for (int i = 0; i < n; i++) l.add(new Link(b.readBlockPos(), b.readVarInt(), b.readVarInt() - 1, b.readInt(), b.readLong(), KrlLoadout.read(b)));
             return new Board(open, c, facing, t, l, b.readLong());
         }
     }
@@ -95,7 +98,7 @@ public class KrlScreen extends Screen {
     private float armAnim;
     private double mapX, mapZ;
     private int zoom = 1;
-    private static final double[] ZOOMS = {2150, 1100, 560, 280, 140, 70};
+    private static final double[] ZOOMS = {3400, 1700, 850, 425, 212, 106, 53};
     private boolean dragging, dragMoved;
     private double dragX, dragY, dragMapX, dragMapZ;
     private int unlinkArm = -1;
@@ -165,6 +168,7 @@ public class KrlScreen extends Screen {
             ClientPlayNetworking.send(KrlNet.POLL, o);
         }
         armAnim = MathHelper.clamp(armAnim + (armed ? 0.2f : -0.2f), 0, 1);
+        if (ticks % 4 == 0) requestTiles();
         if (unlinkArm >= 0 && KrlClient.now() - unlinkAt > 50) unlinkArm = -1;
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.player != null && mc.player.squaredDistanceTo(Vec3d.ofCenter(board.console())) > (Krl.USE_RANGE + 2) * (Krl.USE_RANGE + 2)) close();
@@ -245,12 +249,22 @@ public class KrlScreen extends Screen {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(sc, sc, 1);
-        dc.drawText(tr, str, 0, 0, color, false);
+        dc.drawText(tr, KrlText.t(str), 0, 0, color, false);
         ms.pop();
     }
 
     private float tw(String str, float sc) {
-        return tr.getWidth(str) * sc;
+        return tr.getWidth(KrlText.t(str)) * sc;
+    }
+
+    /** A heading in the KRL's title face. */
+    private void head(String str, float x, float y, int color, float sc) {
+        var ms = dc.getMatrices();
+        ms.push();
+        ms.translate(x, y, 0);
+        ms.scale(sc, sc, 1);
+        dc.drawText(tr, KrlText.h(str), 0, 0, color, false);
+        ms.pop();
     }
 
     private void textR(String str, float x, float y, int color, float sc) {
@@ -262,7 +276,7 @@ public class KrlScreen extends Screen {
     }
 
     private void heading(String str, float x, float y) {
-        text(str, x, y, RED, 0.55f);
+        head(str, x, y - 1, RED, 0.58f);
     }
 
     private void line(float x0, float y0, float x1, float y1, float w, int c, float dash) {
@@ -396,9 +410,12 @@ public class KrlScreen extends Screen {
             BlockPos t = board.target();
             if (t != null) {
                 double d = Math.sqrt(Math.pow(t.getX() - lp.getX(), 2) + Math.pow(t.getZ() - lp.getZ(), 2));
-                boolean ok = d <= Krl.RANGE && d >= KrlNet.MIN_RANGE;
+                double rg = l.missile().range();
+                boolean ok = d <= rg && d >= KrlNet.MIN_RANGE;
                 text(String.format(Locale.ROOT, "RNG %,5.0f m", d), 17, y + 19.5f, ok ? GREY : RED, 0.46f);
-                text(ok ? "IN ENVELOPE" : d > Krl.RANGE ? "OUT OF RANGE" : "TOO CLOSE", 62, y + 19.5f, ok ? 0xFF35C06A : RED, 0.46f);
+                text(ok ? "IN ENVELOPE" : d > rg ? "OUT OF RANGE" : "TOO CLOSE", 62, y + 19.5f, ok ? 0xFF35C06A : RED, 0.46f);
+            } else if (st == KrlNet.L_READY || st == KrlNet.L_BURNING) {
+                text(l.missile().summary(), 17, y + 19.5f, GREY, 0.46f);
             }
             // unlink tab
             boolean uh = mx >= 110 && mx < 120 && my >= y + 1 && my < y + 10;
@@ -456,85 +473,194 @@ public class KrlScreen extends Screen {
 
     // ---- the map
 
+    private boolean detailZoom() {
+        return ZOOMS[zoom] <= 850;
+    }
+
+    /** Ask for the detail tiles under the view, one at a time. */
+    private void requestTiles() {
+        // a request the server let drop (out of reach) must not block the queue for ever
+        if (ticks % 160 == 0) KrlSurvey.ASKED.clear();
+        if (!detailZoom() || KrlSurvey.ASKED.size() > 1) return;
+        double half = ZOOMS[zoom] * 1.1;
+        int t0x = Math.floorDiv((int) Math.floor(mapX - half), KrlMap.TILE), t1x = Math.floorDiv((int) Math.floor(mapX + half), KrlMap.TILE);
+        int t0z = Math.floorDiv((int) Math.floor(mapZ - half), KrlMap.TILE), t1z = Math.floorDiv((int) Math.floor(mapZ + half), KrlMap.TILE);
+        int bx = Math.floorDiv((int) Math.floor(mapX), KrlMap.TILE), bz = Math.floorDiv((int) Math.floor(mapZ), KrlMap.TILE);
+        long best = 0;
+        double bd = Double.MAX_VALUE;
+        boolean found = false;
+        for (int tz = t0z; tz <= t1z; tz++)
+            for (int tx = t0x; tx <= t1x; tx++) {
+                long k = KrlSurvey.key(tx, tz);
+                if (KrlSurvey.tile(tx, tz) != null || KrlSurvey.ASKED.contains(k)) continue;
+                double d = (tx - bx) * (tx - bx) + (tz - bz) * (tz - bz);
+                if (d < bd) {
+                    bd = d;
+                    best = k;
+                    found = true;
+                }
+            }
+        if (!found) return;
+        int tx = (int) (best >> 32), tz = (int) best;
+        KrlSurvey.ASKED.add(best);
+        PacketByteBuf o = PacketByteBufs.create();
+        o.writeBlockPos(board.console());
+        o.writeInt(tx);
+        o.writeInt(tz);
+        ClientPlayNetworking.send(KrlNet.TILE, o);
+    }
+
+    private static final int[] GRIDS = {25, 50, 100, 250, 500, 1000};
+
     private void drawMap(float mx, float my, float time) {
         frame(MX0 - 2, MY0 - 2, MX1 + 2, MY1 + 2, 0xFF0B0D0C, EDGE);
         KrlSurvey s = KrlSurvey.get(board.console());
         boolean inMap = mx >= MX0 && mx < MX1 && my >= MY0 && my < MY1;
-        // clip to the map box using a nested scissor in real pixels
         int px0 = (int) Math.floor(ox + MX0 * this.s), py0 = (int) Math.floor(oy + MY0 * this.s);
         int px1 = (int) Math.ceil(ox + MX1 * this.s), py1 = (int) Math.ceil(oy + MY1 * this.s);
         dc.enableScissor(px0, py0, px1, py1);
         if (s != null) {
-            float ix0 = mapPx(s.x0), iy0 = mapPy(s.z0), ix1 = mapPx(s.x0 + s.n * s.cell), iy1 = mapPy(s.z0 + s.n * s.cell);
-            texQuad(s.texture(), ix0, iy0, ix1, iy1, 0, 0, 1, 1, 1f);
+            texQuad(s.texture(), mapPx(s.x0), mapPy(s.z0), mapPx(s.x0 + s.n * s.cell), mapPy(s.z0 + s.n * s.cell), 0, 0, 1, 1, 1f);
         } else {
             textC("SURVEYING TERRAIN . . .", (MX0 + MX1) / 2, (MY0 + MY1) / 2, RED_DIM, 0.7f);
         }
-        // range rings centred on the console
+        // detail tiles over the overview
+        int tiles = 0, missing = 0;
+        if (detailZoom()) {
+            double half = ZOOMS[zoom] * 1.1;
+            int t0x = Math.floorDiv((int) Math.floor(mapX - half), KrlMap.TILE), t1x = Math.floorDiv((int) Math.floor(mapX + half), KrlMap.TILE);
+            int t0z = Math.floorDiv((int) Math.floor(mapZ - half), KrlMap.TILE), t1z = Math.floorDiv((int) Math.floor(mapZ + half), KrlMap.TILE);
+            for (int tz = t0z; tz <= t1z; tz++)
+                for (int tx = t0x; tx <= t1x; tx++) {
+                    KrlSurvey t = KrlSurvey.tile(tx, tz);
+                    if (t == null) {
+                        missing++;
+                        continue;
+                    }
+                    tiles++;
+                    texQuad(t.texture(), mapPx(t.x0), mapPy(t.z0), mapPx(t.x0 + t.n * t.cell), mapPy(t.z0 + t.n * t.cell), 0, 0, 1, 1, 1f);
+                }
+        }
+        // a coordinate grid, labelled along the top and left edges
+        double span = ZOOMS[zoom] * 2;
+        int g = GRIDS[GRIDS.length - 1];
+        for (int c : GRIDS) {
+            if (span / c <= 9) {
+                g = c;
+                break;
+            }
+        }
+        double gx0 = Math.floor(worldX(MX0) / g) * g, gz0 = Math.floor(worldZ(MY0) / g) * g;
+        for (double gx = gx0; gx <= worldX(MX1); gx += g) {
+            float x = mapPx(gx);
+            boolean major = Math.floorMod((long) gx, (long) g * 5) == 0;
+            line(x, MY0, x, MY1, 0.3f, major ? 0x55FFFFFF : 0x2AFFFFFF, 0);
+            if (x > MX0 + 10 && x < MX1 - 14) text(String.format(Locale.ROOT, "%d", (long) gx), x + 1, MY0 + 11, 0xC8E8ECE4, 0.36f);
+        }
+        for (double gz = gz0; gz <= worldZ(MY1); gz += g) {
+            float y = mapPy(gz);
+            boolean major = Math.floorMod((long) gz, (long) g * 5) == 0;
+            line(MX0, y, MX1, y, 0.3f, major ? 0x55FFFFFF : 0x2AFFFFFF, 0);
+            if (y > MY0 + 16 && y < MY1 - 12) text(String.format(Locale.ROOT, "%d", (long) gz), MX0 + 1.5f, y + 0.8f, 0xC8E8ECE4, 0.36f);
+        }
         BlockPos c = board.console();
         float ccx = mapPx(c.getX() + 0.5), ccy = mapPy(c.getZ() + 0.5);
-        for (int ring = 500; ring <= 2000; ring += 500) {
-            float rr = (float) (ring / scaleMap());
-            circle(ccx, ccy, rr, 0.5f, ring == 2000 ? RED_DIM : 0x66FFB02E, 3);
+        // each selected rail's envelope (its missile's range) and the minimum arc
+        BlockPos t = board.target();
+        for (int i = 0; i < board.links().size(); i++) {
+            Link l = board.links().get(i);
+            if ((selected & (1 << i)) == 0) continue;
+            float lx = mapPx(l.pos().getX() + 0.5), ly = mapPy(l.pos().getZ() + 0.5);
+            circle(lx, ly, (float) (l.missile().range() / scaleMap()), 0.55f, 0xB0FFB02E, 4);
+            circle(lx, ly, (float) (KrlNet.MIN_RANGE / scaleMap()), 0.45f, 0x90FF5040, 2);
+            if (t != null) {
+                float tx = mapPx(t.getX() + 0.5), ty = mapPy(t.getZ() + 0.5);
+                line(lx, ly, tx, ty, 0.4f, 0xA0FFB02E, 2.5f);
+                double d = Math.hypot(t.getX() - l.pos().getX(), t.getZ() - l.pos().getZ());
+                String dl = String.format(Locale.ROOT, "%c %,.0f m", (char) ('A' + i), d);
+                float lmx = (lx + tx) / 2, lmy = (ly + ty) / 2;
+                fillf(lmx - 1, lmy - 1, lmx + tw(dl, 0.4f) + 1, lmy + 3.6f, 0xB0000000);
+                text(dl, lmx, lmy - 0.3f, d <= l.missile().range() ? 0xFFFFB02E : 0xFFFF5040, 0.4f);
+            }
         }
-        circle(ccx, ccy, (float) (KrlNet.MIN_RANGE / scaleMap()), 0.5f, AMBER, 2);
-        // grid north arrow + crosshair graticule
-        line(MX0, (MY0 + MY1) / 2, MX1, (MY0 + MY1) / 2, 0.3f, 0x33FFB02E, 4);
-        line((MX0 + MX1) / 2, MY0, (MX0 + MX1) / 2, MY1, 0.3f, 0x33FFB02E, 4);
         // console marker
         fillf(ccx - 1.4f, ccy - 1.4f, ccx + 1.4f, ccy + 1.4f, WHITE);
+        fillf(ccx - 0.8f, ccy - 0.8f, ccx + 0.8f, ccy + 0.8f, 0xFF101311);
         text("FC", ccx + 2.5f, ccy - 2, WHITE, 0.45f);
         // the linked rails
         for (int i = 0; i < board.links().size(); i++) {
             Link l = board.links().get(i);
             float lx = mapPx(l.pos().getX() + 0.5), ly = mapPy(l.pos().getZ() + 0.5);
             int col = (selected & (1 << i)) != 0 ? RED : GREY;
+            fillf(lx - 1.6f, ly - 1.6f, lx + 1.6f, ly + 1.6f, 0xFF000000);
             fillf(lx - 1.2f, ly - 1.2f, lx + 1.2f, ly + 1.2f, col);
-            line(lx - 2.5f, ly, lx + 2.5f, ly, 0.4f, col, 0);
-            line(lx, ly - 2.5f, lx, ly + 2.5f, 0.4f, col, 0);
             text(String.valueOf((char) ('A' + i)), lx + 2.5f, ly - 3, col, 0.42f);
         }
-        // live flights
+        // live flights: track and current position
         for (KrlClient.CFlight f : KrlClient.flights()) {
             if (!KrlClient.here(f)) continue;
-            double t = f.t(0);
-            if (t < 0 || t >= KrlFlight.TOTAL) continue;
-            Vec3d q = f.path.pos(t);
-            float fx = mapPx(q.x), fy = mapPy(q.z);
-            fillf(fx - 1f, fy - 1f, fx + 1f, fy + 1f, AMBER);
-            line(mapPx(f.launch.x), mapPy(f.launch.z), fx, fy, 0.4f, 0x88FFA22E, 2);
+            double ft = f.t(0);
+            if (ft < 0 || ft >= KrlFlight.TOTAL) continue;
+            float px = mapPx(f.launch.x), py = mapPy(f.launch.z);
+            for (int k = 1; k <= 24; k++) {
+                Vec3d q = f.path.pos(ft * k / 24);
+                float qx = mapPx(q.x), qy = mapPy(q.z);
+                line(px, py, qx, qy, 0.45f, 0xC0F0D060, 0);
+                px = qx;
+                py = qy;
+            }
+            float blink = ((int) (time / 4)) % 2 == 0 ? 1.4f : 1f;
+            fillf(px - blink, py - blink, px + blink, py + blink, 0xFFF0D060);
+            text(String.format(Locale.ROOT, "M%.1f", f.path.mach(ft)), px + 2.5f, py - 3, 0xFFF0D060, 0.38f);
         }
         // aim point
-        BlockPos t = board.target();
         if (t != null) {
             float tx = mapPx(t.getX() + 0.5), ty = mapPy(t.getZ() + 0.5);
             float pulse = 0.6f + 0.4f * MathHelper.sin(time * 0.3f);
             circle(tx, ty, 4 + pulse * 2, 0.6f, RED, 0);
-            line(tx - 6, ty, tx + 6, ty, 0.5f, RED, 0);
-            line(tx, ty - 6, tx, ty + 6, 0.5f, RED, 0);
-            fillf(tx - 0.8f, ty - 0.8f, tx + 0.8f, ty + 0.8f, WHITE);
+            line(tx - 7, ty, tx - 2.5f, ty, 0.5f, RED, 0);
+            line(tx + 2.5f, ty, tx + 7, ty, 0.5f, RED, 0);
+            line(tx, ty - 7, tx, ty - 2.5f, 0.5f, RED, 0);
+            line(tx, ty + 2.5f, tx, ty + 7, 0.5f, RED, 0);
+            fillf(tx - 0.6f, ty - 0.6f, tx + 0.6f, ty + 0.6f, WHITE);
+            text(String.format(Locale.ROOT, "AIM %d %d  EL %d", t.getX(), t.getZ(), t.getY()), tx + 5, ty + 3.5f, RED, 0.4f);
         }
+        // compass
+        float cpx = MX1 - 9, cpy = MY0 + 19;
+        circle(cpx, cpy, 5, 0.4f, 0xA0E8ECE4, 0);
+        line(cpx, cpy + 3.5f, cpx, cpy - 4.5f, 0.6f, 0xFFE8ECE4, 0);
+        textC("N", cpx, cpy - 9.5f, 0xFFE8ECE4, 0.42f);
         // the cursor's read-out
-        if (inMap && s != null) {
+        if (inMap) {
             double wx = worldX(mx), wz = worldZ(my);
-            double gy = s.covers(wx, wz) ? s.heightAt(wx, wz) : Double.NaN;
-            int kind = s.covers(wx, wz) ? s.kindAt(wx, wz) : -1;
+            KrlSurvey b = KrlSurvey.best(wx, wz);
+            double gy = b != null ? b.heightAt(wx, wz) : Double.NaN;
+            int kind = b != null ? b.kindAt(wx, wz) : -1;
             double d = Math.hypot(wx - c.getX(), wz - c.getZ());
-            String ln = String.format(Locale.ROOT, "X %,d  Z %,d", Math.round(wx), Math.round(wz));
-            String ln2 = String.format(Locale.ROOT, "EL %s  %s  RNG %,.0f m", Double.isNaN(gy) ? "--" : String.valueOf((int) gy),
-                    kind >= 0 ? KrlSurvey.kindName(kind) : "UNSURVEYED", d);
-            fillf(MX0, MY1 - 9, MX1, MY1, 0xC0000000);
-            text(ln, MX0 + 2, MY1 - 8, WHITE, 0.46f);
-            text(ln2, MX0 + 2, MY1 - 4, d <= Krl.RANGE ? GREY : RED, 0.46f);
+            String ln = String.format(Locale.ROOT, "X %,d   Z %,d   EL %s m", Math.round(wx), Math.round(wz), Double.isNaN(gy) ? "--" : String.valueOf((int) gy));
+            String ln2 = String.format(Locale.ROOT, "%s   RNG FROM FC %,.0f m   BRG %03.0f", kind >= 0 ? KrlSurvey.kindName(kind) : "UNSURVEYED", d,
+                    (Math.toDegrees(Math.atan2(wx - c.getX(), -(wz - c.getZ()))) + 360) % 360);
+            fillf(MX0, MY1 - 9.5f, MX1, MY1, 0xC8000000);
+            text(ln, MX0 + 2, MY1 - 8.5f, WHITE, 0.44f);
+            text(ln2, MX0 + 2, MY1 - 4.3f, GREY, 0.44f);
+            // crosshair on the cursor
+            line(mx - 3, my, mx + 3, my, 0.3f, 0xC0FFFFFF, 0);
+            line(mx, my - 3, mx, my + 3, 0.3f, 0xC0FFFFFF, 0);
         }
         dc.disableScissor();
-        // scale bar + zoom
+        // scale bar, zoom, detail status
         float barM = (float) (ZOOMS[zoom] / 4);
         float barPx = (float) (barM / scaleMap());
-        line(MX1 - barPx - 4, MY1 - 3, MX1 - 4, MY1 - 3, 0.6f, WHITE, 0);
-        textR(String.format(Locale.ROOT, "%,.0f m", barM), MX1 - 4, MY1 - 8, WHITE, 0.42f);
-        text(String.format(Locale.ROOT, "ZOOM x%.1f  [SCROLL]", ZOOMS[1] / ZOOMS[zoom]), MX0 + 2, MY0 + 1, GREY, 0.42f);
-        text("CLICK: MARK AIM POINT   DRAG: PAN", MX0 + 2, MY0 + 5.5f, 0xFF5E665F, 0.42f);
+        fillf(MX1 - barPx - 6, MY1 - 16, MX1 - 2, MY1 - 10, 0xB0000000);
+        line(MX1 - barPx - 4, MY1 - 11.5f, MX1 - 4, MY1 - 11.5f, 0.6f, WHITE, 0);
+        line(MX1 - barPx - 4, MY1 - 13, MX1 - barPx - 4, MY1 - 10.5f, 0.4f, WHITE, 0);
+        line(MX1 - 4, MY1 - 13, MX1 - 4, MY1 - 10.5f, 0.4f, WHITE, 0);
+        textR(String.format(Locale.ROOT, "%,.0f m", barM), MX1 - 4, MY1 - 15.6f, WHITE, 0.38f);
+        fillf(MX0, MY0, MX1, MY0 + 9.5f, 0xB0000000);
+        text(String.format(Locale.ROOT, "ZOOM x%.0f   GRID %d m   %s", ZOOMS[1] / ZOOMS[zoom], g,
+                detailZoom() ? (missing > 0 ? "DETAIL SURVEY " + tiles + "/" + (tiles + missing) : "DETAIL SURVEY COMPLETE") : "OVERVIEW"),
+                MX0 + 2, MY0 + 1, GREY, 0.42f);
+        text("CLICK: MARK AIM POINT   DRAG: PAN   SCROLL: ZOOM   RIGHT-CLICK: CLEAR", MX0 + 2, MY0 + 5.3f, 0xFF7E867E, 0.36f);
     }
 
     // ---- the firing solution
@@ -560,9 +686,10 @@ public class KrlScreen extends Screen {
         BlockPos lp = board.links().get(fi).pos();
         Vec3d target = Vec3d.ofCenter(t).add(0, 1, 0);
         Vec3d launch = KrlFlight.nozzleFor(Vec3d.ofBottomCenter(lp), target);
-        KrlFlight p = new KrlFlight(launch, target);
+        KrlLoadout ms = board.links().get(fi).missile();
+        KrlFlight p = new KrlFlight(launch, target, ms);
         double d = p.dist;
-        boolean ok = d <= Krl.RANGE && d >= KrlNet.MIN_RANGE;
+        boolean ok = d <= ms.range() && d >= KrlNet.MIN_RANGE;
         float y = 27;
         text("RAIL-" + (char) ('A' + fi) + "  ->  " + t.getX() + ", " + t.getY() + ", " + t.getZ(), 360, y, WHITE, 0.5f);
         y += 7;
@@ -570,7 +697,7 @@ public class KrlScreen extends Screen {
         drawProfile(358, y, 116, 34, p);
         y += 38;
         double apogeeKm = p.altitudeKm(KrlFlight.BOOST + 4);
-        double machMax = KrlFlight.MACH_MAX;
+        double machMax = p.machMax;
         double vImpact = machMax * KrlCine.speedOfSound(0.1);
         double flightSec = KrlFlight.TOTAL / 20.0;
         double stagK = KrlCine.stagnationK(machMax);
@@ -589,13 +716,17 @@ public class KrlScreen extends Screen {
         y += 5.6f;
         row(360, y, "ARRIVAL ENERGY", String.format(Locale.ROOT, "%,.0f MJ", energyMJ), AMBER);
         y += 5.6f;
+        row(360, y, "WARHEAD", KrlLoadout.WARHEADS[ms.warhead()] + (ms.warhead() == KrlLoadout.KINETIC ? "" : " +" + ms.charge()), AMBER);
+        y += 5.6f;
+        row(360, y, "YIELD", String.format(Locale.ROOT, "%.1f TNT-EQ  %s", ms.power() / 4f, KrlLoadout.MOTORS[ms.motor()]), GREY);
+        y += 5.6f;
         int kind = KrlSurvey.get(board.console()) != null && KrlSurvey.get(board.console()).covers(t.getX(), t.getZ())
                 ? KrlSurvey.get(board.console()).kindAt(t.getX(), t.getZ()) : -1;
         row(360, y, "SURFACE", kind >= 0 ? KrlSurvey.kindName(kind) : "UNSURVEYED", GREY);
         y += 5.6f;
         row(360, y, "BEARING", String.format(Locale.ROOT, "%03.0f deg", bearing(launch, target)), GREY);
         y += 8;
-        if (!ok) text(d > Krl.RANGE ? "! BEYOND 2000 m ENVELOPE" : "! INSIDE MINIMUM ARC", 360, y, RED, 0.5f);
+        if (!ok) text(d > ms.range() ? String.format(Locale.ROOT, "! BEYOND %,.0f m ENVELOPE", ms.range()) : "! INSIDE MINIMUM ARC", 360, y, RED, 0.5f);
         else text("SOLUTION VALID  -  READY TO ARM", 360, y, 0xFF35C06A, 0.5f);
     }
 
@@ -761,7 +892,7 @@ public class KrlScreen extends Screen {
             if (Math.abs(mouseX - dragX) + Math.abs(mouseY - dragY) > 3) dragMoved = true;
             mapX = dragMapX - (mouseX - dragX) / s * sc;
             mapZ = dragMapZ - (mouseY - dragY) / s * sc;
-            double lim = Krl.RANGE + 600;
+            double lim = KrlLoadout.MAX_RANGE + 600;
             mapX = MathHelper.clamp(mapX, board.console().getX() - lim, board.console().getX() + lim);
             mapZ = MathHelper.clamp(mapZ, board.console().getZ() - lim, board.console().getZ() + lim);
             return true;

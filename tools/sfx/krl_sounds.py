@@ -111,19 +111,29 @@ def krl_burn():
 
 
 def krl_boom():
-    """Liftoff with the sonic boom: the N-wave double crack, then rolling thunder off the landscape."""
-    out = B.canvas(7.0)
-    def crack(gain):
-        n = B.white(0.006) * B.decay(0.006, 0.0015)
-        body = B.osc(B.glide(90, 22, 0.6, 0.3), 0.6) * B.decay(0.6, 0.12)
-        return B.mix(B.filt(n, "highpass", 800) * 1.5, body) * gain
-    B.place(out, crack(1.0), 0.0)
-    B.place(out, crack(0.9), 0.11)
-    thunder = B.filt(B.brown(6.5), "lowpass", 220) * B.decay(6.5, 1.6, 0.05)
-    rumble = B.filt(B.white(6.5), "bandpass", [60, 500]) * B.decay(6.5, 1.1, 0.08) * 0.5
-    B.place(out, B.mix(thunder * 1.2, rumble), 0.05)
-    B.place(out, roar(5.0, 0.7) * B.decay(5.0, 1.8, 0.05), 0.0)
-    return B.room(B.mband_sat(out, (3.2, 2.0, 1.3)), 2.6, 0.35)
+    """The sonic boom at liftoff as you hear it on the ground: a sharp double BANG (the N-wave's two shocks), each a
+    broadband crack with a real mid-bass punch so it reads on any speakers, slapback echoes off the terrain and a
+    rolling thunder tail."""
+    out = B.canvas(6.5)
+
+    def bang(gain, dark=False):
+        snap = B.filt(B.white(0.006), "highpass", 1800) * B.decay(0.006, 0.0012) * 2.5
+        crack = B.filt(B.white(0.09), "bandpass", [250, 5200], 2) * B.decay(0.09, 0.014) * 2.4
+        body = B.filt(B.white(0.25), "bandpass", [90, 700], 2) * B.decay(0.25, 0.05) * 1.6
+        thump = B.osc(B.glide(150, 48, 0.4, 0.3), 0.4) * B.decay(0.4, 0.085) * 1.5
+        x = B.mix(snap, crack, body, thump) * gain
+        return B.filt(x, "lowpass", 1400) if dark else x
+
+    B.place(out, bang(1.0), 0.0)
+    B.place(out, bang(0.9), 0.085)
+    # slapback off the ground and the hills
+    B.place(out, bang(0.32, True), 0.42)
+    B.place(out, bang(0.2, True), 0.5)
+    B.place(out, bang(0.14, True), 1.05)
+    thunder = B.filt(B.brown(6.0), "lowpass", 380) * B.decay(6.0, 1.3, 0.04) * 0.9
+    rumble = B.filt(B.white(6.0), "bandpass", [70, 900], 2) * B.decay(6.0, 0.9, 0.04) * 0.45
+    B.place(out, B.mix(thunder, rumble), 0.06)
+    return B.room(B.mband_sat(out, (2.4, 2.2, 1.4)), 2.2, 0.28)
 
 
 def krl_climb():
@@ -203,7 +213,10 @@ DIST = {"krl_load": 24, "krl_link": 16, "krl_click": 12, "krl_arm": 16, "krl_sir
 def main():
     out = B.OUT
     out.mkdir(parents=True, exist_ok=True)
+    only = set(sys.argv[1:])
     for name, fn in SOUNDS.items():
+        if only and name not in only:
+            continue
         x = B.norm(fn(), 0.95)
         x = B.limit(x, 0.92)
         if name not in LOOPS:

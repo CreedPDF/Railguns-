@@ -1,13 +1,15 @@
 package com.creedpdf.orbitalrailgun.krl;
 
 import com.creedpdf.orbitalrailgun.RailgunMod;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.MapColor;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.registry.tag.BiomeTags;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.Heightmap;
 import net.minecraft.world.World;
 import net.minecraft.world.biome.Biome;
@@ -17,26 +19,36 @@ import net.minecraft.world.gen.chunk.ChunkGenerator;
 import net.minecraft.world.gen.noise.NoiseConfig;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The fire-control map: a terrain survey of the ground within range of a console - surface height and land type on a
- * grid of {@link #N} x {@link #N} cells of {@link #CELL} blocks, centred on the console. Chunks the server has loaded
- * are read directly; the rest of the 4 km square comes from the world generator (the same answer the terrain will
- * have when it generates), worked out off the server thread.
+ * The fire-control map. Two kinds of terrain survey, both grids of surface height, land type and (where the server has
+ * the chunk loaded) the real map colour of the top block:
+ * <ul>
+ *   <li>the overview: {@link #N} x {@link #N} cells of {@link #CELL} blocks centred on the console, out past the
+ *   longest missile range;</li>
+ *   <li>detail tiles: {@link #TN} x {@link #TN} cells of {@link #TCELL} blocks, a {@link #TILE}-block square each,
+ *   sent when the map is zoomed in.</li>
+ * </ul>
+ * Chunks the server has loaded are read directly (on the server thread); the rest comes from the world generator, worked
+ * out off the server thread.
  */
 public final class KrlMap {
     private KrlMap() {}
 
-    public static final int N = 168, CELL = 25;
+    public static final int N = 256, CELL = 26;
+    public static final int TN = 128, TCELL = 4, TILE = TN * TCELL;
     /** Land types. */
     public static final byte LAND = 0, OCEAN = 1, DEEP = 2, RIVER = 3, BEACH = 4, DESERT = 5, FOREST = 6, TAIGA = 7, JUNGLE = 8, SNOW = 9,
             MOUNTAIN = 10, SWAMP = 11, BADLANDS = 12, SAVANNA = 13, PLAINS = 14, CHERRY = 15, MUSHROOM = 16, NETHER = 17, END = 18;
 
-    public record Survey(int cx, int cz, short[] height, byte[] kind, long made) {}
+    /** A survey: origin (north-west corner), size, cell size, and per cell height, land type and RGB (0 = unknown). */
+    public record Survey(int x0, int z0, int n, int cell, short[] height, byte[] kind, int[] rgb, long made) {}
 
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "KRL terrain survey");
@@ -44,9 +56,11 @@ public final class KrlMap {
         t.setPriority(Thread.MIN_PRIORITY);
         return t;
     });
-    private record Key(RegistryKey<World> world, long pos) {}
+
+    private record Key(RegistryKey<World> world, long pos, boolean tile) {}
+
     private static final Map<Key, Survey> CACHE = new HashMap<>();
-    private static final Map<Key, Boolean> RUNNING = new HashMap<>();
+    private static final Map<Key, Set<UUID>> PENDING = new HashMap<>();
     private static final long FRESH = 20 * 60 * 5;
 
     /** The ground height (top solid surface) at x, z: the loaded chunk if there is one, else the generator's. */
@@ -61,55 +75,65 @@ public final class KrlMap {
         }
     }
 
-    /** Send the console's survey to the player, surveying first if it is missing or stale. */
+    /** The overview centred on a console. */
     public static void request(ServerPlayerEntity p, BlockPos console) {
+        int x0 = console.getX() - N * CELL / 2, z0 = console.getZ() - N * CELL / 2;
+        survey(p, new Key(p.getWorld().getRegistryKey(), console.asLong(), false), x0, z0, N, CELL, console, false);
+    }
+
+    /** One detail tile (tile coordinates: x0 = tx * TILE). */
+    public static void requestTile(ServerPlayerEntity p, BlockPos console, int tx, int tz) {
+        BlockPos key = new BlockPos(tx, 0, tz);
+        survey(p, new Key(p.getWorld().getRegistryKey(), key.asLong(), true), tx * TILE, tz * TILE, TN, TCELL, console, true);
+    }
+
+    private static void survey(ServerPlayerEntity p, Key k, int x0, int z0, int n, int cell, BlockPos console, boolean tile) {
         ServerWorld w = p.getServerWorld();
-        Key k = new Key(w.getRegistryKey(), console.asLong());
-        Survey s = CACHE.get(k);
         long now = w.getTime();
-        if (s != null && now - s.made < FRESH && now >= s.made) {
-            KrlNet.sendMap(p, console, s);
+        Survey s = CACHE.get(k);
+        if (s != null && now - s.made() < FRESH && now >= s.made()) {
+            KrlNet.sendMap(p, console, s, tile);
             return;
         }
-        UUID who = p.getUuid();
-        if (RUNNING.containsKey(k)) {
-            PENDING.computeIfAbsent(k, kk -> new java.util.HashSet<>()).add(who);
-            return;
-        }
-        RUNNING.put(k, true);
-        PENDING.computeIfAbsent(k, kk -> new java.util.HashSet<>()).add(who);
-        int cx = console.getX(), cz = console.getZ();
-        int x0 = cx - N * CELL / 2, z0 = cz - N * CELL / 2;
-        short[] h = new short[N * N];
-        byte[] kind = new byte[N * N];
-        boolean[] done = new boolean[N * N];
-        // loaded chunks first, on the server thread
-        for (int j = 0; j < N; j++)
-            for (int i = 0; i < N; i++) {
-                int x = x0 + i * CELL + CELL / 2, z = z0 + j * CELL + CELL / 2;
+        boolean running = PENDING.containsKey(k);
+        PENDING.computeIfAbsent(k, kk -> new HashSet<>()).add(p.getUuid());
+        if (running) return;
+        short[] h = new short[n * n];
+        byte[] kind = new byte[n * n];
+        int[] rgb = new int[n * n];
+        boolean[] done = new boolean[n * n];
+        // loaded chunks first, on the server thread: real heights and the real top block's map colour
+        BlockPos.Mutable bp = new BlockPos.Mutable();
+        for (int j = 0; j < n; j++)
+            for (int i = 0; i < n; i++) {
+                int x = x0 + i * cell + cell / 2, z = z0 + j * cell + cell / 2;
                 WorldChunk c = w.getChunkManager().getWorldChunk(x >> 4, z >> 4);
                 if (c == null) continue;
+                int idx = j * n + i;
                 int y = c.sampleHeightmap(Heightmap.Type.MOTION_BLOCKING_NO_LEAVES, x & 15, z & 15);
                 int ws = c.sampleHeightmap(Heightmap.Type.WORLD_SURFACE, x & 15, z & 15);
-                h[j * N + i] = (short) y;
-                byte kd = kind(w.getBiome(new BlockPos(x, y, z)));
-                if (!c.getFluidState(new BlockPos(x, ws - 1, z)).isEmpty() && kd != OCEAN && kd != DEEP && kd != RIVER && kd != SWAMP) kd = RIVER;
-                kind[j * N + i] = kd;
-                done[j * N + i] = true;
+                h[idx] = (short) y;
+                byte kd = kind(w.getBiome(bp.set(x, y, z)));
+                BlockState top = c.getBlockState(bp.set(x, ws - 1, z));
+                if (!c.getFluidState(bp).isEmpty() && kd != OCEAN && kd != DEEP && kd != RIVER && kd != SWAMP) kd = RIVER;
+                kind[idx] = kd;
+                MapColor mc = top.getMapColor(w, bp);
+                rgb[idx] = mc == MapColor.CLEAR ? 0 : (0xFF000000 | mc.color);
+                done[idx] = true;
             }
         ChunkGenerator g = w.getChunkManager().getChunkGenerator();
         NoiseConfig nc = w.getChunkManager().getNoiseConfig();
         var biomes = g.getBiomeSource();
         var sampler = nc.getMultiNoiseSampler();
         int sea = w.getSeaLevel();
-        net.minecraft.server.MinecraftServer server = w.getServer();
+        MinecraftServer server = w.getServer();
         POOL.execute(() -> {
             try {
-                for (int j = 0; j < N; j++)
-                    for (int i = 0; i < N; i++) {
-                        int idx = j * N + i;
+                for (int j = 0; j < n; j++)
+                    for (int i = 0; i < n; i++) {
+                        int idx = j * n + i;
                         if (done[idx]) continue;
-                        int x = x0 + i * CELL + CELL / 2, z = z0 + j * CELL + CELL / 2;
+                        int x = x0 + i * cell + cell / 2, z = z0 + j * cell + cell / 2;
                         int y;
                         try {
                             y = g.getHeight(x, z, Heightmap.Type.OCEAN_FLOOR_WG, w, nc);
@@ -122,21 +146,19 @@ public final class KrlMap {
             } catch (Throwable t) {
                 RailgunMod.LOGGER.warn("KRL: terrain survey failed", t);
             }
-            Survey s2 = new Survey(cx, cz, h, kind, now);
+            Survey s2 = new Survey(x0, z0, n, cell, h, kind, rgb, now);
             server.execute(() -> {
-                RUNNING.remove(k);
                 CACHE.put(k, s2);
-                var who2 = PENDING.remove(k);
-                if (who2 == null) return;
-                for (UUID u : who2) {
+                if (CACHE.size() > 256) CACHE.clear();
+                Set<UUID> who = PENDING.remove(k);
+                if (who == null) return;
+                for (UUID u : who) {
                     ServerPlayerEntity sp = server.getPlayerManager().getPlayer(u);
-                    if (sp != null && sp.getWorld().getRegistryKey() == k.world) KrlNet.sendMap(sp, console, s2);
+                    if (sp != null && sp.getWorld().getRegistryKey() == k.world()) KrlNet.sendMap(sp, console, s2, tile);
                 }
             });
         });
     }
-
-    private static final Map<Key, java.util.Set<UUID>> PENDING = new HashMap<>();
 
     static byte kind(RegistryEntry<Biome> b) {
         if (b.isIn(BiomeTags.IS_NETHER)) return NETHER;
@@ -163,12 +185,6 @@ public final class KrlMap {
 
     public static void clear() {
         CACHE.clear();
-        RUNNING.clear();
         PENDING.clear();
-    }
-
-    @SuppressWarnings("unused")
-    private static ChunkPos chunk(int x, int z) {
-        return new ChunkPos(x >> 4, z >> 4);
     }
 }

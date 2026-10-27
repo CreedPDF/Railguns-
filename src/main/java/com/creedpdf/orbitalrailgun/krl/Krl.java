@@ -32,6 +32,7 @@ public final class Krl {
     private Krl() {}
 
     // ---- rules
+    /** Standard motor range; boosted motors reach further (KrlLoadout.RANGE). */
     public static final double RANGE = 2000;
     public static final int MAX_LINKS = 5;
     /** From LAUNCH to liftoff: the turret slews to the target, then the motor lights and burns on the rail for FLAME ticks. */
@@ -57,10 +58,16 @@ public final class Krl {
             new KrlConsolePartBlock(AbstractBlock.Settings.create().mapColor(MapColor.BLACK).strength(4f, 600f).requiresTool().nonOpaque()
                     .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).dropsNothing().luminance(s -> 7)));
 
+    public static final KrlStationBlock STATION = Registry.register(Registries.BLOCK, RailgunMod.id("krl_station"),
+            new KrlStationBlock(AbstractBlock.Settings.create().mapColor(MapColor.GRAY).strength(4f, 600f).requiresTool().nonOpaque()
+                    .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).luminance(s -> 3)));
+
     public static final Item LAUNCHER_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_launcher"),
-            new BlockItem(LAUNCHER, new Item.Settings().rarity(Rarity.EPIC)));
+            new KrlBlockItem(LAUNCHER, new Item.Settings().rarity(Rarity.EPIC), "Load with a kinetic missile. Sneak-use empty-handed to pick it for linking."));
     public static final Item CONSOLE_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_console"),
-            new BlockItem(CONSOLE, new Item.Settings().rarity(Rarity.EPIC)));
+            new KrlBlockItem(CONSOLE, new Item.Settings().rarity(Rarity.EPIC), "3 blocks wide. Links up to 5 launchers and aims them on a terrain map."));
+    public static final Item STATION_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_station"),
+            new KrlBlockItem(STATION, new Item.Settings().rarity(Rarity.EPIC), "Use with a kinetic missile in hand to fit warheads, charges and motors."));
     public static final Item SPEAR = Registry.register(Registries.ITEM, RailgunMod.id("kinetic_spear"),
             new KineticSpearItem(new Item.Settings().maxCount(4).rarity(Rarity.EPIC).fireproof()));
 
@@ -68,6 +75,8 @@ public final class Krl {
             RailgunMod.id("krl_launcher"), FabricBlockEntityTypeBuilder.create(KrlLauncherBlockEntity::new, LAUNCHER).build());
     public static final BlockEntityType<KrlConsoleBlockEntity> CONSOLE_BE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
             RailgunMod.id("krl_console"), FabricBlockEntityTypeBuilder.create(KrlConsoleBlockEntity::new, CONSOLE).build());
+    public static final BlockEntityType<KrlStationBlockEntity> STATION_BE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
+            RailgunMod.id("krl_station"), FabricBlockEntityTypeBuilder.create(KrlStationBlockEntity::new, STATION).build());
 
     public static final RegistryKey<DamageType> PLASMA = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, RailgunMod.id("krl_plasma"));
 
@@ -99,5 +108,5 @@ public final class Krl {
     }
 
     @SuppressWarnings("unused")
-    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART};
+    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART, STATION};
 }

@@ -17,7 +17,7 @@ import java.util.Optional;
 public final class KrlModels {
     private KrlModels() {}
 
-    public static KrlMesh LAUNCHER, SPEAR, CONSOLE;
+    public static KrlMesh LAUNCHER, SPEAR, CONSOLE, STATION;
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -34,6 +34,7 @@ public final class KrlModels {
         return SPEAR_TEX[com.creedpdf.orbitalrailgun.krl.Krl.livery(livery)];
     }
     public static final Identifier CONSOLE_TEX = tex("console"), CONSOLE_GLOW = tex("console_glow");
+    public static final Identifier STATION_TEX = tex("station"), STATION_GLOW = tex("station_glow");
 
     private static Identifier tex(String n) {
         return RailgunMod.id("textures/krl/" + n + ".png");
@@ -51,6 +52,7 @@ public final class KrlModels {
                 LAUNCHER = load(rm, "launcher");
                 SPEAR = load(rm, "spear");
                 CONSOLE = load(rm, "console");
+                STATION = load(rm, "station");
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

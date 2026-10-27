@@ -29,7 +29,7 @@ public class KrlLauncherBlockEntity extends BlockEntity {
     /** The flight this launcher is counting down for (KrlServer), or -1. */
     private int flight = -1;
     /** The loaded missile's paint scheme. */
-    private int livery;
+    private KrlLoadout missile = KrlLoadout.DEFAULT;
 
     public KrlLauncherBlockEntity(BlockPos pos, BlockState state) {
         super(Krl.LAUNCHER_BE, pos, state);
@@ -56,7 +56,11 @@ public class KrlLauncherBlockEntity extends BlockEntity {
     }
 
     public int livery() {
-        return livery;
+        return missile.livery();
+    }
+
+    public KrlLoadout missile() {
+        return missile;
     }
 
     /** Ticks left before the spear leaves, or -1. */
@@ -67,13 +71,13 @@ public class KrlLauncherBlockEntity extends BlockEntity {
 
 
     public String statusLine() {
-        if (igniting()) return String.format(java.util.Locale.ROOT, "KRL-1: MOTOR BURNING - T-%.0fs", countdown() / 20.0);
-        return loaded ? "KRL-1: SPEAR ON RAIL - awaiting fire control" : "KRL-1: RAIL EMPTY - load a kinetic spear";
+        if (igniting()) return String.format(java.util.Locale.ROOT, "KRL-1  //  LAUNCH SEQUENCE  T-%.1f", countdown() / 20.0);
+        return loaded ? "KRL-1  //  " + missile.summary() + "  //  AWAITING FIRE CONTROL" : "KRL-1  //  RAIL EMPTY  //  LOAD A KINETIC MISSILE";
     }
 
-    public void load(int livery) {
+    public void load(KrlLoadout missile) {
         loaded = true;
-        this.livery = Krl.livery(livery);
+        this.missile = missile;
         sync();
     }
 
@@ -134,7 +138,7 @@ public class KrlLauncherBlockEntity extends BlockEntity {
         nbt.putLong("ignited", ignitedAt);
         nbt.putLong("launched", launchedAt);
         nbt.putInt("flight", flight);
-        nbt.putInt("livery", livery);
+        nbt.put("missile", missile.toNbt());
     }
 
     @Override
@@ -144,7 +148,7 @@ public class KrlLauncherBlockEntity extends BlockEntity {
         ignitedAt = nbt.contains("ignited") ? nbt.getLong("ignited") : -1;
         launchedAt = nbt.contains("launched") ? nbt.getLong("launched") : -1;
         flight = nbt.contains("flight") ? nbt.getInt("flight") : -1;
-        livery = Krl.livery(nbt.getInt("livery"));
+        missile = nbt.contains("missile") ? KrlLoadout.fromNbt(nbt.getCompound("missile")) : new KrlLoadout(0, 0, 0, nbt.getInt("livery"));
     }
 
     @Override

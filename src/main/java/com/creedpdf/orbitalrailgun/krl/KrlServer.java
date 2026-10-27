@@ -45,21 +45,21 @@ public final class KrlServer {
         public final UUID owner;
         @Nullable
         UUID rider;
-        public final int livery;
+        public final KrlLoadout missile;
         Vec3d launch, target;
         KrlFlight path;
         boolean lifted, mountTried;
 
-        Flight(int id, RegistryKey<World> world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID owner, int livery) {
+        Flight(int id, RegistryKey<World> world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID owner, KrlLoadout missile) {
             this.id = id;
-            this.livery = livery;
+            this.missile = missile;
             this.world = world;
             this.pad = pad;
             this.launch = launch;
             this.target = target;
             this.liftoff = liftoff;
             this.owner = owner;
-            this.path = new KrlFlight(launch, target);
+            this.path = new KrlFlight(launch, target, missile);
         }
 
         public Vec3d target() {
@@ -124,7 +124,7 @@ public final class KrlServer {
         Vec3d tgt = Vec3d.ofBottomCenter(target).add(0, 1, 0);
         Vec3d launch = KrlFlight.nozzleFor(Vec3d.ofBottomCenter(be.getPos()), tgt);
         Flight f = new Flight(nextId++, w.getRegistryKey(), be.getPos().toImmutable(), launch, tgt, w.getTime() + Krl.COUNTDOWN, by.getUuid(),
-                be.livery());
+                be.missile());
         if (ride && !RIDES.containsKey(by.getUuid()) && !anyRide(by.getUuid())) f.rider = by.getUuid();
         FLIGHTS.put(f.id, f);
         be.ignited(f.id);
@@ -188,7 +188,8 @@ public final class KrlServer {
             if (t == 0) liftoff(w, f);
             if (t == KrlFlight.BOOST + 4) w.playSound(null, f.path.apex.x, f.path.apex.y, f.path.apex.z, Krl.S_STALL, SoundCategory.BLOCKS, 12f, 1f);
             if (t == KrlFlight.TOTAL - 80) w.playSound(null, f.target.x, f.target.y + 20, f.target.z, Krl.S_INCOMING, SoundCategory.BLOCKS, 40f, 1f);
-            if (t == KrlFlight.TOTAL) KrlImpact.explode(w, f.target, f.owner);
+            if (t == KrlFlight.TOTAL) KrlImpact.explode(w, f.target, f.owner, f.missile);
+            if (t > KrlFlight.TOTAL && t <= KrlFlight.TOTAL + KrlImpact.FOLLOW) KrlImpact.follow(w, f.target, f.owner, f.missile, (int) (t - KrlFlight.TOTAL), f.id);
             if (t >= KrlFlight.TOTAL + KrlFlight.AFTER) done.add(f);
         }
         for (Flight f : done) {
@@ -205,7 +206,7 @@ public final class KrlServer {
         Vec3d t = new Vec3d(x + 0.5, y + 1, z + 0.5);
         if (Math.abs(t.y - f.target.y) < 0.5) return;
         f.target = t;
-        f.path = new KrlFlight(f.launch, f.target);
+        f.path = new KrlFlight(f.launch, f.target, f.missile);
         KrlNet.sendFlight(w, f);
     }
 
@@ -213,7 +214,6 @@ public final class KrlServer {
         f.lifted = true;
         if (w.getBlockEntity(f.pad) instanceof KrlLauncherBlockEntity be) be.lifted();
         Vec3d at = f.launch;
-        w.playSound(null, at.x, at.y + 2, at.z, Krl.S_BOOM, SoundCategory.BLOCKS, 32f, 1f);
         w.playSound(null, at.x, at.y + 2, at.z, Krl.S_CLIMB, SoundCategory.BLOCKS, 16f, 1f);
         // the sonic boom and the exhaust shove everything near the pad away
         for (LivingEntity e : w.getEntitiesByClass(LivingEntity.class, new Box(BlockPos.ofFloored(at)).expand(12), LivingEntity::isAlive)) {

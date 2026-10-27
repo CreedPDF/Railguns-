@@ -299,16 +299,16 @@ public final class KrlCine {
         // captions
         caption(dc, tr, W, H, t, KrlFlight.ORBIT + 8, 60,
                 String.format(Locale.ROOT, "APOGEE  %.1f km  -  STRATOSPHERE", p.altitudeKm(KrlFlight.BOOST + 4)), RED);
-        caption(dc, tr, W, H, t, KrlFlight.FALL_RIDE + 6, 50, "TERMINAL DIVE  -  MACH 13", RED);
+        caption(dc, tr, W, H, t, KrlFlight.FALL_RIDE + 6, 50, String.format(Locale.ROOT, "TERMINAL DIVE  -  MACH %.0f", p.machMax), RED);
         caption(dc, tr, W, H, t, KrlFlight.GROUND + 4, 60, String.format(Locale.ROOT, "IMPACT POINT  %d, %d", (int) Math.floor(f.target.x),
                 (int) Math.floor(f.target.z)), WHITE);
         if (t < -KrlFlight.PAD_LEAD + 80) {
             float a = (float) MathHelper.clamp(1 - (t + KrlFlight.PAD_LEAD - 50) / 30, 0, 1);
             String s = "[" + mc.options.sneakKey.getBoundKeyLocalizedText().getString().toUpperCase(Locale.ROOT) + "] LEAVE THE RIDE";
             ms.push();
-            ms.translate(W - 10 - tr.getWidth(s) * 0.75f, bar + 8, 0);
+            ms.translate(W - 10 - tr.getWidth(com.creedpdf.orbitalrailgun.krl.KrlText.t(s)) * 0.75f, bar + 8, 0);
             ms.scale(0.75f, 0.75f, 1);
-            dc.drawText(tr, s, 0, 0, ((int) (a * 255) << 24) | 0xC0C0C0, false);
+            dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.t(s), 0, 0, ((int) (a * 255) << 24) | 0xC0C0C0, false);
             ms.pop();
         }
     }
@@ -318,7 +318,7 @@ public final class KrlCine {
         ms.push();
         ms.translate(x, y, 0);
         ms.scale(scale, scale, 1);
-        dc.drawText(tr, s, 0, 0, color, true);
+        dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.t(s), 0, 0, color, true);
         ms.pop();
     }
 
@@ -328,9 +328,9 @@ public final class KrlCine {
         float a = (float) Math.min(1, Math.min(k * 6, (1 - k) * 4));
         var ms = dc.getMatrices();
         ms.push();
-        ms.translate(W / 2f - tr.getWidth(s) * 0.75f, H * 0.2f, 0);
+        ms.translate(W / 2f - tr.getWidth(com.creedpdf.orbitalrailgun.krl.KrlText.h(s)) * 0.75f, H * 0.2f, 0);
         ms.scale(1.5f, 1.5f, 1);
-        dc.drawText(tr, s, 0, 0, ((int) (MathHelper.clamp(a, 0, 1) * 255) << 24) | (color & 0xFFFFFF), true);
+        dc.drawText(tr, com.creedpdf.orbitalrailgun.krl.KrlText.h(s), 0, 0, ((int) (MathHelper.clamp(a, 0, 1) * 255) << 24) | (color & 0xFFFFFF), true);
         ms.pop();
     }
 

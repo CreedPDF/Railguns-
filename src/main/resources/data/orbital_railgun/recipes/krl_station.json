@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "CTC",
+    "III",
+    "I I"
+  ],
+  "key": {
+    "C": {
+      "item": "minecraft:chain"
+    },
+    "T": {
+      "item": "minecraft:smithing_table"
+    },
+    "I": {
+      "item": "minecraft:iron_ingot"
+    }
+  },
+  "result": {
+    "item": "orbital_railgun:krl_station"
+  }
+}
