@@ -3,7 +3,9 @@
 Sounds for the KRL (Kinetic Rail Launcher), synthesised from scratch with the DSP toolkit in build_sounds.py and
 merged into sounds.json under "krl.*" (build_sounds.py keeps those entries when it rewrites the file).
 
-  krl_load       the spear dropped into the clamps: a heavy slide, three hydraulic clamp bites, a lock
+  krl_load       loading the rail: loader motor, the body scraping up the rail and seating, two clamp locks, vent
+  krl_mag        a round sliding into a magazine canister
+  krl_refit      the integration bench: pneumatic wrench, torque click, panel seat
   krl_link       console handshake: two-tone data chirp with relay clicks
   krl_click      a heavy console switch
   krl_arm        arming: key turn, cover flip, a rising servo and a two-note warning tone
@@ -36,16 +38,116 @@ def bandnoise(dur, lo, hi, order=2):
     return B.filt(B.white(dur), "bandpass", [lo, hi], order)
 
 
+# ---- modal / physical pieces for the loading sounds (built here from scratch, not from the shared kit)
+
+def modal(dur, freqs, decays, amps, strike=0.002, jitter=0.0):
+    """A struck object: inharmonic partials, each with its own decay, excited by a short noise strike."""
+    t = B.t_axis(dur)
+    x = np.zeros_like(t)
+    for f, d, a in zip(freqs, decays, amps):
+        f2 = f * (1 + jitter * (rng.random() - 0.5))
+        x += a * np.sin(2 * np.pi * f2 * t + rng.random() * 6.28) * np.exp(-t / d)
+    n = int(strike * SR)
+    hit = rng.standard_normal(n) * np.linspace(1, 0, n) ** 2
+    x[:n] += hit * 0.6
+    return x
+
+
+def scrape(dur, lo, hi, rate=38.0, depth=0.7):
+    """Steel sliding on steel: band noise chopped by stick-slip pulses at an irregular rate."""
+    t = B.t_axis(dur)
+    n = bandnoise(dur, lo, hi, 2)
+    phase = np.cumsum(rate * (1 + 0.35 * np.sin(2 * np.pi * 1.7 * t) + 0.25 * rng.standard_normal(len(t)) * 0.05)) / SR
+    stick = 0.5 + 0.5 * np.sign(np.sin(2 * np.pi * phase))
+    stick = B.filt(stick, "lowpass", 400, 1)
+    return n * (1 - depth + depth * stick)
+
+
+def motor(dur, f0, f1, mesh=13, amp=1.0):
+    """An electric gear motor spinning up or down: a hum, its gear-mesh whine and brush noise."""
+    t = B.t_axis(dur)
+    f = f0 + (f1 - f0) * np.clip(t / dur, 0, 1) ** 0.6
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    x = 0.5 * np.sin(ph) + 0.25 * np.sin(2 * ph) + 0.18 * np.sin(mesh * ph) + 0.08 * np.sin(mesh * 2 * ph + 1)
+    x += bandnoise(dur, 2500, 7000, 2) * 0.08
+    return x * amp
+
+
+def hiss(dur, lo, hi, attack=0.01, tau=0.25):
+    t = B.t_axis(dur)
+    e = np.minimum(1, t / attack) * np.exp(-t / tau)
+    return bandnoise(dur, lo, hi, 2) * e
+
+
+def tube(x, f0, fb=0.82):
+    """Colour a sound with a hollow tube's resonances (a feedback comb)."""
+    d = max(1, int(SR / f0))
+    y = np.copy(x)
+    for i in range(d, len(y)):
+        y[i] += fb * y[i - d]
+    return y * (1 - fb)
+
+
+def place_env(out, x, at, fade_in=0.02, fade_out=0.05):
+    n = len(x)
+    e = np.ones(n)
+    a, b = int(fade_in * SR), int(fade_out * SR)
+    if a > 0:
+        e[:a] = np.linspace(0, 1, a)
+    if b > 0:
+        e[-b:] *= np.linspace(1, 0, b)
+    B.place(out, x * e, at)
+
+
 def krl_load():
-    out = B.canvas(2.2)
-    slide = B.filt(B.white(0.8), "bandpass", [300, 1800]) * B.env(0.8, 0.05, 0.2, 0.6, 0.3) * 0.5
-    B.place(out, B.mix(slide, B.metal(140, 0.8, 0.3) * 0.15), 0.0)
-    for k, at in enumerate((0.75, 1.0, 1.25)):
-        B.place(out, B.hydraulic(0.25, 2600 + k * 300, 0.6), at - 0.12)
-        B.place(out, B.clank(1.0, 150 + k * 25, 0.3), at)
-    B.place(out, B.latch(1.0, 380), 1.6)
-    B.place(out, B.kick(90, 40, 0.5, 0.15, 0.3) * 0.6, 0.75)
-    return B.room(out, 0.9, 0.25)
+    """Loading the launch rail: the loader arm's motor winds up, the missile body scrapes up the rail and seats with a
+    heavy hollow thud, two clamp servos close with sharp locks, and the rail vents air."""
+    out = B.canvas(2.9)
+    place_env(out, motor(1.25, 70, 165, 11, 0.32), 0.0, 0.08, 0.25)
+    place_env(out, scrape(1.05, 700, 3200, 31, 0.75) * 0.45, 0.25, 0.1, 0.12)
+    place_env(out, B.filt(scrape(1.05, 120, 500, 17, 0.5), "lowpass", 600) * 0.6, 0.25, 0.1, 0.12)
+    # the 7 m body seating: low tube modes and the rail's ring
+    body = modal(1.4, [58, 141, 236, 377, 612], [0.42, 0.3, 0.2, 0.12, 0.07], [1.0, 0.6, 0.35, 0.25, 0.12], 0.004, 0.02)
+    B.place(out, body * 0.95, 1.3)
+    ring = modal(1.1, [1180, 2870, 4410], [0.35, 0.22, 0.12], [0.25, 0.18, 0.1], 0.001)
+    B.place(out, ring * 0.35, 1.31)
+    for k, at in enumerate((1.68, 1.9)):
+        place_env(out, motor(0.16, 260 + 40 * k, 520 + 40 * k, 7, 0.25), at - 0.16, 0.01, 0.03)
+        lock = modal(0.35, [1850 + 140 * k, 3120, 5240, 7600], [0.09, 0.06, 0.04, 0.02], [0.8, 0.5, 0.35, 0.2], 0.0008, 0.05)
+        B.place(out, lock * 0.75, at)
+        B.place(out, modal(0.3, [210 + 30 * k, 520], [0.08, 0.05], [0.6, 0.3], 0.002) * 0.6, at)
+    B.place(out, hiss(0.75, 1800, 9000, 0.005, 0.22) * 0.35, 2.05)
+    for k in range(5):
+        B.place(out, modal(0.06, [3400 + 400 * k], [0.012], [0.25], 0.0005), 2.25 + k * 0.09 + rng.random() * 0.03)
+    return B.room(out, 0.7, 0.18)
+
+
+def krl_mag():
+    """A round sliding into a magazine canister: a hollow rushing slide, a soft-capped thunk, a detent and a status tick."""
+    out = B.canvas(1.4)
+    sl = tube(bandnoise(0.5, 300, 4000, 2), 260, 0.75) * np.linspace(0.3, 1, int(0.5 * SR)) * 0.8
+    place_env(out, sl, 0.0, 0.03, 0.04)
+    B.place(out, modal(0.7, [92, 233, 410, 690], [0.22, 0.15, 0.09, 0.05], [1.0, 0.5, 0.3, 0.15], 0.003) * 0.9, 0.5)
+    B.place(out, B.filt(modal(0.25, [160], [0.05], [1.0], 0.006), "lowpass", 800) * 0.5, 0.505)
+    B.place(out, modal(0.15, [2650, 4100, 6200], [0.035, 0.025, 0.015], [0.6, 0.4, 0.2], 0.0006) * 0.6, 0.66)
+    B.place(out, modal(0.15, [2900, 4450], [0.03, 0.02], [0.5, 0.3], 0.0006) * 0.5, 0.71)
+    t = B.t_axis(0.07)
+    B.place(out, np.sin(2 * np.pi * 1975 * t) * np.exp(-t / 0.02) * 0.12, 0.92)
+    return B.room(out, 0.45, 0.14)
+
+
+def krl_refit():
+    """Refit at the integration bench: a pneumatic wrench runs down three fasteners, then a torque click and a panel seat."""
+    out = B.canvas(2.0)
+    for k in range(3):
+        at = 0.05 + k * 0.42
+        place_env(out, motor(0.26, 900, 1300, 5, 0.22), at, 0.005, 0.04)
+        place_env(out, hiss(0.26, 2500, 9000, 0.004, 0.3) * 0.25, at, 0.005, 0.04)
+        for j in range(4):
+            B.place(out, modal(0.04, [2300 + 180 * j], [0.008], [0.3], 0.0004), at + 0.04 + j * 0.05)
+    B.place(out, modal(0.2, [3300, 5100], [0.04, 0.025], [0.7, 0.4], 0.0006) * 0.6, 1.4)
+    B.place(out, modal(0.6, [180, 470, 980], [0.14, 0.08, 0.05], [0.9, 0.4, 0.2], 0.003) * 0.7, 1.55)
+    return B.room(out, 0.5, 0.15)
 
 
 def krl_link():
@@ -201,12 +303,12 @@ def krl_impact():
 
 
 SOUNDS = {
-    "krl_load": krl_load, "krl_link": krl_link, "krl_click": krl_click, "krl_arm": krl_arm, "krl_siren": krl_siren,
+    "krl_load": krl_load, "krl_mag": krl_mag, "krl_refit": krl_refit, "krl_link": krl_link, "krl_click": krl_click, "krl_arm": krl_arm, "krl_siren": krl_siren,
     "krl_ignite": krl_ignite, "krl_burn": krl_burn, "krl_boom": krl_boom, "krl_climb": krl_climb, "krl_stall": krl_stall,
     "krl_wind": krl_wind, "krl_plasma": krl_plasma, "krl_incoming": krl_incoming, "krl_impact": krl_impact,
 }
 LOOPS = {"krl_siren", "krl_burn", "krl_wind", "krl_plasma"}
-DIST = {"krl_load": 24, "krl_link": 16, "krl_click": 12, "krl_arm": 16, "krl_siren": 96, "krl_ignite": 160, "krl_burn": 160,
+DIST = {"krl_load": 24, "krl_mag": 16, "krl_refit": 16, "krl_link": 16, "krl_click": 12, "krl_arm": 16, "krl_siren": 96, "krl_ignite": 160, "krl_burn": 160,
         "krl_boom": 512, "krl_climb": 256, "krl_stall": 64, "krl_wind": 48, "krl_plasma": 48, "krl_incoming": 256, "krl_impact": 640}
 
 

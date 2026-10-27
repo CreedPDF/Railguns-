@@ -312,7 +312,7 @@ public final class KrlNet {
         } else {
             want.applyTo(stack);
         }
-        w.playSound(null, at, Krl.S_LOAD, SoundCategory.BLOCKS, 1f, 1.1f);
+        w.playSound(null, at, Krl.S_REFIT, SoundCategory.BLOCKS, 1f, 1f);
         p.sendMessage(KrlText.t("REFIT COMPLETE  //  " + want.summary(), KrlText.GREEN), true);
     }
 

@@ -20,17 +20,17 @@ public final class MeteorShower {
 
     /** Ticks after detonation before the first pieces arrive. */
     public static final int ARRIVE = 240;
-    /** How long the shower lasts (~5 minutes). */
-    public static final int DURATION = 6000;
+    /** How long the shower lasts (~90 seconds). */
+    public static final int DURATION = 1800;
 
     public static void tick(MinecraftServer server, Body b, long e) {
         long since = e - Blast.DETONATE - ARRIVE;
         if (since < 0 || since > DURATION) return;
         ServerWorld w = server.getOverworld();
         float f = since / (float) DURATION;
-        // about one piece every 2 s per player at first, thinning to one every ~10 s: each impact is
+        // about one piece every 2 s per player at first, thinning out over the minute and a half: each impact is
         // a real explosion, so the sky streaks (client-only, free for the server) carry the spectacle
-        float rate = (0.012f + 0.028f * (float) Math.exp(-since / 1200f)) * (1f - f * 0.6f);
+        float rate = (0.012f + 0.028f * (float) Math.exp(-since / 500f)) * (1f - f * 0.8f);
         if (b.gasGiant()) rate *= 1.3f;
         Random r = w.random;
         for (ServerPlayerEntity p : w.getPlayers()) {

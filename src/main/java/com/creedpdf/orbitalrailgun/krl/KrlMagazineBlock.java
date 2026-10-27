@@ -105,7 +105,7 @@ public class KrlMagazineBlock extends BlockWithEntity {
                 return ActionResult.CONSUME;
             }
             if (!player.getAbilities().creativeMode) held.decrement(moved);
-            world.playSound(null, pos, Krl.S_LOAD, SoundCategory.BLOCKS, 0.9f, 1.15f);
+            world.playSound(null, pos, Krl.S_MAG, SoundCategory.BLOCKS, 1f, 0.95f + world.random.nextFloat() * 0.1f);
             player.sendMessage(KrlText.t("INTERCEPTORS LOADED  " + m.rounds() + "/" + Krl.MAG_CAP, KrlText.AMBER), true);
             return ActionResult.CONSUME;
         }

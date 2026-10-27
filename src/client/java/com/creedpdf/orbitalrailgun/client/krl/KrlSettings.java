@@ -33,7 +33,7 @@ public final class KrlSettings {
         p.setProperty("cutscene", Boolean.toString(ride));
         p.setProperty("shake", Float.toString(shake));
         try (var out = Files.newOutputStream(FILE)) {
-            p.store(out, "Railguns+ KRL fire control");
+            p.store(out, "Deluxs Armory KRL fire control");
         } catch (IOException ignored) {
         }
     }

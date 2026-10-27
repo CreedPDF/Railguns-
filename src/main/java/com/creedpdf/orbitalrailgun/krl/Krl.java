@@ -99,7 +99,7 @@ public final class Krl {
     public static final SoundEvent S_LOAD = sound("krl.load"), S_LINK = sound("krl.link"), S_CLICK = sound("krl.click"), S_ARM = sound("krl.arm"),
             S_SIREN = sound("krl.siren"), S_IGNITE = sound("krl.ignite"), S_BURN = sound("krl.burn"), S_BOOM = sound("krl.boom"),
             S_CLIMB = sound("krl.climb"), S_STALL = sound("krl.stall"), S_WIND = sound("krl.wind"), S_PLASMA = sound("krl.plasma"),
-            S_INCOMING = sound("krl.incoming"), S_IMPACT = sound("krl.impact");
+            S_INCOMING = sound("krl.incoming"), S_IMPACT = sound("krl.impact"), S_MAG = sound("krl.mag"), S_REFIT = sound("krl.refit");
 
     private static SoundEvent sound(String name) {
         Identifier id = RailgunMod.id(name);

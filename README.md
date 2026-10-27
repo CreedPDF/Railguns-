@@ -1,4 +1,4 @@
-# Railguns+ (Fabric 1.20.1)
+# Deluxs Armory (Fabric 1.20.1)
 
 *(mod id `orbital_railgun`, kept so existing worlds and items carry over)*
 
@@ -236,7 +236,7 @@ Everything works **remotely, at any distance**: lock coordinates and fire ARES-9
 rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pick a planet and
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
-All the mod's items are in their own **Railguns+** creative tab.
+All the mod's items are in their own **Deluxs Armory** creative tab.
 
 ## Graphics settings
 Everything the mod draws itself (planets, sky, explosions, debris, flames, beams) follows an

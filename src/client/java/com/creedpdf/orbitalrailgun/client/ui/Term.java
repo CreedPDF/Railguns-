@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Railguns+ terminal kit: the look of a classified command terminal. Near-black glass, hairline
+ * Deluxs Armory terminal kit: the look of a classified command terminal. Near-black glass, hairline
  * rules, small monochrome text, red accents, file-tree navigation and bracketed text commands
  * instead of big buttons. Everything is fills + the vanilla font, so it scales with the canvas.
  */
@@ -117,14 +117,14 @@ public final class Term {
     /** Top classification strip and a path / status line under it. Returns the y below it. */
     public static int header(DrawContext ctx, TextRenderer tr, int w, String path, String status, int statusColor, float time) {
         ctx.fill(0, 0, w, 9, 0xFF140504);
-        String cls = "CLASSIFIED // RAILGUNS+ ORBITAL COMMAND // EYES ONLY";
+        String cls = "CLASSIFIED // DELUXS ARMORY ORBITAL COMMAND // EYES ONLY";
         float cw = width(tr, cls, 0.6f);
         text(ctx, tr, cls, (w - cw) / 2f, 2, RED, 0.6f);
         hline(ctx, 0, w, 9, RED_DIM);
         // prompt
         boolean caret = ((int) (time / 8)) % 2 == 0;
-        text(ctx, tr, "root@railguns+", 4, 13, RED, 0.75f);
-        float pw = width(tr, "root@railguns+", 0.75f);
+        text(ctx, tr, "root@deluxs-armory", 4, 13, RED, 0.75f);
+        float pw = width(tr, "root@deluxs-armory", 0.75f);
         text(ctx, tr, ":" + path + "$" + (caret ? "_" : ""), 4 + pw, 13, TEXT, 0.75f);
         float sw = width(tr, status, 0.75f);
         text(ctx, tr, status, w - sw - 4, 13, statusColor, 0.75f);

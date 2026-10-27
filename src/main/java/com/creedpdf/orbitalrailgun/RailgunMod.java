@@ -159,8 +159,8 @@ public final class RailgunMod implements ModInitializer {
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
 
-        // Railguns+ has its own creative tab with everything in it. (The mod's only block is the
-        // invisible collision shell of a deployed railgun / parked ship, which has no item.)
+        // Deluxs Armory has two creative tabs: Railguns (the orbital weapons, the ship, the EVA suit) and
+        // Military (the KRL launcher system).
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
@@ -172,6 +172,12 @@ public final class RailgunMod implements ModInitializer {
                     entries.add(EVA_CHESTPLATE);
                     entries.add(EVA_LEGGINGS);
                     entries.add(EVA_BOOTS);
+                })
+                .build());
+        Registry.register(Registries.ITEM_GROUP, id("military"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
+                .icon(() -> new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.krl.Krl.SPEAR))
+                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.military"))
+                .entries((context, entries) -> {
                     entries.add(com.creedpdf.orbitalrailgun.krl.Krl.LAUNCHER_ITEM);
                     entries.add(com.creedpdf.orbitalrailgun.krl.Krl.CONSOLE_ITEM);
                     entries.add(com.creedpdf.orbitalrailgun.krl.Krl.STATION_ITEM);
@@ -199,7 +205,7 @@ public final class RailgunMod implements ModInitializer {
         net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
                 !(source.isOf(net.minecraft.entity.damage.DamageTypes.FALL) && com.creedpdf.orbitalrailgun.space.EvaSuit.boots(entity)));
 
-        LOGGER.info("Railguns+ online. Uplink established.");
+        LOGGER.info("Deluxs Armory online. Uplink established.");
     }
 
     public static Identifier id(String path) {

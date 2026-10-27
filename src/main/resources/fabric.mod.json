@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "orbital_railgun",
   "version": "${version}",
-  "name": "Railguns+",
-  "description": "Railguns+: call down orbital railguns with a two-handed uplink tablet. ARES-9 fires, scans and tears rifts into real space; ARES-0 destroys planets. Fly an EVA jetpack to the Moon, Mars, Venus and Europa. Requires Immersive Portals.",
+  "name": "Deluxs Armory",
+  "description": "Deluxs Armory: call down orbital railguns with a two-handed uplink tablet. ARES-9 fires, scans and tears rifts into real space; ARES-0 destroys planets. Fly an EVA jetpack to the Moon, Mars, Venus and Europa. Requires Immersive Portals.",
   "authors": [
     "CreedPDF"
   ],

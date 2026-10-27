@@ -624,7 +624,7 @@ public class TabletScreen extends Screen {
         float k = MathHelper.clamp(t / 18f, 0, 1);
         ui.fill(0, 0, CW, CH, 0xFF070808);
         ui.headC("ARES UPLINK", CW / 2f, CH / 2f - 22, RED, 1.2f);
-        ui.textC("ORBITAL COMMAND NETWORK  //  RAILGUNS+", CW / 2f, CH / 2f - 6, GREY, 0.5f);
+        ui.textC("ORBITAL COMMAND NETWORK  //  DELUXS ARMORY", CW / 2f, CH / 2f - 6, GREY, 0.5f);
         ui.fill(CW / 2f - 60, CH / 2f + 6, CW / 2f + 60, CH / 2f + 8, 0xFF1E2122);
         ui.fill(CW / 2f - 60, CH / 2f + 6, CW / 2f - 60 + 120 * k, CH / 2f + 8, RED);
         String[] steps = {"HANDSHAKE", "DECRYPTING MANIFESTS", "CLEARANCE OMEGA", "ACCESS GRANTED"};

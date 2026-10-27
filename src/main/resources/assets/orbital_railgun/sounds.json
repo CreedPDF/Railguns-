@@ -961,5 +961,23 @@
         "attenuation_distance": 640
       }
     ]
+  },
+  "krl.mag": {
+    "subtitle": "subtitles.orbital_railgun.krl.mag",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_mag",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "krl.refit": {
+    "subtitle": "subtitles.orbital_railgun.krl.refit",
+    "sounds": [
+      {
+        "name": "orbital_railgun:krl_refit",
+        "attenuation_distance": 16
+      }
+    ]
   }
 }
