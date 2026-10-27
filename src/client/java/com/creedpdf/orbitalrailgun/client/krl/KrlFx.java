@@ -244,7 +244,7 @@ public final class KrlFx {
         boolean any = false;
         for (KrlClient.CFlight f : KrlClient.flights()) if (KrlClient.here(f)) any = true;
         if (KrlCine.active()) KrlCine.farTerrain(ctx);
-        if (!any && PUFFS.isEmpty()) return;
+        if (!any && PUFFS.isEmpty() && !KrlAa.any()) return;
 
         ms.push();
         Matrix4f m = ms.peek().getPositionMatrix();
@@ -267,6 +267,9 @@ public final class KrlFx {
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogStart(fogStart);
         com.mojang.blaze3d.systems.RenderSystem.setShaderFogEnd(fogEnd);
 
+        // interceptors in flight
+        drawInterceptors(ms, cam, pt);
+
         // 2. the contrail (alpha blended, back to front)
         drawSmoke(m, cam, pt);
 
@@ -275,6 +278,7 @@ public final class KrlFx {
             if (!KrlClient.here(f)) continue;
             drawLight(ms, m, cam, eye, f, f.t(pt));
         }
+        drawInterceptorLight(m, cam, eye, pt);
         ms.pop();
     }
 
@@ -493,6 +497,79 @@ public final class KrlFx {
         if (h > 0.01f && t < KrlFlight.TOTAL) {
             float vis = fallVis(f, t, cam);
             if (vis > 0.02f) drawSheath(ms, m, cam, eye, f, t, h * vis);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------- interceptors
+
+    /** Interceptor scale (a smaller, slimmer round than the strike missile). */
+    private static final float AA_SCALE = 0.55f;
+
+    private static void drawInterceptors(MatrixStack ms, Vec3d cam, float pt) {
+        KrlMesh mesh = KrlModels.SPEAR;
+        if (mesh == null || KrlAa.SHOTS.isEmpty()) return;
+        for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+            Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+            double dist = cam.distanceTo(p);
+            ms.push();
+            ms.translate(p.x - cam.x, p.y - cam.y, p.z - cam.z);
+            Vec3d z = d.crossProduct(Math.abs(d.y) < 0.95 ? new Vec3d(0, 1, 0) : new Vec3d(1, 0, 0)).normalize();
+            Vec3d x = d.crossProduct(z);
+            org.joml.Matrix3f rm = new org.joml.Matrix3f((float) x.x, (float) x.y, (float) x.z, (float) d.x, (float) d.y, (float) d.z, (float) z.x,
+                    (float) z.y, (float) z.z);
+            ms.multiply(new Quaternionf().setFromNormalized(rm));
+            float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+            ms.scale(sc, sc, sc);
+            // the round is drawn nose-first from its tail
+            ms.translate(0, -KrlModels.NOSE_TIP, 0);
+            int lod = dist < 14 ? 0 : dist < 40 ? 1 : 2;
+            mesh.lod(lod).render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(4))), KrlDraw.FULL, null, null);
+            ms.pop();
+        }
+        BUF.draw();
+    }
+
+    private static void drawInterceptorLight(Matrix4f m, Vec3d cam, Vector3f eye, float pt) {
+        float time = (float) (KrlClient.now() % 100000) + pt;
+        if (!KrlAa.SHOTS.isEmpty()) {
+            VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
+            for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+                Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+                double dist = cam.distanceTo(p);
+                float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+                Vec3d tail = p.subtract(d.multiply(KrlModels.NOSE_TIP * sc));
+                float sp = (float) s.vel.length();
+                KrlFlame.plume(m, pl, relv(tail, cam), d.multiply(-1), (2.5f + sp * 0.35f) * sc / AA_SCALE, 0.16f * sc / AA_SCALE, 1f, time + s.id);
+            }
+            BUF.draw();
+            VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
+            for (KrlAa.Shot s : KrlAa.SHOTS.values()) {
+                Vec3d p = s.at(pt), d = s.vel.lengthSquared() < 1e-9 ? new Vec3d(0, 1, 0) : s.vel.normalize();
+                double dist = cam.distanceTo(p);
+                float sc = AA_SCALE * (float) Math.max(1, dist / 140);
+                Vector3f a = rel(p.subtract(d.multiply(KrlModels.NOSE_TIP * sc * 1.2)), cam);
+                float sz = minSize(1.1f, p, cam, 0.006f);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, sz, 0, 1f, 0.78f, 0.45f, 0.85f);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, sz * 2.6f, 0, 1f, 0.5f, 0.2f, 0.25f + 0.25f * KrlClient.night());
+            }
+            BUF.draw();
+        }
+        if (!KrlAa.BURSTS.isEmpty()) {
+            VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
+            for (KrlAa.Burst b : KrlAa.BURSTS) {
+                float k = MathHelper.clamp((b.age + pt) / 24f, 0, 1);
+                Vector3f a = rel(b.at, cam);
+                float big = minSize(1, b.at, cam, 0.02f);
+                KrlDraw.sprite(fl, m, a.x, a.y, a.z, (6 + 10 * k) * Math.max(1, big / 3), k * 2, 1f, 0.85f, 0.55f, (1 - k) * (1 - k));
+            }
+            BUF.draw();
+            VertexConsumer ring = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.RING));
+            for (KrlAa.Burst b : KrlAa.BURSTS) {
+                float k = MathHelper.clamp((b.age + pt) / 24f, 0, 1);
+                Vector3f a = rel(b.at, cam);
+                KrlDraw.sprite(ring, m, a.x, a.y, a.z, 3 + 30 * k, 0, 1f, 0.95f, 0.85f, 0.7f * (1 - k));
+            }
+            BUF.draw();
         }
     }
 

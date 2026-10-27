@@ -46,6 +46,8 @@ public final class Krl {
     }
     /** How close a player must be to use a console, and how far a launcher may be linked from it. */
     public static final double USE_RANGE = 8, LINK_RANGE = 256;
+    /** Interceptors a magazine holds. */
+    public static final int MAG_CAP = 30;
 
     // ---- registry
     public static final KrlLauncherBlock LAUNCHER = Registry.register(Registries.BLOCK, RailgunMod.id("krl_launcher"),
@@ -62,12 +64,18 @@ public final class Krl {
             new KrlStationBlock(AbstractBlock.Settings.create().mapColor(MapColor.GRAY).strength(4f, 600f).requiresTool().nonOpaque()
                     .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).luminance(s -> 3)));
 
+    public static final KrlMagazineBlock MAGAZINE = Registry.register(Registries.BLOCK, RailgunMod.id("krl_magazine"),
+            new KrlMagazineBlock(AbstractBlock.Settings.create().mapColor(MapColor.DARK_GREEN).strength(5f, 1200f).requiresTool().nonOpaque()
+                    .pistonBehavior(PistonBehavior.BLOCK).sounds(BlockSoundGroup.NETHERITE).luminance(s -> 3)));
+
     public static final Item LAUNCHER_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_launcher"),
             new KrlBlockItem(LAUNCHER, new Item.Settings().rarity(Rarity.EPIC), "Load with a kinetic missile. Sneak-use empty-handed to pick it for linking."));
     public static final Item CONSOLE_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_console"),
             new KrlBlockItem(CONSOLE, new Item.Settings().rarity(Rarity.EPIC), "3 blocks wide. Links up to 5 launchers and aims them on a terrain map."));
     public static final Item STATION_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_station"),
             new KrlBlockItem(STATION, new Item.Settings().rarity(Rarity.EPIC), "Use with a kinetic missile in hand to fit warheads, charges and motors."));
+    public static final Item MAGAZINE_ITEM = Registry.register(Registries.ITEM, RailgunMod.id("krl_magazine"),
+            new KrlBlockItem(MAGAZINE, new Item.Settings().rarity(Rarity.EPIC), "Holds 30 interceptors. Place next to a launcher; the console radar fires them."));
     public static final Item SPEAR = Registry.register(Registries.ITEM, RailgunMod.id("kinetic_spear"),
             new KineticSpearItem(new Item.Settings().maxCount(4).rarity(Rarity.EPIC).fireproof()));
 
@@ -77,6 +85,9 @@ public final class Krl {
             RailgunMod.id("krl_console"), FabricBlockEntityTypeBuilder.create(KrlConsoleBlockEntity::new, CONSOLE).build());
     public static final BlockEntityType<KrlStationBlockEntity> STATION_BE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
             RailgunMod.id("krl_station"), FabricBlockEntityTypeBuilder.create(KrlStationBlockEntity::new, STATION).build());
+
+    public static final BlockEntityType<KrlMagazineBlockEntity> MAGAZINE_BE = Registry.register(Registries.BLOCK_ENTITY_TYPE,
+            RailgunMod.id("krl_magazine"), FabricBlockEntityTypeBuilder.create(KrlMagazineBlockEntity::new, MAGAZINE).build());
 
     public static final RegistryKey<DamageType> PLASMA = RegistryKey.of(RegistryKeys.DAMAGE_TYPE, RailgunMod.id("krl_plasma"));
 
@@ -94,6 +105,7 @@ public final class Krl {
     public static void init() {
         KrlNet.register();
         net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_WORLD_TICK.register(KrlServer::tick);
+        net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_WORLD_TICK.register(KrlDefense::tick);
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> KrlServer.join(handler.player));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             KrlServer.release(handler.player);
@@ -104,9 +116,10 @@ public final class Krl {
             KrlServer.clear();
             KrlLinking.clear();
             KrlMap.clear();
+            KrlDefense.clear();
         });
     }
 
     @SuppressWarnings("unused")
-    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART, STATION};
+    private static final Block[] ALL = {LAUNCHER, CONSOLE, CONSOLE_PART, STATION, MAGAZINE};
 }

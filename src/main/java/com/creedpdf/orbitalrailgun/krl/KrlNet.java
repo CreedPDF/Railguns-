@@ -40,7 +40,8 @@ public final class KrlNet {
             LAUNCH = RailgunMod.id("krl_launch"), ABORT = RailgunMod.id("krl_abort"), UNLINK = RailgunMod.id("krl_unlink"), SKIP = RailgunMod.id("krl_skip"),
             STATE = RailgunMod.id("krl_state"), MAP_DATA = RailgunMod.id("krl_map_data"), FLIGHT = RailgunMod.id("krl_flight"),
             END = RailgunMod.id("krl_end"), RIDE = RailgunMod.id("krl_ride"), TILE = RailgunMod.id("krl_tile"),
-            STATION_OPEN = RailgunMod.id("krl_station_open"), STATION_APPLY = RailgunMod.id("krl_station_apply");
+            STATION_OPEN = RailgunMod.id("krl_station_open"), STATION_APPLY = RailgunMod.id("krl_station_apply"),
+            RADAR = RailgunMod.id("krl_radar"), AA = RailgunMod.id("krl_aa");
 
     /** Launcher states on the board. */
     public static final int L_UNKNOWN = 0, L_EMPTY = 1, L_READY = 2, L_BURNING = 3, L_GONE = 4;
@@ -99,6 +100,17 @@ public final class KrlNet {
                 double cx = (tx + 0.5) * KrlMap.TILE - c.getX(), cz = (tz + 0.5) * KrlMap.TILE - c.getZ();
                 if (cx * cx + cz * cz > Math.pow(KrlLoadout.MAX_RANGE + 1200, 2)) return;
                 KrlMap.requestTile(p, c, tx, tz);
+            });
+        });
+        ServerPlayNetworking.registerGlobalReceiver(RADAR, (server, p, h, buf, s) -> {
+            BlockPos c = buf.readBlockPos();
+            boolean on = buf.readBoolean();
+            server.execute(() -> {
+                if (p.squaredDistanceTo(Vec3d.ofCenter(c)) > Krl.USE_RANGE * Krl.USE_RANGE * 4) return;
+                if (!(p.getWorld().getBlockEntity(c) instanceof KrlConsoleBlockEntity be)) return;
+                be.setRadar(on);
+                p.getWorld().playSound(null, c, on ? Krl.S_ARM : Krl.S_CLICK, net.minecraft.sound.SoundCategory.BLOCKS, 1f, on ? 0.7f : 0.9f);
+                sendState(p, be, false);
             });
         });
         ServerPlayNetworking.registerGlobalReceiver(STATION_APPLY, (server, p, h, buf, s) -> {
@@ -221,8 +233,19 @@ public final class KrlNet {
             b.writeInt(fl);
             b.writeLong(launched);
             m.write(b);
+            b.writeVarInt(w.isChunkLoaded(lp) ? KrlDefense.rounds(w, lp) : 0);
         }
         b.writeLong(w.getTime());
+        b.writeBoolean(be.radar());
+        List<KrlDefense.Contact> cs = KrlDefense.contacts(be.getPos());
+        b.writeVarInt(cs.size());
+        for (KrlDefense.Contact c : cs) {
+            b.writeFloat((float) c.x());
+            b.writeFloat((float) c.y());
+            b.writeFloat((float) c.z());
+            b.writeByte(c.kind());
+            b.writeBoolean(c.engaged());
+        }
         ServerPlayNetworking.send(p, STATE, b);
     }
 

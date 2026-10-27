@@ -122,6 +122,20 @@ public class MeteorEntity extends Entity {
             w.addParticle(ParticleTypes.CAMPFIRE_COSY_SMOKE, true, pos.x, pos.y, pos.z, 0, 0.01, 0);
     }
 
+    /** Shot down in the air by an interceptor: it bursts into burning fragments and smoke, and never lands. */
+    public void intercept(ServerWorld w) {
+        if (isRemoved()) return;
+        float s = size();
+        Vec3d at = getPos();
+        w.playSound(null, at.x, at.y, at.z, ModSounds.METEOR_IMPACT, SoundCategory.WEATHER, 6f + s * 2f, 1.1f + 0.2f * w.random.nextFloat());
+        w.spawnParticles(ModParticles.FLASH, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+        w.spawnParticles(ModParticles.REENTRY_FIRE, at.x, at.y, at.z, 60, s * 1.5, s * 1.5, s * 1.5, 0.35);
+        w.spawnParticles(ParticleTypes.LAVA, at.x, at.y, at.z, 20, s, s, s, 0.2);
+        w.spawnParticles(ParticleTypes.LARGE_SMOKE, at.x, at.y, at.z, 40, s * 2, s * 2, s * 2, 0.08);
+        w.spawnParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE, at.x, at.y, at.z, 10, s, s, s, 0.02);
+        discard();
+    }
+
     private void impact(ServerWorld w, Vec3d at) {
         float s = size();
         Body b = body();

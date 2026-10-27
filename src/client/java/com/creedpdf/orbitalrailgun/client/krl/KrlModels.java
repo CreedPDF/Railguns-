@@ -18,7 +18,7 @@ import java.util.Optional;
 public final class KrlModels {
     private KrlModels() {}
 
-    public static KrlMesh LAUNCHER, SPEAR, CONSOLE, STATION;
+    public static KrlMesh LAUNCHER, SPEAR, CONSOLE, STATION, MAGAZINE;
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -36,6 +36,7 @@ public final class KrlModels {
     }
     public static final Identifier CONSOLE_TEX = tex("console"), CONSOLE_GLOW = tex("console_glow");
     public static final Identifier STATION_TEX = tex("station"), STATION_GLOW = tex("station_glow");
+    public static final Identifier MAGAZINE_TEX = tex("magazine"), MAGAZINE_GLOW = tex("magazine_glow");
 
     private static Identifier tex(String n) {
         return RailgunMod.id("textures/krl/" + n + ".png");
@@ -54,6 +55,7 @@ public final class KrlModels {
                 SPEAR = load(rm, "spear", SPEAR_GLOW);
                 CONSOLE = load(rm, "console", CONSOLE_GLOW);
                 STATION = load(rm, "station", STATION_GLOW);
+                MAGAZINE = load(rm, "magazine", MAGAZINE_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

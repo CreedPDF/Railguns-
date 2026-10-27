@@ -19,8 +19,10 @@ import net.minecraft.util.math.RotationAxis;
 public class KrlConsoleRenderer implements BlockEntityRenderer<KrlConsoleBlockEntity> {
     public KrlConsoleRenderer(BlockEntityRendererFactory.Context ctx) {}
 
-    /** Per console: {cover 0..1, last time}. */
+    /** Per console: {cover 0..1, last time, radar extension 0..1, dish angle}. */
     private final java.util.Map<BlockPos, float[]> covers = new java.util.HashMap<>();
+    /** How far the radar mast rises out of its housing (blocks). */
+    private static final float MAST_TRAVEL = 1.45f;
 
     @Override
     public void render(KrlConsoleBlockEntity be, float pt, MatrixStack ms, VertexConsumerProvider vcp, int light, int overlay) {
@@ -37,20 +39,36 @@ public class KrlConsoleRenderer implements BlockEntityRenderer<KrlConsoleBlockEn
         float target = open ? 1 : 0;
         float time = now + pt;
         // the cover swings at its own pace, whatever the frame rate
-        float[] cs = covers.computeIfAbsent(be.getPos().toImmutable(), k -> new float[]{target, time});
+        float[] cs = covers.computeIfAbsent(be.getPos().toImmutable(), k -> new float[]{target, time, be.radar() ? 1 : 0, 0});
         float dt = MathHelper.clamp(time - cs[1], 0, 2);
         cs[1] = time;
         cs[0] = MathHelper.clamp(cs[0] + Math.signum(target - cs[0]) * dt * 0.12f, 0, 1);
+        // the radar mast telescopes up over two seconds, then the antenna starts to turn
+        float rt = be.radar() ? 1 : 0;
+        cs[2] = MathHelper.clamp(cs[2] + Math.signum(rt - cs[2]) * dt * 0.025f, 0, 1);
+        float spinRate = MathHelper.clamp((cs[2] - 0.85f) / 0.15f, 0, 1);
+        cs[3] = (cs[3] + dt * 0.11f * spinRate) % ((float) Math.PI * 2);
         if (covers.size() > 64) covers.clear();
         float c0 = cs[0];
         float cover = c0 * c0 * (3 - 2 * c0);
+        float ext = cs[2] * cs[2] * (3 - 2 * cs[2]);
+        float drop = -(1 - ext) * MAST_TRAVEL, spin = cs[3];
         float ann = counting ? ((int) (time / 4) % 2 == 0 ? 1f : 0.35f) : 0.8f + 0.05f * MathHelper.sin(time * 0.05f);
 
         ms.push();
         ms.translate(0.5, 0, 0.5);
         ms.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-facing.asRotation()));
         KrlMesh.Pose pose = (part, st) -> {
-            if (part.equals("cover")) st.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-105 * cover));
+            switch (part) {
+                case "cover" -> st.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-105 * cover));
+                case "radar_mast" -> st.translate(0, drop, 0);
+                case "radar_dish" -> {
+                    st.translate(0, drop, 0);
+                    st.multiply(RotationAxis.POSITIVE_Y.rotation(spin));
+                }
+                default -> {
+                }
+            }
             return true;
         };
         int lod = KrlCompat.lod(be.getPos());
@@ -60,10 +78,7 @@ public class KrlConsoleRenderer implements BlockEntityRenderer<KrlConsoleBlockEn
             return;
         }
         KrlMesh glow = mesh.glow(lod);
-        glow.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> {
-            if (part.equals("cover")) st.multiply(RotationAxis.POSITIVE_X.rotationDegrees(-105 * cover));
-            return true;
-        }, null);
+        glow.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, pose, null);
         // the annunciators again, modulated
         glow.render(ms, vcp.getBuffer(RenderLayer.getEyes(KrlModels.CONSOLE_GLOW)), light, (part, st) -> part.equals("annunciators"), (nx, ny, nz, o) -> {
             o[0] = ann * 0.6f;

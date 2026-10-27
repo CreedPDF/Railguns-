@@ -222,5 +222,6 @@
   "subtitles.orbital_railgun.krl.plasma": "Plasma sheath crackles",
   "subtitles.orbital_railgun.krl.incoming": "Something screams down from above",
   "subtitles.orbital_railgun.krl.impact": "Plasma explosion",
-  "block.orbital_railgun.krl_station": "KRL Missile Integration Station"
+  "block.orbital_railgun.krl_station": "KRL Missile Integration Station",
+  "block.orbital_railgun.krl_magazine": "KRL-M30 Interceptor Magazine"
 }

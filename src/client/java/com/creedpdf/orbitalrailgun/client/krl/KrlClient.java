@@ -155,6 +155,13 @@ public final class KrlClient {
         BlockEntityRendererFactories.register(Krl.LAUNCHER_BE, KrlLauncherRenderer::new);
         BlockEntityRendererFactories.register(Krl.CONSOLE_BE, KrlConsoleRenderer::new);
         BlockEntityRendererFactories.register(Krl.STATION_BE, KrlStationRenderer::new);
+        BlockEntityRendererFactories.register(Krl.MAGAZINE_BE, KrlMagazineRenderer::new);
+        BuiltinItemRendererRegistry.INSTANCE.register(Krl.MAGAZINE_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.MAGAZINE,
+                KrlModels.MAGAZINE_TEX, KrlModels.MAGAZINE_GLOW, mode, ms, vcp, light, 1.85f, false));
+        ClientPlayNetworking.registerGlobalReceiver(KrlNet.AA, (client, h, buf, s) -> {
+            KrlAa.Frame fr = KrlAa.read(buf);
+            client.execute(() -> KrlAa.apply(fr));
+        });
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.STATION_ITEM, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.STATION,
                 KrlModels.STATION_TEX, KrlModels.STATION_GLOW, mode, ms, vcp, light, 1.85f, false));
         BuiltinItemRendererRegistry.INSTANCE.register(Krl.SPEAR, (stack, mode, ms, vcp, light, overlay) -> item(KrlModels.SPEAR,
@@ -205,6 +212,7 @@ public final class KrlClient {
             riding = -1;
             KrlFx.clear();
             KrlSurvey.clear();
+            KrlAa.clear();
         });
 
         KrlClientHooks.launcher = be -> {};
@@ -285,6 +293,7 @@ public final class KrlClient {
         }
         for (int id : gone) FLIGHTS.remove(id);
         KrlFx.tickParticles();
+        KrlAa.tick();
         KrlCine.tick(mc);
     }
 

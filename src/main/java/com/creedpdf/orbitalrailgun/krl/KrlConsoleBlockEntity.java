@@ -17,6 +17,8 @@ public class KrlConsoleBlockEntity extends BlockEntity {
     private final List<BlockPos> links = new ArrayList<>();
     @Nullable
     private BlockPos target;
+    /** Air-defence radar switched on (the mast is up and launchers fire interceptors at threats). */
+    private boolean radar;
 
     public KrlConsoleBlockEntity(BlockPos pos, BlockState state) {
         super(Krl.CONSOLE_BE, pos, state);
@@ -55,6 +57,31 @@ public class KrlConsoleBlockEntity extends BlockEntity {
         sync();
     }
 
+    public boolean radar() {
+        return radar;
+    }
+
+    public void setRadar(boolean on) {
+        radar = on;
+        if (world != null && !world.isClient) {
+            if (on) KrlDefense.register(world, pos);
+            else KrlDefense.unregister(world, pos);
+        }
+        sync();
+    }
+
+    @Override
+    public void setWorld(net.minecraft.world.World w) {
+        super.setWorld(w);
+        if (radar && !w.isClient) KrlDefense.register(w, pos);
+    }
+
+    @Override
+    public void markRemoved() {
+        super.markRemoved();
+        if (world != null && !world.isClient) KrlDefense.unregister(world, pos);
+    }
+
     private void sync() {
         markDirty();
         if (world != null && !world.isClient) world.updateListeners(pos, getCachedState(), getCachedState(), net.minecraft.block.Block.NOTIFY_LISTENERS);
@@ -78,6 +105,7 @@ public class KrlConsoleBlockEntity extends BlockEntity {
         for (BlockPos p : links) l.add(NbtLong.of(p.asLong()));
         nbt.put("links", l);
         if (target != null) nbt.putLong("target", target.asLong());
+        nbt.putBoolean("radar", radar);
     }
 
     @Override
@@ -86,5 +114,6 @@ public class KrlConsoleBlockEntity extends BlockEntity {
         links.clear();
         for (NbtElement e : nbt.getList("links", NbtElement.LONG_TYPE)) links.add(BlockPos.fromLong(((NbtLong) e).longValue()));
         target = nbt.contains("target") ? BlockPos.fromLong(nbt.getLong("target")) : null;
+        radar = nbt.getBoolean("radar");
     }
 }
