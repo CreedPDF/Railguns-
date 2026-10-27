@@ -54,8 +54,8 @@ public final class KrlFlight {
     /** Speed shape constants: climb scale k1 (blocks per unit shape), dive scale k2 and floor c. */
     private final double k1, k2, c;
     private final double vFallMax, vBoostMax, vApex;
-    /** The climb runs to the apex at UP ticks, the dive from there to impact. */
-    static final double UP = BOOST + STALL * 0.5, DOWN = TOTAL - UP;
+    /** The climb runs to the apex at T_UP ticks, the dive from there to impact. */
+    static final double T_UP = BOOST + STALL * 0.5, T_DOWN = TOTAL - T_UP;
     /** Speed at the apex, as a fraction of the climb's peak shape. */
     private static final double APEX_FRAC = 0.32;
 
@@ -96,20 +96,20 @@ public final class KrlFlight {
         // climb: accelerating to burnout, then slowing under gravity to APEX_FRAC of the peak at the apex
         double ia = 0;
         for (int i = 0; i < 400; i++) ia += upShape((i + 0.5) / 400) / 400;
-        k1 = l1 / (UP * ia);
+        k1 = l1 / (T_UP * ia);
         // dive: speed = k2 (c + y^2); continuous with the climb at the apex (k2 c = apex speed)
         double q = k1 * upShape(1);
-        double cc = l2 > q * DOWN * 1.05 ? q * DOWN / (3 * (l2 - q * DOWN)) : 4.0;
+        double cc = l2 > q * T_DOWN * 1.05 ? q * T_DOWN / (3 * (l2 - q * T_DOWN)) : 4.0;
         c = cc;
-        k2 = l2 / (DOWN * (cc + 1.0 / 3.0));
+        k2 = l2 / (T_DOWN * (cc + 1.0 / 3.0));
         vApex = k2 * c;
         vFallMax = k2 * (c + 1);
         double m = 0;
-        for (int i = 1; i < UP; i += 3) m = Math.max(m, speed(i));
+        for (int i = 1; i < T_UP; i += 3) m = Math.max(m, speed(i));
         vBoostMax = Math.max(m, 1e-3);
     }
 
-    /** Climb speed shape over x = t / UP: 0 on the rail, peak around burnout, APEX_FRAC at the apex. */
+    /** Climb speed shape over x = t / T_UP: 0 on the rail, peak around burnout, APEX_FRAC at the apex. */
     private static double upShape(double x) {
         double a = smooth(x / 0.62), b = smooth((x - 0.62) / 0.38);
         return a * (1 - (1 - APEX_FRAC) * b);
@@ -141,18 +141,18 @@ public final class KrlFlight {
 
     /** Distance covered along the climb by time t (0..UP). */
     private double upDist(double t) {
-        double x = MathHelper.clamp(t / UP, 0, 1);
+        double x = MathHelper.clamp(t / T_UP, 0, 1);
         // Simpson over the speed shape
         int n = 24;
         double hh = x / n, sum = upShape(0) + upShape(x);
         for (int i = 1; i < n; i++) sum += upShape(i * hh) * (i % 2 == 0 ? 2 : 4);
-        return k1 * UP * sum * hh / 3;
+        return k1 * T_UP * sum * hh / 3;
     }
 
     /** Distance covered along the dive by time t since the apex (0..DOWN). */
     private double downDist(double t) {
-        double y = MathHelper.clamp(t / DOWN, 0, 1);
-        return k2 * DOWN * (c * y + y * y * y / 3);
+        double y = MathHelper.clamp(t / T_DOWN, 0, 1);
+        return k2 * T_DOWN * (c * y + y * y * y / 3);
     }
 
     // ------------------------------------------------------------------------------------------- curves
@@ -177,8 +177,8 @@ public final class KrlFlight {
     /** Position at flight time t (ticks since it left the rail; fractional for rendering). */
     public Vec3d pos(double t) {
         if (t <= 0) return launch;
-        if (t < UP) return bez(launch, b1, b2, apex, uAt(upLen, upDist(t)));
-        if (t < TOTAL) return bez(apex, f1, f2, target, uAt(downLen, downDist(t - UP)));
+        if (t < T_UP) return bez(launch, b1, b2, apex, uAt(upLen, upDist(t)));
+        if (t < TOTAL) return bez(apex, f1, f2, target, uAt(downLen, downDist(t - T_UP)));
         return target;
     }
 
@@ -186,23 +186,23 @@ public final class KrlFlight {
     public Vec3d dir(double t) {
         if (t <= 0) return rail;
         Vec3d d;
-        if (t < UP) d = bezD(launch, b1, b2, apex, Math.max(0.002, uAt(upLen, upDist(t))));
-        else d = bezD(apex, f1, f2, target, Math.min(1, uAt(downLen, downDist(Math.min(t, TOTAL) - UP))));
+        if (t < T_UP) d = bezD(launch, b1, b2, apex, Math.max(0.002, uAt(upLen, upDist(t))));
+        else d = bezD(apex, f1, f2, target, Math.min(1, uAt(downLen, downDist(Math.min(t, TOTAL) - T_UP))));
         return d.lengthSquared() < 1e-9 ? rail : d.normalize();
     }
 
     /** Speed in blocks per tick. */
     public double speed(double t) {
         if (t <= 0) return 0;
-        if (t < UP) return k1 * upShape(t / UP);
-        double y = MathHelper.clamp((t - UP) / DOWN, 0, 1);
+        if (t < T_UP) return k1 * upShape(t / T_UP);
+        double y = MathHelper.clamp((t - T_UP) / T_DOWN, 0, 1);
         return k2 * (c + y * y);
     }
 
     /** The Mach number shown for time t: about 4 at burnout, slowing over the apex, up to the motor's top speed at impact. */
     public double mach(double t) {
         double apexMach = 4.2 * vApex / vBoostMax;
-        if (t < UP) return 4.2 * speed(t) / vBoostMax;
+        if (t < T_UP) return 4.2 * speed(t) / vBoostMax;
         double k = (speed(t) - vApex) / Math.max(1e-3, vFallMax - vApex);
         return apexMach + (machMax - apexMach) * MathHelper.clamp(k, 0, 1);
     }
