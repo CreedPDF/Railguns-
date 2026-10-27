@@ -80,7 +80,7 @@ public class TabletScreen extends Screen {
     private enum Asset { A9, A0, DROP, HANGAR }
 
     private enum Page {
-        A9_STATUS(Asset.A9, "STATUS"), A9_FIRE(Asset.A9, "FIRE CONTROL"), A9_SCAN(Asset.A9, "SCAN"), A9_RIFT(Asset.A9, "RIFT"), A9_RECALL(Asset.A9, "RECALL"),
+        A9_DEPLOY(Asset.A9, "DEPLOY"), A9_STATUS(Asset.A9, "STATUS"), A9_FIRE(Asset.A9, "FIRE CONTROL"), A9_SCAN(Asset.A9, "SCAN"), A9_RIFT(Asset.A9, "RIFT"), A9_RECALL(Asset.A9, "RECALL"),
         A0_TARGETS(Asset.A0, "TARGETS"), A0_RECALL(Asset.A0, "RECALL"),
         DROP_A9(Asset.DROP, "ARES-9 POD"), DROP_A0(Asset.DROP, "ARES-0 POD"),
         SHIP(Asset.HANGAR, "STARSHIP");
@@ -141,7 +141,7 @@ public class TabletScreen extends Screen {
 
     private boolean available(Page p) {
         return switch (p) {
-            case A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL -> a9();
+            case A9_DEPLOY, A9_STATUS, A9_FIRE, A9_SCAN, A9_RIFT, A9_RECALL -> a9();
             case A0_TARGETS, A0_RECALL -> a0();
             case DROP_A9 -> !a9();
             case DROP_A0 -> !a0();
@@ -150,6 +150,7 @@ public class TabletScreen extends Screen {
     }
 
     private Page firstOf(Asset a) {
+        if (a == Asset.A9 && a9()) return podForm() ? Page.A9_DEPLOY : Page.A9_FIRE;
         for (Page p : Page.values()) if (p.asset == a && available(p)) return p;
         for (Page p : Page.values()) if (p.asset == a) return p;
         return Page.SHIP;
@@ -181,6 +182,15 @@ public class TabletScreen extends Screen {
     private boolean onCooldown() {
         return client != null && client.player != null && client.player.getItemCooldownManager().isCoolingDown(RailgunMod.RAILGUN_REMOTE);
     }
+
+    private static boolean podForm() {
+        RailgunState s = st().state;
+        return s == RailgunState.POD || s == RailgunState.PANEL_OPEN || s == RailgunState.POD_READY || s == RailgunState.FALLING;
+    }
+
+    /** The loadout being put together on the DEPLOY page (sent when ordered or deployed). */
+    private static int pendingLoadout = -1;
+    @Nullable private Loadout.Option hoverOpt;
 
     private boolean canRetarget() {
         TabletStatus t = st();
@@ -256,7 +266,7 @@ public class TabletScreen extends Screen {
                 fields[2] = Integer.toString(init.getZ());
             }
             fieldsInitialised = true;
-            if (lastPage == null) page = a9() ? Page.A9_FIRE : a0() ? Page.A0_TARGETS : Page.DROP_A9;
+            if (lastPage == null) page = a9() ? firstOf(Asset.A9) : a0() ? Page.A0_TARGETS : Page.DROP_A9;
         }
         if (t.received && !available(page)) {
             Page p = a9() ? Page.A9_STATUS : a0() ? Page.A0_TARGETS : Page.DROP_A9;
@@ -684,6 +694,7 @@ public class TabletScreen extends Screen {
 
     private void drawPage(float time) {
         switch (page) {
+            case A9_DEPLOY -> a9Deploy(time);
             case A9_STATUS -> a9Status(time);
             case A9_FIRE -> a9Fire(time);
             case A9_SCAN -> a9Simple("SCAN", "Holographic pulse from the emplacement: maps ores and tags hostiles within 96 m. Results paint the world for everyone nearby.",
@@ -701,6 +712,81 @@ public class TabletScreen extends Screen {
             case DROP_A0 -> drop(time, 1);
             case SHIP -> hangar(time);
         }
+    }
+
+    private static String chipName(Loadout.Option o) {
+        String t = o.title;
+        int sp = t.indexOf(' ');
+        return sp > 0 ? t.substring(0, sp) : t;
+    }
+
+    private void a9Deploy(float time) {
+        TabletStatus t = st();
+        boolean pod = t.state == RailgunState.POD;
+        if (pendingLoadout < 0 || !pod) pendingLoadout = t.loadout;
+        Loadout want = Loadout.of(pendingLoadout), have = Loadout.of(t.loadout);
+        float y0 = cardTop();
+        float lx1 = MAIN_X0 + 206;
+        card(MAIN_X0, y0, lx1, BOTTOM, "LOADOUT  //  ORBITAL STORAGE", RED);
+        hoverOpt = null;
+        float y = y0 + 13;
+        y = optRow("MUZZLE DEVICE", Loadout.MUZZLES, want, y, pod, false);
+        y = optRow("AMMUNITION", Loadout.AMMO, want, y + 2, pod, false);
+        optRow("SUPPORT MODULES  " + want.modules().size() + " / " + Loadout.MAX_MODULES, Loadout.MODULES, want, y + 2, pod, true);
+        // right: details and actions
+        float rx0 = lx1 + 4;
+        card(rx0, y0, MAIN_X1, BOTTOM, "EMPLACEMENT", RED);
+        float w = MAIN_X1 - rx0 - 10, ry = y0 + 13;
+        kv("STATE", stateName(t.state), rx0 + 5, ry, w, pod ? AMBER : stateColor(t.state, time));
+        ry += 9;
+        Loadout.Option o = hoverOpt;
+        if (o != null) {
+            ui.head(o.title, rx0 + 5, ry, 0xFF000000 | o.color, 0.5f);
+            ry = ui.para(o.description, rx0 + 5, ry + 8, w, GREY, 0.42f, 6f) + 1;
+            for (String stat : o.stats) {
+                ui.text("+ " + stat, rx0 + 5, ry, WHITE, 0.42f);
+                ry += 6;
+            }
+        } else {
+            ui.para(pod ? "Choose attachments, then hold DEPLOY. They drop from orbital storage and dock as the emplacement unfolds."
+                    : "Deployed. Pack it into its pod (RECALL page) to change the loadout.", rx0 + 5, ry, w, GREY, 0.44f, 6.5f);
+        }
+        boolean dirty = want.raw() != have.raw();
+        bigButton(dirty ? "ORDER LOADOUT" : "LOADOUT LOCKED", rx0 + 5, BOTTOM - 54, w, 12, AMBER, pod && dirty,
+                () -> ClientPackets.sendRemote(4, pendingLoadout));
+        holdButton("deploy", t.state == RailgunState.POD_READY ? "LAUNCH TO ORBIT" : "DEPLOY", rx0 + 5, BOTTOM - 36, w, 22, RED,
+                pod || t.state == RailgunState.POD_READY, () -> {
+                    if (st().state == RailgunState.POD_READY) {
+                        ClientPackets.sendRemote(7, -1);
+                        return;
+                    }
+                    if (pendingLoadout != st().loadout) ClientPackets.sendRemote(4, pendingLoadout);
+                    ClientPackets.sendRemote(5, -1);
+                });
+    }
+
+    private float optRow(String label, List<Loadout.Option> opts, Loadout want, float y, boolean pod, boolean modules) {
+        ui.text(label, MAIN_X0 + 6, y, DIM, 0.4f);
+        y += 6;
+        float x = MAIN_X0 + 6, cw = 38, ch = 9, gap = 1.5f, right = MAIN_X0 + 200;
+        for (Loadout.Option o : opts) {
+            if (x + cw > right) {
+                x = MAIN_X0 + 6;
+                y += ch + gap;
+            }
+            boolean on = want.has(o);
+            boolean hv = ui.hover(x, y, cw, ch);
+            if (hv) hoverOpt = o;
+            int col = 0xFF000000 | o.color;
+            ui.fill(x, y, x + cw, y + ch, on ? KrlUi.mul(col, 0.42f) : hv ? 0xFF1F2224 : 0xFF141617);
+            ui.outline(x, y, x + cw, y + ch, 0.5f, on ? col : EDGE);
+            ui.fill(x, y, x + 1.5f, y + ch, on ? col : KrlUi.mul(col, 0.5f));
+            ui.textC(chipName(o), x + cw / 2 + 0.7f, y + 2.6f, on ? WHITE : pod ? GREY : DIM, 0.38f);
+            final Loadout.Option fo = o;
+            ui.hits.add(new KrlUi.Hit(x, y, cw, ch, () -> pendingLoadout = Loadout.of(pendingLoadout).toggle(fo).raw(), pod));
+            x += cw + gap;
+        }
+        return y + ch + 2;
     }
 
     private void a9Status(float time) {
@@ -860,7 +946,13 @@ public class TabletScreen extends Screen {
         kv("DISTANCE", distTo(p) + " m", MAIN_X0 + 6, y, 180, WHITE);
         y += 16;
         holdButton("recall" + action, "RECALL TO ORBIT", MAIN_X0 + 6, y, 150, 22, accent, enabled, () -> ClientPackets.sendRemote(action, -1));
-        if (!enabled) ui.text("ASSET BUSY", MAIN_X0 + 164, y + 8, DIM, 0.48f);
+        if (action == 0) {
+            RailgunState s9 = st().state;
+            holdButton("pack", "PACK INTO POD", MAIN_X0 + 164, y, 120, 22, AMBER, s9 == RailgunState.IDLE || s9 == RailgunState.COOLDOWN,
+                    () -> ClientPackets.sendRemote(6, -1));
+            ui.para("PACK INTO POD folds the emplacement back into its pod and leaves it on the ground; pick a new loadout and deploy again from DEPLOY.",
+                    MAIN_X0 + 6, y + 34, MAIN_X1 - MAIN_X0 - 12, DIM, 0.44f, 6.5f);
+        } else if (!enabled) ui.text("ASSET BUSY", MAIN_X0 + 164, y + 8, DIM, 0.48f);
     }
 
     private void a0Targets(float time) {

@@ -1183,12 +1183,8 @@ public class RailgunEntity extends Entity implements GeoEntity {
         if (state == RailgunState.FALLING || state == RailgunState.LAUNCHING) return ActionResult.PASS;
         // Only the control panel is interactive. Anywhere else, PASS so the click falls through
         // (e.g. the player can still raise their tablet while looking at the railgun).
-        if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH) return ActionResult.PASS;
-        if (getWorld().isClient) {
-            RailgunMod.client().openPanel(this);
-            return ActionResult.SUCCESS;
-        }
-        return ActionResult.CONSUME;
+        // The emplacement is run entirely from the ARES uplink tablet: there is no panel to open.
+        return ActionResult.PASS;
     }
 
     /** Client: plasma trails, retro burns, vectoring jets and docking sparks of the part drops. */
@@ -1283,8 +1279,13 @@ public class RailgunEntity extends Entity implements GeoEntity {
     }
 
     public boolean handlePanelAction(PlayerEntity player, PanelAction action) {
-        if (!(getWorld() instanceof ServerWorld world)) return false;
         if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 2.0) return false;
+        return remoteAction(action);
+    }
+
+    /** Deploy / pack up / return to orbit, ordered from the uplink tablet at any distance. */
+    public boolean remoteAction(PanelAction action) {
+        if (!(getWorld() instanceof ServerWorld world)) return false;
         Vec3d p = getPanelPos();
         RailgunState state = getState();
         switch (action) {
@@ -1563,9 +1564,14 @@ public class RailgunEntity extends Entity implements GeoEntity {
      * orbital storage and dock themselves once the railgun deploys (see {@link PartDrop}).
      */
     public boolean configureLoadout(PlayerEntity player, int raw) {
+        if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 3.0) return false;
+        return remoteConfigure(raw);
+    }
+
+    /** Locks a loadout in from the uplink tablet (the pod must still be closed). */
+    public boolean remoteConfigure(int raw) {
         if (!(getWorld() instanceof ServerWorld world)) return false;
         if (getState() != RailgunState.POD) return false;
-        if (player.getEyePos().distanceTo(getPanelPos()) > RailgunConfig.PANEL_REACH + 3.0) return false;
         Loadout want = Loadout.of(raw);
         if (want.raw() != raw) return false;
         dataTracker.set(LOADOUT, raw);

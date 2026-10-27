@@ -293,14 +293,17 @@ public final class KrlClient {
      * kilometre away hears it three seconds after the flash. Loud, and audible a long way off.
      */
     private static void boom(MinecraftClient mc, CFlight f, double t) {
-        if (f.boomHeard || t < 0) return;
+        if (f.boomHeard || t < 0 || f.mach1 < 0) return;
+        // the shock leaves the missile where it went supersonic and travels at the speed of sound
         Vec3d ear = mc.gameRenderer.getCamera().getPos();
-        double d = ear.distanceTo(f.launch);
-        if (t > 400 || d > 2200) {
-            if (t > 400) f.boomHeard = true;
+        Vec3d src = f.path.pos(f.mach1);
+        double d = ear.distanceTo(src);
+        if (t > 500 || d > 2600) {
+            if (t > 500) f.boomHeard = true;
             return;
         }
-        if (t < d / 17.15) return;
+        if (t < f.mach1 + d / 17.15) return;
+        com.creedpdf.orbitalrailgun.client.hud.RailgunHud.shake((float) MathHelper.clamp(1.6 - d / 300, 0.15, 1.6));
         f.boomHeard = true;
         float vol = (float) MathHelper.clamp(1.25 - d / 1600, 0.12, 1.25);
         float pitch = (float) MathHelper.clamp(1.0 - d / 4000, 0.7, 1.0);
@@ -317,7 +320,7 @@ public final class KrlClient {
             if (c == null) return null;
             double t = c.t(0);
             if (t < 0) return c.launch;
-            if (t > KrlFlight.BOOST * 0.82) return null;
+            if (t > KrlFlight.BURNOUT) return null;
             return c.path.pos(t);
         }, () -> {
             CFlight c = FLIGHTS.get(id);

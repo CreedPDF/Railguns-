@@ -1330,8 +1330,54 @@ def build_console(assets, out):
         o = beam(f"conduit{i}", (-1.2 + i * 1.2, 0.38, 0.1), (-1.2 + i * 1.2, 0.38, 1.6), 0.06, 0.06)
         body.append(tag(o, "body", dark))
 
-    parts = ["body", "cover", "annunciators"]
-    allo = body + cover + ann
+    # ---- the air-defence radar: a housing up the back of the board; the mast (modelled extended) telescopes out of it
+    #      and carries a rotating phased-array antenna. The renderer lowers both into the housing while it is off.
+    RX, RY = -1.1, 0.47
+    mast, dish = [], []
+    o = box("rad_housing", (RX, RY, 0.87), (0.24, 0.2, 1.74), bevel=0.01)
+    body.append(tag(o, "body", steel))
+    o = box("rad_housing_cap", (RX, RY, 1.745), (0.27, 0.23, 0.03))
+    body.append(tag(o, "body", dgrey))
+    o = box("rad_housing_haz", (RX, RY - 0.101, 1.6), (0.22, 0.004, 0.08))
+    body.append(tag(o, "body", haz))
+    for k, (z0, z1, r) in enumerate(((1.62, 2.4, 0.055), (2.3, 2.95, 0.045), (2.85, 3.2, 0.036))):
+        o = cyl(f"rad_mast{k}", r, z0, z1, 16, RX, RY)
+        mast.append(tag(o, "radar_mast", steel, smooth=True))
+        o = lathe(f"rad_collar{k}", [(r, z1 - 0.03), (r + 0.018, z1 - 0.03), (r + 0.018, z1), (r, z1)], 16, closed=True)
+        mast.append(tag(o, "radar_mast", dgrey, smooth=True))
+    o = cyl("rad_turntable", 0.13, 3.18, 3.26, 24, RX, RY)
+    dish.append(tag(o, "radar_dish", dgrey, smooth=True))
+    for sx in (-1, 1):
+        o = box(f"rad_yoke{sx}", (RX + sx * 0.36, RY + 0.02, 3.42), (0.04, 0.06, 0.3))
+        dish.append(tag(o, "radar_dish", steel))
+    o = box("rad_arm", (RX, RY + 0.02, 3.28), (0.76, 0.06, 0.04))
+    dish.append(tag(o, "radar_dish", steel))
+    arr = box("rad_array", (0, 0, 0), (0.92, 0.06, 0.5), bevel=0.01)
+    arr.rotation_euler = (math.radians(-18), 0, 0)
+    arr.location = (RX, RY - 0.01, 3.5)
+    active(arr)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    dish.append(tag(arr, "radar_dish", dgrey))
+    face = box("rad_face", (0, 0, 0), (0.86, 0.006, 0.44))
+    face.rotation_euler = (math.radians(-18), 0, 0)
+    face.location = (RX, RY - 0.045, 3.49)
+    active(face)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    dish.append(tag(face, "radar_dish", panel))
+    for i in range(8):
+        e = box(f"rad_elem{i}", (0, 0, 0), (0.008, 0.008, 0.4))
+        e.rotation_euler = (math.radians(-18), 0, 0)
+        e.location = (RX - 0.38 + i * 0.108, RY - 0.05, 3.49)
+        active(e)
+        bpy.ops.object.transform_apply(location=True, rotation=True)
+        dish.append(tag(e, "radar_dish", dark))
+    o = box("rad_led", (RX, RY - 0.02, 3.77), (0.5, 0.03, 0.02))
+    dish.append(tag(o, "radar_dish", green))
+    o = box("rad_iff", (RX, RY + 0.05, 3.8), (0.6, 0.04, 0.05))
+    dish.append(tag(o, "radar_dish", steel))
+
+    parts = ["body", "cover", "annunciators", "radar_mast", "radar_dish"]
+    allo = body + cover + ann + mast + dish
     stamp(allo, parts)
     o = join(allo, "console")
     unwrap(o, 0.002)
@@ -1339,9 +1385,9 @@ def build_console(assets, out):
     col = bake_one(o, mats, 2048, f"{assets}/textures/krl/console.png")
     glow = bake_one(o, mats, 1024, f"{assets}/textures/krl/console_glow.png", "glow")
     hinge = on_deck(1.15, 0.03, 0.0)
-    export(o, parts, {"cover": tuple(hinge)}, f"{assets}/models/krl/console.json")
+    export(o, parts, {"cover": tuple(hinge), "radar_dish": (RX, RY, 3.22), "radar_mast": (RX, RY, 1.62)}, f"{assets}/models/krl/console.json")
     pm = preview_material("krl_prev_c", col, glow, 3.0)
-    preview(o, pm, f"{out}/krl_console.png", (1.6, -3.6, 2.4), (0, 0, 0.9), lens=40, bg=(0.25, 0.27, 0.3))
+    preview(o, pm, f"{out}/krl_console.png", (2.2, -4.6, 3.0), (0, 0, 1.6), lens=40, bg=(0.25, 0.27, 0.3))
     return o
 
 
@@ -1448,6 +1494,76 @@ def build_station(assets, out):
     return o
 
 
+# ================================================================================================ the magazine
+
+def build_magazine(assets, out):
+    """KRL-M30 interceptor magazine: one block, an armoured box whose front is a 6 x 5 grid of launch tubes. Each loaded
+    tube shows its interceptor's nose cone (parts r00..r29, hidden by the renderer when that tube is empty)."""
+    reset()
+    olive = mil_mat("km_olive", (0.25, 0.27, 0.19), seams=2.8, wear=0.3, grime=0.35)
+    dgrey = mil_mat("km_dgrey", (0.17, 0.175, 0.17), wear=0.25, grime=0.3)
+    steel = metal_mat("km_steel", (0.36, 0.36, 0.35), 9.0)
+    haz = hazard_mat("km_haz", 10.0)
+    dark = flat_mat("km_dark", (0.018, 0.018, 0.018))
+    nose = mil_mat("km_nose", (0.55, 0.56, 0.54), wear=0.1, grime=0.1, scale=6.0)
+    tip = flat_mat("km_tip", (0.55, 0.06, 0.04))
+    white = flat_mat("km_white", (0.86, 0.86, 0.82))
+    green = glow_mat("km_green", GREEN, 0.9)
+    amber = glow_mat("km_amber", AMBER, 1.0)
+    body, rounds = [], []
+
+    def add(o, m, smooth=False):
+        body.append(tag(o, "body", m, smooth=smooth))
+
+    add(box("mag_body", (0, 0.02, 0.47), (0.94, 0.9, 0.86), bevel=0.015), olive)
+    add(box("mag_base", (0, 0, 0.025), (0.98, 0.98, 0.05)), dgrey)
+    add(box("mag_front", (0, -0.445, 0.45), (0.9, 0.02, 0.78)), dgrey)
+    add(box("mag_haz", (0, -0.46, 0.06), (0.94, 0.012, 0.05)), haz)
+    add(box("mag_lid", (0, 0.02, 0.92), (0.9, 0.86, 0.04), bevel=0.01), dgrey)
+    for sx in (-1, 1):
+        add(rod(f"mag_handle{sx}", (sx * 0.475, -0.2, 0.62), (sx * 0.475, 0.2, 0.62), 0.014, 8), steel)
+        for k in range(3):
+            add(box(f"mag_rib{sx}{k}", (sx * 0.471, 0.02, 0.2 + k * 0.25), (0.012, 0.86, 0.03)), dgrey)
+    add(box("mag_feed", (0, 0.47, 0.35), (0.3, 0.06, 0.5)), steel)
+    add(box("mag_led", (0.33, -0.457, 0.86), (0.18, 0.006, 0.02)), green)
+    add(box("mag_led2", (-0.33, -0.457, 0.86), (0.05, 0.006, 0.02)), amber)
+    body.append(label("mag_lbl", "KRL-M30  INTERCEPTOR MAGAZINE", 0.032, (-0.02, -0.458, 0.84), (math.radians(90), 0, 0), [white], "body"))
+    names = []
+    for j in range(5):
+        for i in range(6):
+            x = -0.3625 + i * 0.145
+            z = 0.73 - j * 0.14
+            ring = lathe(f"tube_ring{i}{j}", [(0.05, 0.0), (0.064, 0.0), (0.064, 0.012), (0.05, 0.012)], 20, closed=True)
+            add(orient(ring, (0, -1, 0), (x, -0.455, z)), steel, smooth=True)
+            hole = cyl(f"tube_hole{i}{j}", 0.05, 0.0, 0.004, 20)
+            add(orient(hole, (0, -1, 0), (x, -0.4545, z)), dark)
+            n = f"r{j * 6 + i:02d}"
+            names.append(n)
+            prof = [(0.0, -0.01), (0.044, -0.01), (0.044, 0.02)]
+            L, R = 0.07, 0.044
+            rho = (R * R + L * L) / (2 * R)
+            for k in range(1, 9):
+                xx = k / 8 * L
+                prof.append((max(0.0, math.sqrt(max(0.0, rho * rho - xx * xx)) + R - rho), 0.02 + xx))
+            cone = lathe(f"nose{n}", prof[:-2], 18)
+            rounds.append(tag(orient(cone, (0, -1, 0), (x, -0.455, z)), n, nose, smooth=True))
+            tp = lathe(f"tip{n}", prof[-3:] + [(0.0, 0.02 + L)], 18)
+            rounds.append(tag(orient(tp, (0, -1, 0), (x, -0.455, z)), n, tip, smooth=True))
+
+    parts = ["body"] + names
+    allo = body + rounds
+    stamp(allo, parts)
+    o = join(allo, "magazine")
+    unwrap(o, 0.003)
+    mats = [olive, dgrey, steel, haz, dark, nose, tip, white, green, amber]
+    col = bake_one(o, mats, 1024, f"{assets}/textures/krl/magazine.png")
+    glow = bake_one(o, mats, 512, f"{assets}/textures/krl/magazine_glow.png", "glow")
+    export(o, parts, {}, f"{assets}/models/krl/magazine.json")
+    pm = preview_material("krl_prev_mag", col, glow, 3.0)
+    preview(o, pm, f"{out}/krl_magazine.png", (1.5, -2.2, 1.5), (0, 0, 0.45), lens=40, bg=(0.25, 0.27, 0.3))
+    return o
+
+
 def main():
     global ARGS
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -1461,6 +1577,7 @@ def main():
     build_launcher(ARGS.assets, ARGS.out)
     build_console(ARGS.assets, ARGS.out)
     build_station(ARGS.assets, ARGS.out)
+    build_magazine(ARGS.assets, ARGS.out)
     print("[krl] done")
 
 

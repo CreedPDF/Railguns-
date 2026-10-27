@@ -72,7 +72,7 @@ public final class BeamRenderLayers extends RenderLayer {
     private static final Map<Identifier, RenderLayer> TEXTURED = new HashMap<>();
 
     public static RenderLayer textured(Identifier texture) {
-        texture = com.creedpdf.orbitalrailgun.client.config.ScaledTextures.map(texture);
+        texture = com.creedpdf.orbitalrailgun.client.config.PremulTextures.map(com.creedpdf.orbitalrailgun.client.config.ScaledTextures.map(texture));
         return TEXTURED.computeIfAbsent(texture, tex -> RenderLayer.of(
                 "orbital_railgun_beam_" + tex.getPath(),
                 VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,
@@ -135,6 +135,7 @@ public final class BeamRenderLayers extends RenderLayer {
 
     /** Like {@link #textured} but drawn on top of everything (scan markers seen through terrain). */
     public static RenderLayer xray(Identifier texture) {
+        texture = com.creedpdf.orbitalrailgun.client.config.PremulTextures.map(texture);
         return XRAY.computeIfAbsent(texture, tex -> RenderLayer.of(
                 "orbital_railgun_xray_" + tex.getPath(),
                 VertexFormats.POSITION_COLOR_TEXTURE_LIGHT_NORMAL,

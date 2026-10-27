@@ -50,6 +50,8 @@ public final class KrlDraw {
     /** A camera-facing sprite of half-size s, rotated by ang. Both windings. */
     public static void sprite(VertexConsumer vc, Matrix4f m, float x, float y, float z, float s, float ang, float r, float g, float b, float a) {
         if (a <= 0.003f || s <= 0) return;
+        // with a shader pack its own bloom does the job of the wide faint halos, which only read as discs there
+        if (s > 5f && a < 0.4f && KrlCompat.shaders()) return;
         float c = MathHelper.cos(ang) * s, sn = MathHelper.sin(ang) * s;
         float rx = R.x * c + U.x * sn, ry = R.y * c + U.y * sn, rz = R.z * c + U.z * sn;
         float ux = -R.x * sn + U.x * c, uy = -R.y * sn + U.y * c, uz = -R.z * sn + U.z * c;
