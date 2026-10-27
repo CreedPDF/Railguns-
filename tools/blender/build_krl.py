@@ -1343,7 +1343,7 @@ def build_console(assets, out):
     for k, (z0, z1, r) in enumerate(((1.62, 2.4, 0.055), (2.3, 2.95, 0.045), (2.85, 3.2, 0.036))):
         o = cyl(f"rad_mast{k}", r, z0, z1, 16, RX, RY)
         mast.append(tag(o, "radar_mast", steel, smooth=True))
-        o = lathe(f"rad_collar{k}", [(r, z1 - 0.03), (r + 0.018, z1 - 0.03), (r + 0.018, z1), (r, z1)], 16, closed=True)
+        o = lathe(f"rad_collar{k}", [(r, z1 - 0.03), (r + 0.018, z1 - 0.03), (r + 0.018, z1), (r, z1)], 16, closed=True, offset=(RX, RY, 0))
         mast.append(tag(o, "radar_mast", dgrey, smooth=True))
     o = cyl("rad_turntable", 0.13, 3.18, 3.26, 24, RX, RY)
     dish.append(tag(o, "radar_dish", dgrey, smooth=True))
