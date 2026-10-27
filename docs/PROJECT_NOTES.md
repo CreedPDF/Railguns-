@@ -29,6 +29,19 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - KRL: launcher, fire-control console (with air-defence radar), missile integration station, 3x3x2 interceptor
   magazine; flight path in `krl/KrlFlight.java`, impacts in `krl/KrlImpact.java`, air defence in `krl/KrlDefense.java`.
 
-## Open ideas
-- Redesign the starship (currently a cube-built GeckoLib model, `geo/ship.geo.json`) as a smooth Blender mesh,
-  keeping the cabin box x [-2.5, 2.5], y [-5.5, 5.5], floor z 2, the ramp hinge, gear pivots and engine pods.
+## Planned next (requested by the owner)
+- **Starship redesign**: replace the cube-built GeckoLib model (`geo/ship.geo.json`) with a smooth, realistic
+  Blender mesh (lofted fuselage, canopy, wings with tilting engine pods, tail fins, ramp, landing gear, detailed
+  cabin), rendered with KrlMesh. Keep the cabin box x [-2.5, 2.5], y [-5.5, 5.5], floor z 2, the ramp hinge,
+  gear pivots and engine-pod pivot so the walk-in collision, flight console and flight code still line up.
+- **New creative tab "Space Command"** (likely also home for the starship, flight console and EVA suit):
+  - an orbital station built module by module in the Space dimension: a command hub, solar arrays that power it,
+    and a station-mounted railgun that shoots down meteorites during a meteor shower;
+  - an orbital strike satellite module, controlled from a new page on the uplink tablet, with its own
+    cutscene, new effects and new sounds.
+- Everything new: high-quality Blender models, proper cutscenes, new VFX and SFX (nothing reused), shader compatible.
+
+## Other ideas discussed
+- Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set
+  (reinforced concrete, blast door, periscope camera).
+- Railguns tab: an ARES-9 overwatch mode that fires on hostiles the KRL radar marks inside a painted zone.
