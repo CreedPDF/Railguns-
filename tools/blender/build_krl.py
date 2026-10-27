@@ -9,7 +9,7 @@ in blocks, with the front of each model facing south (+Z). Everything is in a gr
   launcher  KRL-1: a steel launch platform on outrigger jacks (part "base") carrying a turntable with an inclined
             launch rail at 60 degrees, elevation rams, a control box and counterweight (part "turret", slews to the
             target), two latch straps over the missile (part "clamps"), an umbilical boom (part "umbilical") and an
-            amber warning beacon (part "beacon")
+            amber status lamps
   spear     the kinetic missile: 7 blocks, solid-rocket motor and nozzle (part "nozzle" glows), clipped-delta tail fins,
             canards, raceway, launch lugs, ID bands and stencils; tangent-ogive tungsten nose (part "nose" - the game
             wraps its plasma sheath round this part). Baked once per livery: textures/krl/spear_<livery>.png
@@ -869,7 +869,8 @@ def spear_profile():
     for k in range(1, 17):
         f = k / 16
         x = f * L
-        r = math.sqrt(max(0.0, rho * rho - (L - x) ** 2)) + R - rho
+        # tangent ogive measured from its base: full radius R at the base, a point at the tip
+        r = math.sqrt(max(0.0, rho * rho - x * x)) + R - rho
         pts.append((max(r, 0.012 if k < 16 else 0.0), NOSE_Z + x))
     return pts
 
@@ -1011,7 +1012,7 @@ def build_launcher(assets, out):
     lamp = glow_mat("kl_lamp", AMBER, 1.0)
     grn = glow_mat("kl_green", GREEN, 0.9)
     white = flat_mat("kl_white", (0.86, 0.86, 0.82))
-    base, turret, clamps, umb, beacon = [], [], [], [], []
+    base, turret, clamps, umb = [], [], [], []
 
     # ---- base: a steel launch platform on four outrigger jacks
     o = box("deck", (0, 0, 0.22), (2.9, 2.9, 0.3), bevel=0.04)
@@ -1138,10 +1139,6 @@ def build_launcher(assets, out):
     turret.append(tag(o, "turret", grn))
     o = box("ctl_lamp2", (-0.798, 0.15, 1.0), (0.01, 0.06, 0.04))
     turret.append(tag(o, "turret", lamp))
-    o = cyl("beacon_post", 0.035, 1.1, 1.3, 8, -0.62, 0.36)
-    turret.append(tag(o, "turret", steel))
-    o = lathe("beacon_lamp", [(0.0, 1.3), (0.07, 1.31), (0.075, 1.4), (0.05, 1.45), (0.0, 1.46)], 16)
-    beacon.append(tag(o, "beacon", lamp, smooth=True))
     # counterweight at the back
     o = box("cw", (0, 0.72, 0.8), (0.6, 0.3, 0.36), bevel=0.03)
     turret.append(tag(o, "turret", dgrey))
@@ -1174,15 +1171,15 @@ def build_launcher(assets, out):
     o = rod("umb_cable", ua + Vector((0, 0, -0.05)), ub + Vector((0, 0, -0.06)), 0.025, 8)
     umb.append(tag(o, "umbilical", rubber))
 
-    parts = ["base", "turret", "clamps", "umbilical", "beacon"]
-    allo = base + turret + clamps + umb + beacon
+    parts = ["base", "turret", "clamps", "umbilical"]
+    allo = base + turret + clamps + umb
     stamp(allo, parts)
     mats = [grey, dgrey, tread, steel, chrome, rubber, haz, sten, lamp, grn, white]
     o = join(allo, "launcher")
     unwrap(o, 0.003)
     col = bake_one(o, mats, 2048, f"{assets}/textures/krl/launcher.png")
     glow = bake_one(o, mats, 1024, f"{assets}/textures/krl/launcher_glow.png", "glow")
-    export(o, parts, {"clamps": tuple(hinge), "umbilical": tuple(ua), "beacon": (-0.62, 0.36, 1.3)}, f"{assets}/models/krl/launcher.json")
+    export(o, parts, {"clamps": tuple(hinge), "umbilical": tuple(ua)}, f"{assets}/models/krl/launcher.json")
     if not ARGS.no_render:
         # a missile on the rail, for the preview only
         sm = spear_mats("pv")
@@ -1348,6 +1345,109 @@ def build_console(assets, out):
     return o
 
 
+# ================================================================================================ the missile station
+
+def build_station(assets, out):
+    """KRL Missile Integration Station: one block. A steel workbench with a warhead section on a cradle, drawer
+    cabinet, pegboard of tools, a green-screen terminal and a chain hoist."""
+    reset()
+    grey = mil_mat("ks_grey", (0.4, 0.41, 0.39), seams=3.0, wear=0.35, grime=0.3)
+    dgrey = mil_mat("ks_dgrey", (0.2, 0.205, 0.2), wear=0.3, grime=0.3)
+    tread = tread_mat("ks_tread")
+    steel = metal_mat("ks_steel", (0.34, 0.34, 0.33), 9.0)
+    chrome = metal_mat("ks_chrome", (0.62, 0.62, 0.6), 12.0)
+    haz = hazard_mat("ks_haz", 10.0)
+    paint = mil_mat("ks_paint", (0.6, 0.61, 0.6), wear=0.15, grime=0.15, scale=5.0)
+    yel = mil_mat("ks_yel", (0.8, 0.62, 0.06), wear=0.1, grime=0.1, scale=8.0)
+    tung = metal_mat("ks_tung", (0.27, 0.27, 0.26), 6.0, rings=0.25)
+    scr = mil_screen_mat("ks_screen", GREEN)
+    lamp = glow_mat("ks_lamp", AMBER, 1.0)
+    white = flat_mat("ks_white", (0.86, 0.86, 0.82))
+    rubber = flat_mat("ks_rubber", (0.025, 0.025, 0.025))
+    body = []
+
+    def add(o, m, smooth=False):
+        body.append(tag(o, "body", m, smooth=smooth))
+
+    # frame, shelf and top
+    for sx in (-0.44, 0.44):
+        for sy in (-0.39, 0.39):
+            add(box(f"leg{sx}{sy}", (sx, sy, 0.39), (0.06, 0.06, 0.78)), dgrey)
+            add(box(f"foot{sx}{sy}", (sx, sy, 0.01), (0.1, 0.1, 0.02)), rubber)
+    add(box("shelf", (0, 0, 0.13), (0.92, 0.82, 0.03)), dgrey)
+    add(box("top", (0, 0, 0.8), (1.0, 0.9, 0.05), bevel=0.01), grey)
+    add(box("top_tread", (0, 0, 0.8255), (0.94, 0.84, 0.004)), tread)
+    add(box("top_lip", (0, -0.452, 0.82), (1.0, 0.012, 0.06)), haz)
+    # drawer cabinet under the right half
+    add(box("cab", (0.2, 0.0, 0.46), (0.46, 0.74, 0.6), bevel=0.01), grey)
+    for k in range(3):
+        z = 0.27 + k * 0.19
+        add(box(f"drawer{k}", (0.2, -0.375, z), (0.42, 0.012, 0.16)), dgrey)
+        add(rod(f"handle{k}", (0.1, -0.392, z + 0.04), (0.3, -0.392, z + 0.04), 0.008, 6), chrome)
+    body.append(label("cab_lbl", "EXPLOSIVE HAZARD", 0.035, (0.2, -0.383, 0.68), (math.radians(90), 0, 0), [white], "body"))
+    # parts bins on the shelf
+    for k, x in enumerate((-0.32, -0.12)):
+        add(box(f"bin{k}", (x, -0.05, 0.2), (0.16, 0.3, 0.1)), dgrey if k else grey)
+    # the warhead section on its cradle (built along Z, laid along X)
+    for x in (-0.18, 0.12):
+        add(box(f"cradle{x}", (x, 0.05, 0.88), (0.06, 0.24, 0.1)), dgrey)
+        add(box(f"cradle_pad{x}", (x, 0.05, 0.93), (0.07, 0.18, 0.02)), rubber)
+    prof = [(0.0, -0.32), (0.12, -0.32), (0.13, -0.3), (0.13, 0.08)]
+    L, R = 0.32, 0.13
+    rho = (R * R + L * L) / (2 * R)
+    for i in range(1, 11):
+        xx = i / 10 * L
+        prof.append((max(0.0, math.sqrt(max(0.0, rho * rho - xx * xx)) + R - rho), 0.08 + xx))
+    wh = lathe("warhead", prof[:4], 24)
+    add(orient(wh, (1, 0, 0), (-0.02, 0.05, 1.07)), paint, smooth=True)
+    nz = lathe("wh_nose", prof[3:], 24)
+    add(orient(nz, (1, 0, 0), (-0.02, 0.05, 1.07)), tung, smooth=True)
+    bd = lathe("wh_band", [(0.131, -0.12), (0.133, -0.115), (0.133, -0.07), (0.131, -0.065)], 24)
+    add(orient(bd, (1, 0, 0), (-0.02, 0.05, 1.07)), yel, smooth=True)
+    add(box("wh_panel", (-0.12, -0.085, 1.1), (0.14, 0.01, 0.08)), steel)
+    # small canards
+    for k in range(4):
+        o = extrude_outline(f"wh_can{k}", [(0.12, 0.0), (0.22, 0.02), (0.22, 0.05), (0.12, 0.08)], 0.012)
+        o.rotation_euler = (0, 0, math.radians(45 + 90 * k))
+        active(o)
+        bpy.ops.object.transform_apply(rotation=True)
+        add(orient(o, (1, 0, 0), (-0.02, 0.05, 1.07)), dgrey)
+    # explosive charges and a fuze box on the bench
+    for k in range(3):
+        add(cyl(f"charge{k}", 0.035, 0.828, 0.92, 12, 0.3 + k * 0.08, -0.25), yel, smooth=True)
+    add(box("fuze", (0.38, 0.12, 0.86), (0.12, 0.1, 0.07), bevel=0.005), dgrey)
+    add(box("fuze_led", (0.38, 0.068, 0.875), (0.02, 0.004, 0.015)), lamp)
+    # pegboard with tools
+    add(box("peg", (0, 0.43, 1.18), (0.98, 0.03, 0.66)), dgrey)
+    body.append(label("peg_lbl", "KRL-1  WARHEAD INTEGRATION", 0.045, (0, 0.413, 1.46), (math.radians(90), 0, 0), [white], "body"))
+    for k in range(5):
+        x = -0.36 + k * 0.1
+        add(box(f"wrench{k}", (x, 0.41, 1.2 - k * 0.012), (0.018, 0.01, 0.2 - k * 0.02)), chrome)
+    add(rod("torque", (0.14, 0.41, 1.04), (0.14, 0.41, 1.34), 0.012, 8), chrome)
+    add(box("meter", (0.3, 0.41, 1.2), (0.1, 0.02, 0.15)), haz)
+    # terminal on an arm
+    add(rod("mon_arm", (-0.3, 0.38, 0.83), (-0.3, 0.3, 1.1), 0.015, 8), steel)
+    add(box("mon", (-0.3, 0.3, 1.16), (0.3, 0.05, 0.2), bevel=0.01), grey)
+    add(box("mon_scr", (-0.3, 0.273, 1.16), (0.26, 0.004, 0.16)), scr)
+    # chain hoist
+    add(box("hoist_post", (0.44, 0.38, 1.28), (0.05, 0.05, 0.96)), grey)
+    add(box("hoist_boom", (0.44, 0.08, 1.74), (0.05, 0.62, 0.05)), grey)
+    add(box("hoist_block", (0.44, -0.12, 1.66), (0.08, 0.08, 0.1)), haz)
+    add(rod("chain", (0.44, -0.12, 1.61), (0.44, -0.12, 1.3), 0.008, 6), steel)
+    add(box("hook", (0.44, -0.12, 1.28), (0.03, 0.012, 0.05)), steel)
+
+    stamp(body, ["body"])
+    o = join(body, "station")
+    unwrap(o, 0.003)
+    mats = [grey, dgrey, tread, steel, chrome, haz, paint, yel, tung, scr, lamp, white, rubber]
+    col = bake_one(o, mats, 1024, f"{assets}/textures/krl/station.png")
+    glow = bake_one(o, mats, 512, f"{assets}/textures/krl/station_glow.png", "glow")
+    export(o, ["body"], {}, f"{assets}/models/krl/station.json")
+    pm = preview_material("krl_prev_st", col, glow, 3.0)
+    preview(o, pm, f"{out}/krl_station.png", (1.7, -2.4, 1.9), (0, 0, 0.9), lens=40, bg=(0.25, 0.27, 0.3))
+    return o
+
+
 def main():
     global ARGS
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -1360,6 +1460,7 @@ def main():
     build_spear(ARGS.assets, ARGS.out)
     build_launcher(ARGS.assets, ARGS.out)
     build_console(ARGS.assets, ARGS.out)
+    build_station(ARGS.assets, ARGS.out)
     print("[krl] done")
 
 
