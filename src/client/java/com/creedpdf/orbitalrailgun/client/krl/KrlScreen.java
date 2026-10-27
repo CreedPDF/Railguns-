@@ -2,7 +2,6 @@ package com.creedpdf.orbitalrailgun.client.krl;
 
 import com.creedpdf.orbitalrailgun.krl.Krl;
 import com.creedpdf.orbitalrailgun.krl.KrlFlight;
-import com.creedpdf.orbitalrailgun.krl.KrlImpact;
 import com.creedpdf.orbitalrailgun.krl.KrlNet;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -128,10 +127,10 @@ public class KrlScreen extends Screen {
             int was = board.links().get(i).status(), now = b.links().get(i).status();
             if (was != now) {
                 String n = "RAIL-" + (char) ('A' + i);
-                if (now == KrlNet.L_BURNING) say(n + " IGNITION  T-60.0");
+                if (now == KrlNet.L_BURNING) say(n + " LAUNCH SEQUENCE");
                 else if (was == KrlNet.L_BURNING && now == KrlNet.L_EMPTY) say(n + " LIFTOFF");
                 else if (was == KrlNet.L_BURNING && now == KrlNet.L_READY) say(n + " SAFED");
-                else if (now == KrlNet.L_READY) say(n + " SPEAR SEATED");
+                else if (now == KrlNet.L_READY) say(n + " MISSILE LATCHED");
             }
         }
         if (b.links().size() != board.links().size()) say("LINK TABLE " + b.links().size() + "/" + Krl.MAX_LINKS);
@@ -213,8 +212,8 @@ public class KrlScreen extends Screen {
 
     // ------------------------------------------------------------------------------------------- colours
 
-    static final int BG = 0xF2070505, PANEL = 0xE00E0909, EDGE = 0xFF5C110D, EDGE_HI = 0xFFB3241A, RED = 0xFFFF3B2A, RED_DIM = 0xFF8C1D16,
-            AMBER = 0xFFFFA22E, WHITE = 0xFFEDE6E0, GREY = 0xFF8A807A;
+    static final int BG = 0xF2161917, PANEL = 0xE01E221F, EDGE = 0xFF4A524C, EDGE_HI = 0xFF8F9A90, RED = 0xFFFFB02E, RED_DIM = 0xFF8F8A70,
+            AMBER = 0xFFF0D060, WHITE = 0xFFEEF0E8, GREY = 0xFF939A92;
 
     // ------------------------------------------------------------------------------------------- drawing helpers (virtual units)
 
@@ -322,12 +321,12 @@ public class KrlScreen extends Screen {
         float mx = vx(mouseX), my = vy(mouseY);
 
         frame(0, 0, VW, VH, BG, EDGE);
-        fillf(1, 1, VW - 1, 14, 0xFF140807);
+        fillf(1, 1, VW - 1, 14, 0xFF1A1E1B);
         text("KRL-1  FIRE CONTROL", 5, 4, RED, 0.85f);
         text("KINETIC RAIL LAUNCHER  /  TRAJECTORY DIRECTOR", 118, 5.5f, RED_DIM, 0.5f);
         BlockPos c = board.console();
         textR(String.format(Locale.ROOT, "CONSOLE %d %d %d", c.getX(), c.getY(), c.getZ()), VW - 5, 5.5f, GREY, 0.5f);
-        for (float y = 16; y < VH - 2; y += 3) fillf(1, y, VW - 1, y + 0.4f, 0x0CFF2010);
+        for (float y = 16; y < VH - 2; y += 3) fillf(1, y, VW - 1, y + 0.4f, 0x08B0FFB0);
 
         drawLaunchers(mx, my);
         drawGauges(time);
@@ -352,12 +351,12 @@ public class KrlScreen extends Screen {
             boolean has = i < board.links().size();
             boolean sel = has && (selected & (1 << i)) != 0;
             boolean hover = has && mx >= 6 && mx < 120 && my >= y && my < y + 27;
-            fillf(6, y, 120, y + 27, sel ? 0xFF241010 : hover ? 0xFF180C0B : 0xFF0C0707);
+            fillf(6, y, 120, y + 27, sel ? 0xFF2C3A2E : hover ? 0xFF252B27 : 0xFF151816);
             if (sel) fillf(6, y, 7, y + 27, RED);
             String name = "RAIL-" + (char) ('A' + i);
             if (!has) {
-                text(name, 10, y + 3, 0xFF4A2A28, 0.6f);
-                text("NO LINK", 10, y + 12, 0xFF4A2A28, 0.5f);
+                text(name, 10, y + 3, 0xFF4F5650, 0.6f);
+                text("NO LINK", 10, y + 12, 0xFF4F5650, 0.5f);
                 continue;
             }
             Link l = board.links().get(i);
@@ -369,11 +368,11 @@ public class KrlScreen extends Screen {
             int sc;
             switch (st) {
                 case KrlNet.L_READY -> {
-                    sts = "SPEAR ON RAIL";
+                    sts = "MISSILE ON RAIL";
                     sc = 0xFF35C06A;
                 }
                 case KrlNet.L_BURNING -> {
-                    sts = String.format(Locale.ROOT, "IGNITION  T-%04.1f", Math.max(0, l.countdown()) / 20.0);
+                    sts = l.countdown() > Krl.FLAME ? "SLEWING TO TARGET" : String.format(Locale.ROOT, "IGNITION  T-%03.1f", Math.max(0, l.countdown()) / 20.0);
                     sc = RED;
                 }
                 case KrlNet.L_EMPTY -> {
@@ -403,9 +402,9 @@ public class KrlScreen extends Screen {
             }
             // unlink tab
             boolean uh = mx >= 110 && mx < 120 && my >= y + 1 && my < y + 10;
-            text(unlinkArm == i ? "X!" : "x", 113, y + 2.5f, unlinkArm == i ? RED : uh ? WHITE : 0xFF5A3230, 0.6f);
+            text(unlinkArm == i ? "X!" : "x", 113, y + 2.5f, unlinkArm == i ? RED : uh ? WHITE : 0xFF5E665F, 0.6f);
         }
-        text("CLICK A RAIL TO ARM IT FOR THIS SALVO", 8, 166, 0xFF5A3230, 0.42f);
+        text("CLICK A RAIL TO ARM IT FOR THIS SALVO", 8, 166, 0xFF5E665F, 0.42f);
     }
 
     // ---- gauges
@@ -426,13 +425,13 @@ public class KrlScreen extends Screen {
     }
 
     private void gauge(float cx, float cy, float r, float v, String label, String read, float time) {
-        circle(cx, cy, r, 1.1f, 0xFF2A100E, 0);
+        circle(cx, cy, r, 1.1f, 0xFF2C322E, 0);
         int n = 40;
         for (int i = 0; i <= n; i++) {
             double a = Math.PI * 0.75 + i * Math.PI * 1.5 / n;
             boolean on = i / (float) n <= v;
             float x = cx + (float) Math.cos(a) * r, y = cy + (float) Math.sin(a) * r;
-            fillf(x - 0.8f, y - 0.8f, x + 0.8f, y + 0.8f, on ? (v > 0.85f ? RED : AMBER) : 0xFF3A1512);
+            fillf(x - 0.8f, y - 0.8f, x + 0.8f, y + 0.8f, on ? (v > 0.85f ? RED : AMBER) : 0xFF3A403B);
         }
         double na = Math.PI * 0.75 + v * Math.PI * 1.5;
         line(cx, cy, cx + (float) Math.cos(na) * (r - 2), cy + (float) Math.sin(na) * (r - 2), 1f, WHITE, 0);
@@ -449,7 +448,7 @@ public class KrlScreen extends Screen {
         int a = 0;
         for (String s : log) {
             if (a > 4) break;
-            text(s, 8, y, a == 0 ? AMBER : 0xFF7A4A42, 0.42f);
+            text(s, 8, y, a == 0 ? AMBER : 0xFF7E867E, 0.42f);
             y += 4.4f;
             a++;
         }
@@ -458,7 +457,7 @@ public class KrlScreen extends Screen {
     // ---- the map
 
     private void drawMap(float mx, float my, float time) {
-        frame(MX0 - 2, MY0 - 2, MX1 + 2, MY1 + 2, 0xFF050303, EDGE);
+        frame(MX0 - 2, MY0 - 2, MX1 + 2, MY1 + 2, 0xFF0B0D0C, EDGE);
         KrlSurvey s = KrlSurvey.get(board.console());
         boolean inMap = mx >= MX0 && mx < MX1 && my >= MY0 && my < MY1;
         // clip to the map box using a nested scissor in real pixels
@@ -476,12 +475,12 @@ public class KrlScreen extends Screen {
         float ccx = mapPx(c.getX() + 0.5), ccy = mapPy(c.getZ() + 0.5);
         for (int ring = 500; ring <= 2000; ring += 500) {
             float rr = (float) (ring / scaleMap());
-            circle(ccx, ccy, rr, 0.5f, ring == 2000 ? RED_DIM : 0x66FF3B2A, 3);
+            circle(ccx, ccy, rr, 0.5f, ring == 2000 ? RED_DIM : 0x66FFB02E, 3);
         }
         circle(ccx, ccy, (float) (KrlNet.MIN_RANGE / scaleMap()), 0.5f, AMBER, 2);
         // grid north arrow + crosshair graticule
-        line(MX0, (MY0 + MY1) / 2, MX1, (MY0 + MY1) / 2, 0.3f, 0x33FF3B2A, 4);
-        line((MX0 + MX1) / 2, MY0, (MX0 + MX1) / 2, MY1, 0.3f, 0x33FF3B2A, 4);
+        line(MX0, (MY0 + MY1) / 2, MX1, (MY0 + MY1) / 2, 0.3f, 0x33FFB02E, 4);
+        line((MX0 + MX1) / 2, MY0, (MX0 + MX1) / 2, MY1, 0.3f, 0x33FFB02E, 4);
         // console marker
         fillf(ccx - 1.4f, ccy - 1.4f, ccx + 1.4f, ccy + 1.4f, WHITE);
         text("FC", ccx + 2.5f, ccy - 2, WHITE, 0.45f);
@@ -535,7 +534,7 @@ public class KrlScreen extends Screen {
         line(MX1 - barPx - 4, MY1 - 3, MX1 - 4, MY1 - 3, 0.6f, WHITE, 0);
         textR(String.format(Locale.ROOT, "%,.0f m", barM), MX1 - 4, MY1 - 8, WHITE, 0.42f);
         text(String.format(Locale.ROOT, "ZOOM x%.1f  [SCROLL]", ZOOMS[1] / ZOOMS[zoom]), MX0 + 2, MY0 + 1, GREY, 0.42f);
-        text("CLICK: MARK AIM POINT   DRAG: PAN", MX0 + 2, MY0 + 5.5f, 0xFF5A3230, 0.42f);
+        text("CLICK: MARK AIM POINT   DRAG: PAN", MX0 + 2, MY0 + 5.5f, 0xFF5E665F, 0.42f);
     }
 
     // ---- the firing solution
@@ -559,8 +558,8 @@ public class KrlScreen extends Screen {
             return;
         }
         BlockPos lp = board.links().get(fi).pos();
-        Vec3d launch = Vec3d.ofCenter(lp).add(0, 0.45, 0);
         Vec3d target = Vec3d.ofCenter(t).add(0, 1, 0);
+        Vec3d launch = KrlFlight.nozzleFor(Vec3d.ofBottomCenter(lp), target);
         KrlFlight p = new KrlFlight(launch, target);
         double d = p.dist;
         boolean ok = d <= Krl.RANGE && d >= KrlNet.MIN_RANGE;
@@ -582,15 +581,13 @@ public class KrlScreen extends Screen {
         y += 5.6f;
         row(360, y, "APOGEE", String.format(Locale.ROOT, "%.1f km", apogeeKm), WHITE);
         y += 5.6f;
-        row(360, y, "FLIGHT TIME", String.format(Locale.ROOT, "%.1f s + 60 s burn", flightSec), WHITE);
+        row(360, y, "FLIGHT TIME", String.format(Locale.ROOT, "%.1f s + 2 s ignition", flightSec), WHITE);
         y += 5.6f;
         row(360, y, "PEAK VELOCITY", String.format(Locale.ROOT, "MACH %.0f  %,.0f m/s", machMax, vImpact), RED);
         y += 5.6f;
         row(360, y, "SHEATH TEMP", String.format(Locale.ROOT, "%,.0f K", stagK), AMBER);
         y += 5.6f;
         row(360, y, "ARRIVAL ENERGY", String.format(Locale.ROOT, "%,.0f MJ", energyMJ), AMBER);
-        y += 5.6f;
-        row(360, y, "CRATER", String.format(Locale.ROOT, "~%d m across", KrlImpact.RADIUS * 2), WHITE);
         y += 5.6f;
         int kind = KrlSurvey.get(board.console()) != null && KrlSurvey.get(board.console()).covers(t.getX(), t.getZ())
                 ? KrlSurvey.get(board.console()).kindAt(t.getX(), t.getZ()) : -1;
@@ -613,7 +610,7 @@ public class KrlScreen extends Screen {
     }
 
     private void drawProfile(float x, float y, float w, float h, KrlFlight p) {
-        fillf(x, y, x + w, y + h, 0xFF0A0505);
+        fillf(x, y, x + w, y + h, 0xFF101311);
         line(x, y + h - 1, x + w, y + h - 1, 0.4f, EDGE, 0);
         float py = Float.NaN, pxp = Float.NaN;
         double maxH = p.height;
@@ -628,8 +625,8 @@ public class KrlScreen extends Screen {
             prevx = px;
             prevy = yy;
         }
-        text("CLIMB", x + 3, y + 1, 0xFF7A4A42, 0.4f);
-        text("RE-ENTRY", x + w - 24, y + 1, 0xFF7A4A42, 0.4f);
+        text("CLIMB", x + 3, y + 1, 0xFF7E867E, 0.4f);
+        text("RE-ENTRY", x + w - 24, y + 1, 0xFF7E867E, 0.4f);
     }
 
     // ---- controls
@@ -653,7 +650,7 @@ public class KrlScreen extends Screen {
         frame(356, 200, 476, 252, PANEL, EDGE);
         // master arm
         boolean armHover = hit(mx, my, 360, 204, 56, 20);
-        fillf(360, 204, 416, 224, armed ? 0xFF3A0A08 : 0xFF140A09);
+        fillf(360, 204, 416, 224, armed ? 0xFF4A3A10 : 0xFF202522);
         if (armed) {
             float g = 0.5f + 0.5f * MathHelper.sin(time * 0.3f);
             frame(360, 204, 416, 224, 0x00000000, RED);
@@ -666,7 +663,7 @@ public class KrlScreen extends Screen {
         text("MASTER ARM", 360, 226, GREY, 0.42f);
         // ride / cutscene toggle
         boolean rideHover = hit(mx, my, 420, 204, 52, 20);
-        fillf(420, 204, 472, 224, KrlSettings.ride ? 0xFF241010 : 0xFF140A09);
+        fillf(420, 204, 472, 224, KrlSettings.ride ? 0xFF2C3A2E : 0xFF202522);
         frame(420, 204, 472, 224, 0x00000000, rideHover ? EDGE_HI : EDGE);
         text(KrlSettings.ride ? "RIDE: ON" : "RIDE: OFF", 426, 207, KrlSettings.ride ? AMBER : GREY, 0.55f);
         text("CUTSCENE", 420, 226, GREY, 0.42f);
@@ -674,13 +671,13 @@ public class KrlScreen extends Screen {
         boolean burning = anyBurning();
         boolean fire = armed && canFire();
         boolean lHover = hit(mx, my, 360, 232, 56, 16);
-        fillf(360, 232, 416, 248, fire ? (lHover ? 0xFFB3241A : 0xFF6E120D) : 0xFF140A09);
+        fillf(360, 232, 416, 248, fire ? (lHover ? 0xFFC0301E : 0xFF7A1A12) : 0xFF202522);
         frame(360, 232, 416, 248, 0x00000000, fire ? RED : EDGE);
-        textC("LAUNCH", 388, 237, fire ? WHITE : 0xFF5A3230, 0.7f);
+        textC("LAUNCH", 388, 237, fire ? WHITE : 0xFF5E665F, 0.7f);
         boolean aHover = hit(mx, my, 420, 232, 52, 16);
-        fillf(420, 232, 472, 248, burning ? (aHover ? 0xFFFFA22E : 0xFF8C5A10) : 0xFF140A09);
+        fillf(420, 232, 472, 248, burning ? (aHover ? 0xFFF0D060 : 0xFF8C6A10) : 0xFF202522);
         frame(420, 232, 472, 248, 0x00000000, burning ? AMBER : EDGE);
-        textC("ABORT", 446, 237, burning ? 0xFF201008 : 0xFF5A3230, 0.7f);
+        textC("ABORT", 446, 237, burning ? 0xFF1A1408 : 0xFF5E665F, 0.7f);
     }
 
     private boolean hit(float mx, float my, float x, float y, float w, float h) {

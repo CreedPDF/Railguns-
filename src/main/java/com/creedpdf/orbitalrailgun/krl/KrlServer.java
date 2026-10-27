@@ -45,14 +45,14 @@ public final class KrlServer {
         public final UUID owner;
         @Nullable
         UUID rider;
+        public final int livery;
         Vec3d launch, target;
         KrlFlight path;
-        boolean lifted;
-        @Nullable
-        KrlImpact impact;
+        boolean lifted, mountTried;
 
-        Flight(int id, RegistryKey<World> world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID owner) {
+        Flight(int id, RegistryKey<World> world, BlockPos pad, Vec3d launch, Vec3d target, long liftoff, @Nullable UUID owner, int livery) {
             this.id = id;
+            this.livery = livery;
             this.world = world;
             this.pad = pad;
             this.launch = launch;
@@ -117,13 +117,14 @@ public final class KrlServer {
 
     // ------------------------------------------------------------------------------------------- orders
 
-    /** Light the motor of a loaded launcher; the spear leaves {@link Krl#IGNITION} ticks later. */
+    /** Fire a loaded launcher: the turret slews, the motor lights, and the missile leaves {@link Krl#COUNTDOWN} ticks later. */
     @Nullable
     public static Flight ignite(ServerWorld w, KrlLauncherBlockEntity be, BlockPos target, ServerPlayerEntity by, boolean ride) {
         if (!be.loaded() || be.igniting()) return null;
-        Vec3d launch = be.railPoint();
         Vec3d tgt = Vec3d.ofBottomCenter(target).add(0, 1, 0);
-        Flight f = new Flight(nextId++, w.getRegistryKey(), be.getPos().toImmutable(), launch, tgt, w.getTime() + Krl.IGNITION, by.getUuid());
+        Vec3d launch = KrlFlight.nozzleFor(Vec3d.ofBottomCenter(be.getPos()), tgt);
+        Flight f = new Flight(nextId++, w.getRegistryKey(), be.getPos().toImmutable(), launch, tgt, w.getTime() + Krl.COUNTDOWN, by.getUuid(),
+                be.livery());
         if (ride && !RIDES.containsKey(by.getUuid()) && !anyRide(by.getUuid())) f.rider = by.getUuid();
         FLIGHTS.put(f.id, f);
         be.ignited(f.id);
@@ -177,19 +178,17 @@ public final class KrlServer {
             BlockPos tb = BlockPos.ofFloored(f.target);
             w.getChunkManager().addTicket(ChunkTicketType.PORTAL, new ChunkPos(tb), 3, tb);
 
-            if (t == -40) settleTarget(w, f);
-            if (t == -KrlFlight.PAD_LEAD && f.rider != null) {
+            if (t == -Krl.FLAME - 5) settleTarget(w, f);
+            if (t == -Krl.FLAME) w.playSound(null, f.launch.x, f.launch.y, f.launch.z, Krl.S_IGNITE, SoundCategory.BLOCKS, 6f, 1f);
+            if (!f.mountTried && f.rider != null && t < 0) {
+                f.mountTried = true;
                 if (w.getPlayerByUuid(f.rider) instanceof ServerPlayerEntity p && p.isAlive() && !RIDES.containsKey(p.getUuid())) mount(p, f);
                 else f.rider = null;
             }
             if (t == 0) liftoff(w, f);
             if (t == KrlFlight.BOOST + 4) w.playSound(null, f.path.apex.x, f.path.apex.y, f.path.apex.z, Krl.S_STALL, SoundCategory.BLOCKS, 12f, 1f);
             if (t == KrlFlight.TOTAL - 80) w.playSound(null, f.target.x, f.target.y + 20, f.target.z, Krl.S_INCOMING, SoundCategory.BLOCKS, 40f, 1f);
-            if (t == KrlFlight.TOTAL) {
-                f.impact = new KrlImpact(w, BlockPos.ofFloored(f.target).down(), f.owner);
-                f.impact.blast();
-            }
-            if (f.impact != null && t > KrlFlight.TOTAL) f.impact.carve((int) (t - KrlFlight.TOTAL));
+            if (t == KrlFlight.TOTAL) KrlImpact.explode(w, f.target, f.owner);
             if (t >= KrlFlight.TOTAL + KrlFlight.AFTER) done.add(f);
         }
         for (Flight f : done) {

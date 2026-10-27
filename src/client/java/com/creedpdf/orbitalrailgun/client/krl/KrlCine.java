@@ -118,7 +118,7 @@ public final class KrlCine {
             Vec3d toPad = f.launch.subtract(pc).multiply(1, 0, 1).normalize();
             eye = pc.add(toPad.multiply(3.5 * push));
             eye = new Vec3d(eye.x, Math.max(eye.y, ground(eye.x, eye.z, eye.y) + 1.7), eye.z);
-            Vec3d rest = f.launch.add(0, 3.6, 0);
+            Vec3d rest = f.launch.add(p.rail.multiply(3.2));
             if (t <= 0) look = rest;
             else {
                 Vec3d sp = KrlFx.nozzle(f, t).add(p.dir(t).multiply(3.5));
@@ -247,7 +247,7 @@ public final class KrlCine {
 
     // ------------------------------------------------------------------------------------------- HUD
 
-    private static final int RED = 0xFFFF3B2A, DIM = 0xFFB0302A, WHITE = 0xFFF2ECE6;
+    private static final int RED = 0xFFFFB02E, DIM = 0xFFB8B4A6, WHITE = 0xFFF2F0E8;
 
     static void hud(DrawContext dc, float pt) {
         if (!active()) return;
@@ -269,19 +269,15 @@ public final class KrlCine {
             if (d < 3) dip = Math.max(dip, (float) (1 - d / 3));
         }
         if (dip > 0.01f) dc.fill(0, 0, W, H, ((int) (dip * 255) << 24));
-        // impact flash
         double ti = t - KrlFlight.TOTAL;
-        if (ti >= 0 && ti < 30) {
-            float a = (float) Math.exp(-ti / 5) * 0.9f;
-            dc.fill(0, 0, W, H, ((int) (a * 255) << 24) | 0xFFF4E8);
-        }
 
         var ms = dc.getMatrices();
         // telemetry, bottom left
         if (t > -KrlFlight.PAD_LEAD + 10) {
             int x = 10, y = H - bar - 62;
             String phase;
-            if (t < 0) phase = "HOLD-DOWN  MOTOR AT FULL THRUST";
+            if (t < -com.creedpdf.orbitalrailgun.krl.Krl.FLAME) phase = "TURRET SLEW  -  TARGET BEARING";
+            else if (t < 0) phase = "IGNITION  -  MOTOR AT FULL THRUST";
             else if (t < KrlFx.BURNOUT) phase = "POWERED ASCENT";
             else if (t < KrlFlight.BOOST) phase = "BURNOUT  BALLISTIC COAST";
             else if (t < KrlFlight.BOOST + KrlFlight.STALL) phase = "APOGEE  PITCH-OVER";

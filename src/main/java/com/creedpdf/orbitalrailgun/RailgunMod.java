@@ -174,7 +174,8 @@ public final class RailgunMod implements ModInitializer {
                     entries.add(EVA_BOOTS);
                     entries.add(com.creedpdf.orbitalrailgun.krl.Krl.LAUNCHER_ITEM);
                     entries.add(com.creedpdf.orbitalrailgun.krl.Krl.CONSOLE_ITEM);
-                    entries.add(com.creedpdf.orbitalrailgun.krl.Krl.SPEAR);
+                    for (int lv = 0; lv < com.creedpdf.orbitalrailgun.krl.Krl.LIVERIES.length; lv++)
+                        entries.add(com.creedpdf.orbitalrailgun.krl.KineticSpearItem.withLivery(new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.krl.Krl.SPEAR), lv));
                 })
                 .build());
 

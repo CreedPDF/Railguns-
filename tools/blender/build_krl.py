@@ -2,19 +2,20 @@
 KRL - the Kinetic Rail Launcher - built and textured in headless Blender (run by tools/blender/build.sh).
 
 Every model is modelled from scratch out of lathed profiles, lofted cross-sections, extruded outlines and boxes,
-unwrapped, and its textures are BAKED in Cycles from procedural materials (an albedo atlas and a red glow mask).
+unwrapped, and its textures are BAKED in Cycles from procedural materials (an albedo atlas and a glow mask).
 Meshes are exported as "krl_mesh": named parts with per-corner [x, y, z, u, v, nx, ny, nz] in Minecraft axes (y up),
-in blocks, with the front of each model facing south (+Z).
+in blocks, with the front of each model facing south (+Z). Everything is in a grey military finish.
 
-  launcher  KRL-1: a 3 x 3 scorched concrete pad with a flame duct, a 9.5-block lattice launch tower with its rail
-            spine, three clamp arms (part "clamps"), an umbilical arm (part "umbilical"), struts, equipment boxes and
-            a red beacon (part "beacon")
-  spear     the kinetic spear: 7 blocks, a solid-rocket motor with bell nozzle (part "nozzle" glows), cruciform fins,
-            a black rod with red bands and strakes, and a long tungsten ogive (part "nose" - the game wraps its plasma
-            sheath round this part)
-  console   the fire-control console, 3 blocks wide and 1 deep: a slanted control deck with gauges, guarded toggles,
+  launcher  KRL-1: a steel launch platform on outrigger jacks (part "base") carrying a turntable with an inclined
+            launch rail at 60 degrees, elevation rams, a control box and counterweight (part "turret", slews to the
+            target), two latch straps over the missile (part "clamps"), an umbilical boom (part "umbilical") and an
+            amber warning beacon (part "beacon")
+  spear     the kinetic missile: 7 blocks, solid-rocket motor and nozzle (part "nozzle" glows), clipped-delta tail fins,
+            canards, raceway, launch lugs, ID bands and stencils; tangent-ogive tungsten nose (part "nose" - the game
+            wraps its plasma sheath round this part). Baked once per livery: textures/krl/spear_<livery>.png
+  console   the fire-control console, 3 blocks wide and 1 deep: a slanted control deck with gauges, toggles,
             push-button matrix, faders, key switch and a launch button under a flip cover (part "cover"), and an
-            upright board with three CRTs and a strip of annunciator tiles (part "annunciators")
+            upright board with three green CRTs and a strip of annunciator tiles (part "annunciators")
 """
 import argparse
 import json
@@ -24,7 +25,7 @@ import sys
 
 import bpy
 import bmesh
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 ARGS = None
 
@@ -62,6 +63,11 @@ def apply_mods(obj):
 
 
 def link_obj(name, bm):
+    # bm.to_mesh() clamps face material indices to the mesh's (still empty) slot list, so keep them in an attribute
+    # and restore them in tag() once the slots exist
+    lay = bm.faces.layers.int.new("krl_mat")
+    for f in bm.faces:
+        f[lay] = f.material_index
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
@@ -75,8 +81,14 @@ def tag(obj, part, mats, smooth=False):
     """Remember which part a primitive belongs to and give it its material slots."""
     obj["krl_part"] = part
     obj.data.materials.clear()
-    for m in (mats if isinstance(mats, (list, tuple)) else [mats]):
+    ml = mats if isinstance(mats, (list, tuple)) else [mats]
+    for m in ml:
         obj.data.materials.append(m.m)
+    att = obj.data.attributes.get("krl_mat")
+    if att is not None:
+        top = len(ml) - 1
+        for k, poly in enumerate(obj.data.polygons):
+            poly.material_index = max(0, min(top, att.data[k].value))
     # recalculating normals goes through edit mode, which clamps face material indices to the slots that exist -
     # so it must happen only once the slots are assigned
     if obj.get("krl_fix"):
@@ -585,77 +597,150 @@ def preview(obj, mat, path, cam_loc, target, lens=50, res=900, light=3.5, transp
 
 
 
-# ================================================================================================ KRL materials
+# ================================================================================================ KRL materials (military)
 
-def steel_mat(name, scale=1.4, stripes=0.0):
-    """Black blast-treated steel: plate seams, grime, worn bright edges, optional red hazard bands."""
+AMBER = (1.0, 0.55, 0.08)
+GREEN = (0.25, 0.95, 0.35)
+
+
+def bake_one(obj, mats, size, path, which="color"):
+    """Bake a single pass (colour or glow) to a PNG."""
+    img = bpy.data.images.new(os.path.basename(path), size, size, alpha=False)
+    img.colorspace_settings.name = "Non-Color"
+    for mt in mats:
+        mt.mode(which)
+        tex = mt.nt.nodes.get("krl_bake") or mt.nt.nodes.new("ShaderNodeTexImage")
+        tex.name = "krl_bake"
+        tex.image = img
+        mt.nt.nodes.active = tex
+    active(obj)
+    bpy.ops.object.bake(type="EMIT", margin=6)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img.filepath_raw = path
+    img.file_format = "PNG"
+    img.save()
+    for mt in mats:
+        mt.mode("color")
+    print(f"[bake] {os.path.basename(path)} {size}px")
+    return img
+
+
+def _stretch(m, sx, sy, sz):
+    v = m.n("ShaderNodeVectorMath", _operation="MULTIPLY")
+    m.link(m.coord.outputs["Object"], v.inputs[0])
+    v.inputs[1].default_value = (sx, sy, sz)
+    return v.outputs[0]
+
+
+def _noise_at(m, vec, scale, detail=4, rough=0.55):
+    nz = m.n("ShaderNodeTexNoise", Scale=scale, Detail=detail, Roughness=rough)
+    m.link(vec, nz.inputs["Vector"])
+    return nz.outputs["Fac"]
+
+
+def _seams(m, scale, mortar=0.008, w=0.7, h=0.35, dark=0.45):
+    b = m.n("ShaderNodeTexBrick", Scale=scale, **{"Mortar Size": mortar, "Brick Width": w, "Row Height": h})
+    b.inputs["Color1"].default_value = (1, 1, 1, 1)
+    b.inputs["Color2"].default_value = (1, 1, 1, 1)
+    b.inputs["Mortar"].default_value = (dark, dark, dark, 1)
+    m.link(m.coord.outputs["Object"], b.inputs["Vector"])
+    return b.outputs["Color"]
+
+
+def mil_mat(name, color, seams=0.0, wear=0.3, grime=0.35, scale=2.0, checker=False):
+    """Military paint: a flat colour (changeable through m.rgb for liveries) with subtle mottling, panel seams, vertical
+    weathering streaks, chipped edges showing bare metal, and dirt in the crevices. checker adds the black-and-white
+    quadrant pattern of a test round (amount in m.check)."""
     m = Mat(name)
-    seams = m.brick(scale, 0.012, 0.6, 0.3)
-    n1 = m.noise(scale * 2.0, 6, 0.6)
-    n2 = m.noise(scale * 14, 3, 0.5)
-    col = m.ramp(n1, [(0.25, (0.016, 0.015, 0.016)), (0.6, (0.034, 0.032, 0.033)), (0.85, (0.055, 0.05, 0.05))])
-    col = m.mix(col, m.ramp(n2, [(0.45, (0, 0, 0)), (0.75, (0.022, 0.02, 0.02))]), 0.5, "ADD")
-    col = m.mix((0.003, 0.003, 0.003), col, seams)
-    edge = m.math("POWER", m.math("SUBTRACT", 1.0, m.ao(0.08)), 2.0)
-    col = m.mix(col, (0.2, 0.19, 0.19), m.math("MULTIPLY", edge, 0.45, True))
-    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.6)), 0.55, True))
-    if stripes > 0:
-        z = m.axis("Z")
-        band = m.math("LESS_THAN", m.math("FRACT", m.math("MULTIPLY", m.math("ADD", z, m.axis("X")), 3.0)), 0.5)
-        col = m.mix(col, (0.42, 0.02, 0.015), m.math("MULTIPLY", band, stripes))
+    rgb = m.n("ShaderNodeRGB")
+    rgb.outputs[0].default_value = (*color, 1)
+    m.rgb = rgb
+    col = rgb.outputs[0]
+    if checker:
+        x, y, z = m.axis("X"), m.axis("Y"), m.axis("Z")
+        q = m.math("ADD", m.math("GREATER_THAN", x, 0.0), m.math("GREATER_THAN", y, 0.0))
+        q = m.math("ADD", q, m.math("GREATER_THAN", m.math("FRACT", m.math("MULTIPLY", z, 0.8)), 0.5))
+        blk = m.math("MODULO", q, 2.0)
+        amt = m.n("ShaderNodeValue")
+        amt.outputs[0].default_value = 0.0
+        m.check = amt
+        col = m.mix(col, (0.035, 0.035, 0.035), m.math("MULTIPLY", blk, amt.outputs[0]))
+    # gentle colour mottling
+    mot = m.ramp(m.noise(scale, 5, 0.55), [(0.3, (0.9, 0.9, 0.9)), (0.7, (1.0, 1.0, 1.0))])
+    col = m.mix(col, mot, 1.0, "MULTIPLY")
+    if seams > 0:
+        col = m.mix(col, _seams(m, seams), 1.0, "MULTIPLY")
+    # vertical rain streaks / exhaust grime
+    streak = _noise_at(m, _stretch(m, 6.0, 6.0, 0.35), 3.0, 3, 0.5)
+    col = m.mix(col, m.mix(col, (0.12, 0.115, 0.1), 1.0, "MULTIPLY"),
+                m.math("MULTIPLY", m.math("GREATER_THAN", streak, 0.62), grime * 0.5))
+    # chipped paint: little islands of worn bare steel
+    chips = m.math("GREATER_THAN", m.noise(scale * 22, 3, 0.6), 0.74)
+    col = m.mix(col, (0.36, 0.36, 0.35), m.math("MULTIPLY", chips, wear * 0.6))
+    # dirt in corners and crevices
+    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.35)), grime + 0.15, True))
     m.color(col)
     return m
 
 
-def red_mat(name, base=(0.42, 0.018, 0.014)):
+def metal_mat(name, base=(0.3, 0.3, 0.3), scale=6.0, rings=0.0):
+    """Bare machined steel: brushed noise, optional machining rings along Z, dark crevices."""
     m = Mat(name)
-    n1 = m.noise(3.0, 6, 0.6)
-    n2 = m.noise(22.0, 3, 0.5)
-    col = m.ramp(n1, [(0.3, tuple(c * 0.6 for c in base)), (0.7, base)])
-    col = m.mix(col, (0.03, 0.02, 0.02), m.math("MULTIPLY", m.math("GREATER_THAN", n2, 0.72), 0.55))
-    edge = m.math("POWER", m.math("SUBTRACT", 1.0, m.ao(0.06)), 2.0)
-    col = m.mix(col, (0.22, 0.2, 0.2), m.math("MULTIPLY", edge, 0.35, True))
-    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.4)), 0.5, True))
+    n1 = m.noise(scale, 6, 0.55)
+    col = m.ramp(n1, [(0.3, tuple(c * 0.75 for c in base)), (0.7, base)])
+    if rings > 0:
+        r = m.math("GREATER_THAN", m.math("SINE", m.math("MULTIPLY", m.axis("Z"), 240.0)), 0.8)
+        col = m.mix(col, tuple(min(1, c * 1.3) for c in base), m.math("MULTIPLY", r, rings))
+    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.25)), 0.5, True))
     m.color(col)
     return m
 
 
-def tungsten_mat(name):
-    """The penetrator: dark tungsten grey with machining rings and heat bluing burned to bronze."""
+def tread_mat(name):
+    """Anti-slip diamond tread deck plate, painted grey and worn shiny along the walkways."""
     m = Mat(name)
+    x, y = m.axis("X"), m.axis("Y")
+    a = m.math("FRACT", m.math("MULTIPLY", m.math("ADD", x, y), 9.0))
+    b = m.math("FRACT", m.math("MULTIPLY", m.math("SUBTRACT", x, y), 9.0))
+    ridge = m.math("MULTIPLY", m.math("LESS_THAN", m.math("ABSOLUTE", m.math("SUBTRACT", a, 0.5)), 0.12),
+                   m.math("LESS_THAN", m.math("ABSOLUTE", m.math("SUBTRACT", b, 0.5)), 0.32))
+    col = m.ramp(m.noise(2.5, 5, 0.55), [(0.3, (0.2, 0.205, 0.2)), (0.7, (0.25, 0.255, 0.25))])
+    col = m.mix(col, (0.4, 0.4, 0.39), m.math("MULTIPLY", ridge, 0.6))
+    col = m.mix(col, (0.06, 0.06, 0.06), m.math("MULTIPLY", m.math("GREATER_THAN", m.noise(1.2, 4, 0.6), 0.66), 0.35))
+    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.3)), 0.45, True))
+    m.color(col)
+    return m
+
+
+def hazard_mat(name, k=5.0):
+    """Yellow-and-black diagonal hazard stripes, scuffed."""
+    m = Mat(name)
+    s = m.math("LESS_THAN", m.math("FRACT", m.math("MULTIPLY", m.math("ADD", m.math("ADD", m.axis("X"), m.axis("Y")), m.axis("Z")), k)), 0.5)
+    col = m.mix((0.03, 0.03, 0.03), (0.78, 0.6, 0.06), s)
+    col = m.mix(col, (0.25, 0.24, 0.22), m.math("MULTIPLY", m.math("GREATER_THAN", m.noise(30.0, 3, 0.6), 0.72), 0.5))
+    m.color(col)
+    return m
+
+
+def stencil_mat(name, ink=(0.03, 0.03, 0.03), ground=None):
+    """A stencilled data block: rows of short dashes reading as text, in ink on the paint (ground) colour."""
+    m = Mat(name)
+    rgb = m.n("ShaderNodeRGB")
+    rgb.outputs[0].default_value = (*(ground or (0.5, 0.5, 0.5)), 1)
+    m.rgb = rgb
+    ink_n = m.n("ShaderNodeRGB")
+    ink_n.outputs[0].default_value = (*ink, 1)
+    m.ink = ink_n
     z = m.axis("Z")
-    rings = m.math("SINE", m.math("MULTIPLY", z, 260.0))
-    n1 = m.noise(4.0, 5, 0.5)
-    col = m.ramp(n1, [(0.3, (0.07, 0.068, 0.066)), (0.7, (0.12, 0.115, 0.11))])
-    col = m.mix(col, (0.16, 0.15, 0.14), m.math("MULTIPLY", m.math("GREATER_THAN", rings, 0.85), 0.25))
-    col = m.mix(col, (0.18, 0.1, 0.05), m.math("MULTIPLY", m.math("GREATER_THAN", m.noise(1.3, 3, 0.5), 0.62), 0.35))
-    m.color(col)
+    rows = m.math("LESS_THAN", m.math("FRACT", m.math("MULTIPLY", z, 26.0)), 0.55)
+    words = m.math("GREATER_THAN", _noise_at(m, _stretch(m, 30.0, 30.0, 4.0), 1.0, 2, 0.5), 0.45)
+    t = m.math("MULTIPLY", rows, words)
+    m.color(m.mix(rgb.outputs[0], ink_n.outputs[0], t))
     return m
 
 
-def concrete_mat(name):
-    """Launch pad: dark scorched concrete with expansion joints and red-and-black hazard chevrons at the edge."""
-    m = Mat(name)
-    n1 = m.noise(2.0, 7, 0.65)
-    n2 = m.noise(18.0, 4, 0.6)
-    col = m.ramp(n1, [(0.2, (0.03, 0.029, 0.028)), (0.6, (0.07, 0.066, 0.063)), (0.9, (0.1, 0.095, 0.09))])
-    col = m.mix(col, m.ramp(n2, [(0.4, (0, 0, 0)), (0.8, (0.03, 0.03, 0.03))]), 0.5, "ADD")
-    joints = m.brick(0.7, 0.01, 0.5, 0.5)
-    col = m.mix((0.01, 0.01, 0.01), col, joints)
-    # soot burned round the flame duct
-    r = m.math("SQRT", m.math("ADD", m.math("POWER", m.axis("X"), 2.0), m.math("POWER", m.axis("Y"), 2.0)))
-    soot = m.math("SUBTRACT", 1.0, m.math("MULTIPLY", r, 0.85), True)
-    col = m.mix(col, (0.004, 0.004, 0.004), m.math("MULTIPLY", soot, 0.85, True))
-    # chevrons along the outer edge
-    edge = m.math("GREATER_THAN", m.math("MAXIMUM", m.math("ABSOLUTE", m.axis("X")), m.math("ABSOLUTE", m.axis("Y"))), 1.3)
-    chev = m.math("LESS_THAN", m.math("FRACT", m.math("MULTIPLY", m.math("ADD", m.axis("X"), m.axis("Y")), 2.5)), 0.5)
-    col = m.mix(col, (0.42, 0.02, 0.015), m.math("MULTIPLY", edge, chev))
-    m.color(col)
-    return m
-
-
-def screen_mat(name):
-    """A fire-control CRT: dark red phosphor with scan lines, a grid, traces and glowing readouts."""
+def mil_screen_mat(name, color=GREEN):
+    """A fire-control CRT: dark green phosphor with scan lines, a grid and glowing traces."""
     m = Mat(name)
     x, z = m.axis("X"), m.axis("Z")
     scan = m.math("GREATER_THAN", m.math("SINE", m.math("MULTIPLY", z, 900.0)), 0.2)
@@ -664,23 +749,21 @@ def screen_mat(name):
     grid = m.math("MAXIMUM", gx, gz)
     trace = m.math("LESS_THAN", m.math("ABSOLUTE", m.math("SUBTRACT", m.math("FRACT", m.math("MULTIPLY", z, 3.0)),
                                                             m.math("MULTIPLY", m.noise(2.5, 2, 0.4), 0.9))), 0.02)
-    v = m.math("ADD", m.math("MULTIPLY", grid, 0.25), m.math("MULTIPLY", trace, 1.0))
+    v = m.math("ADD", m.math("MULTIPLY", grid, 0.25), trace)
     v = m.math("MULTIPLY", v, m.math("ADD", 0.6, m.math("MULTIPLY", scan, 0.4)))
-    col = m.ramp(v, [(0.0, (0.02, 0.004, 0.004)), (1.0, (0.9, 0.08, 0.04))])
-    m.color(col)
-    m.glow(m.ramp(v, [(0.0, (0.03, 0.002, 0.002)), (1.0, (1.0, 0.1, 0.05))]))
+    dim = tuple(c * 0.03 for c in color)
+    m.color(m.ramp(v, [(0.0, dim), (1.0, tuple(c * 0.85 for c in color))]))
+    m.glow(m.ramp(v, [(0.0, tuple(c * 0.04 for c in color)), (1.0, color)]))
     return m
 
 
-def panel_mat(name):
-    """Console deck: matte black-grey enamel with engraved white legend strips."""
+def mil_panel_mat(name):
+    """Console deck: matte dark grey enamel with engraved white legend strips."""
     m = Mat(name)
-    n1 = m.noise(6.0, 5, 0.5)
-    col = m.ramp(n1, [(0.3, (0.035, 0.034, 0.034)), (0.7, (0.055, 0.053, 0.053))])
+    col = m.ramp(m.noise(6.0, 5, 0.5), [(0.3, (0.1, 0.104, 0.1)), (0.7, (0.135, 0.14, 0.135))])
     lines = m.math("LESS_THAN", m.math("FRACT", m.math("MULTIPLY", m.axis("X"), 9.0)), 0.04)
-    col = m.mix(col, (0.5, 0.48, 0.46), m.math("MULTIPLY", lines, m.math("GREATER_THAN", m.noise(30.0, 1, 0.3), 0.55)))
-    edge = m.math("POWER", m.math("SUBTRACT", 1.0, m.ao(0.03)), 2.0)
-    col = m.mix(col, (0.18, 0.17, 0.17), m.math("MULTIPLY", edge, 0.4, True))
+    col = m.mix(col, (0.78, 0.78, 0.74), m.math("MULTIPLY", lines, m.math("GREATER_THAN", m.noise(30.0, 1, 0.3), 0.55)))
+    col = m.mix(col, (0, 0, 0), m.math("MULTIPLY", m.math("SUBTRACT", 1.0, m.ao(0.05)), 0.4, True))
     m.color(col)
     return m
 
@@ -699,15 +782,13 @@ def dial_mat(name):
     x, y = m.axis("X"), m.axis("Z")
     ang = m.math("ARCTAN2", y, x)
     ticks = m.math("GREATER_THAN", m.math("SINE", m.math("MULTIPLY", ang, 24.0)), 0.92)
-    col = m.mix((0.78, 0.75, 0.7), (0.02, 0.02, 0.02), ticks)
+    col = m.mix((0.84, 0.82, 0.76), (0.02, 0.02, 0.02), ticks)
     danger = m.math("LESS_THAN", ang, -0.6)
-    col = m.mix(col, (0.6, 0.03, 0.02), m.math("MULTIPLY", danger, 0.8))
+    col = m.mix(col, (0.6, 0.05, 0.03), m.math("MULTIPLY", danger, 0.8))
     m.color(col)
-    m.glow(m.ramp(danger, [(0.0, (0.05, 0.04, 0.035)), (1.0, (0.3, 0.02, 0.01))]))
+    m.glow(m.ramp(danger, [(0.0, (0.04, 0.04, 0.035)), (1.0, (0.15, 0.02, 0.01))]))
     return m
 
-
-# ================================================================================================ the launcher
 
 def cyl(name, r, z0, z1, segs=24, x=0.0, y=0.0):
     bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=z1 - z0, vertices=segs, location=(x, y, (z0 + z1) / 2))
@@ -716,185 +797,406 @@ def cyl(name, r, z0, z1, segs=24, x=0.0, y=0.0):
     return o
 
 
-def build_launcher(assets, out):
-    reset()
-    steel = steel_mat("krl_steel", 1.6)
-    steel_r = steel_mat("krl_steel_red", 1.6, stripes=0.9)
-    red = red_mat("krl_red")
-    conc = concrete_mat("krl_concrete")
-    glow = glow_mat("krl_glow", RED, 1.0)
-    dark = flat_mat("krl_rubber", (0.008, 0.008, 0.008))
-    base, clamps, umb, beacon = [], [], [], []
-
-    # ---- pad: 3 x 3 slab with chamfered edge, a recessed flame duct and grating
-    o = box("pad", (0, 0, 0.18), (3.0, 3.0, 0.36), bevel=0.06)
-    base.append(tag(o, "base", conc))
-    duct = [(0.72, 0.361), (0.62, 0.361), (0.62, 0.12), (0.0, 0.12)]
-    o = lathe("duct", duct, 40)
-    base.append(tag(o, "base", conc))
-    for i in range(-3, 4):
-        o = box(f"grate{i}", (i * 0.16, 0, 0.3), (0.05, 1.24, 0.06))
-        base.append(tag(o, "base", steel))
-    o = lathe("duct_ring", [(0.78, 0.36), (0.78, 0.4), (0.64, 0.4), (0.64, 0.36)], 40, closed=True)
-    base.append(tag(o, "base", red))
-    # anchor bolts
-    for sx in (-1.32, 1.32):
-        for sy in (-1.32, 1.32):
-            o = cyl(f"bolt{sx}{sy}", 0.06, 0.36, 0.44, 8, sx, sy)
-            base.append(tag(o, "base", steel))
-
-    # ---- the tower at the back (+Y): a lattice column with a rail spine facing the spear
-    ty = 0.95
-    for sx in (-0.28, 0.28):
-        for sy in (ty - 0.22, ty + 0.22):
-            o = beam(f"leg{sx}{sy}", (sx, sy, 0.36), (sx, sy, 9.4), 0.09, 0.09)
-            base.append(tag(o, "base", steel))
-    for k in range(18):
-        z0, z1 = 0.36 + k * 0.5, 0.36 + (k + 1) * 0.5
-        for (a, b) in (((-0.28, ty - 0.22), (0.28, ty - 0.22)), ((-0.28, ty + 0.22), (0.28, ty + 0.22)),
-                       ((-0.28, ty - 0.22), (-0.28, ty + 0.22)), ((0.28, ty - 0.22), (0.28, ty + 0.22))):
-            p0 = (a[0], a[1], z0) if k % 2 == 0 else (b[0], b[1], z0)
-            p1 = (b[0], b[1], z1) if k % 2 == 0 else (a[0], a[1], z1)
-            o = beam(f"brace{k}{a}{b}", p0, p1, 0.035, 0.035)
-            base.append(tag(o, "base", steel))
-        o = box(f"ring{k}", (0, ty, z0), (0.64, 0.52, 0.04))
-        base.append(tag(o, "base", steel_r if k % 3 == 0 else steel))
-    # rail spine and its guide strip
-    o = box("spine", (0, ty - 0.38, 4.9), (0.2, 0.14, 9.0))
-    base.append(tag(o, "base", steel))
-    o = box("guide", (0, ty - 0.46, 4.9), (0.06, 0.03, 8.8))
-    base.append(tag(o, "base", glow))
-    # cap and beacon
-    o = box("cap", (0, ty, 9.45), (0.7, 0.6, 0.12), bevel=0.02)
-    base.append(tag(o, "base", red))
-    o = cyl("beacon_post", 0.05, 9.5, 9.8, 8, 0, ty)
-    base.append(tag(o, "base", steel))
-    o = lathe("beacon_lamp", [(0.0, 9.8), (0.09, 9.82), (0.1, 9.9), (0.07, 9.98), (0.0, 10.0)], 16)
-    beacon.append(tag(o, "beacon", glow, smooth=True))
-    # hydraulic struts from the pad to the tower
-    for sx in (-1.0, 1.0):
-        o = beam(f"strut{sx}", (sx * 1.2, -0.9, 0.4), (sx * 0.3, ty - 0.1, 3.4), 0.08, 0.08)
-        base.append(tag(o, "base", steel))
-        o = beam(f"rod{sx}", (sx * 0.85, -0.25, 1.5), (sx * 0.3, ty - 0.1, 3.4), 0.04, 0.04)
-        base.append(tag(o, "base", red))
-        o = box(f"foot{sx}", (sx * 1.2, -0.9, 0.42), (0.26, 0.26, 0.1))
-        base.append(tag(o, "base", steel))
-    # equipment boxes and cable trays on the pad
-    for i, (x, y, w, d, h) in enumerate(((-1.1, 1.05, 0.6, 0.5, 0.55), (1.1, 1.05, 0.55, 0.55, 0.7), (1.15, -1.05, 0.45, 0.4, 0.4))):
-        o = box(f"equip{i}", (x, y, 0.36 + h / 2), (w, d, h), bevel=0.02)
-        base.append(tag(o, "base", steel_r if i == 1 else steel))
-        o = box(f"lamp{i}", (x, y - d / 2 - 0.005, 0.36 + h * 0.75), (w * 0.5, 0.02, 0.05))
-        base.append(tag(o, "base", glow))
-    o = beam("tray", (-1.1, 0.8, 0.42), (-0.25, 0.75, 0.42), 0.18, 0.06)
-    base.append(tag(o, "base", dark))
-
-    # ---- three clamp arms holding the spear (they swing open at launch: part "clamps", pivot on the spine)
-    for k, z in enumerate((1.7, 4.0, 6.3)):
-        o = box(f"arm{k}", (0, 0.32, z), (0.12, 0.5, 0.12))
-        clamps.append(tag(o, "clamps", red))
-        prof = [(0.33, z - 0.07), (0.38, z - 0.07), (0.38, z + 0.07), (0.33, z + 0.07)]
-        o = lathe(f"clampring{k}", prof, 24, a0=math.radians(-200), a1=math.radians(20), closed=True, cap=True)
-        clamps.append(tag(o, "clamps", steel))
-    # umbilical: an arm from the tower to the spear's motor section with a cable bundle
-    o = beam("umb_arm", (0.0, ty - 0.4, 2.6), (0.0, 0.32, 2.4), 0.14, 0.1)
-    umb.append(tag(o, "umbilical", steel))
-    o = box("umb_plug", (0, 0.27, 2.4), (0.18, 0.08, 0.16))
-    umb.append(tag(o, "umbilical", red))
-    for j in range(3):
-        o = beam(f"cable{j}", (0.05 * (j - 1), ty - 0.4, 2.45 - j * 0.04), (0.05 * (j - 1), 0.3, 2.3 - j * 0.02), 0.025, 0.025)
-        umb.append(tag(o, "umbilical", dark))
-
-    parts = ["base", "clamps", "umbilical", "beacon"]
-    allo = base + clamps + umb + beacon
-    stamp(allo, parts)
-    mats = [steel, steel_r, red, conc, glow, dark]
-    o = join(allo, "launcher")
-    unwrap(o, 0.003)
-    imgs = bake(o, mats, 2048, f"{assets}/textures/krl/launcher.png", f"{assets}/textures/krl/launcher_glow.png")
-    export(o, parts, {"clamps": (0, ty - 0.38, 0), "umbilical": (0, ty - 0.4, 2.6), "beacon": (0, ty, 9.9)}, f"{assets}/models/krl/launcher.json")
-    pm = preview_material("krl_prev_l", imgs["color"], imgs["glow"], 5.0)
-    preview(o, pm, f"{out}/krl_launcher.png", (7.5, -9.0, 6.0), (0, 0, 4.2), lens=45)
+def rod(name, p0, p1, r, segs=16):
+    """A cylinder from p0 to p1."""
+    p0, p1 = Vector(p0), Vector(p1)
+    d = p1 - p0
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=d.length, vertices=segs, location=(p0 + p1) / 2)
+    o = last()
+    o.name = name
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = d.to_track_quat("Z", "Y")
+    active(o)
+    bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     return o
 
 
-# ================================================================================================ the spear
+def orient(o, axis, at):
+    """Turn an object built along +Z so its Z runs along `axis`, and move its origin to `at`."""
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = Vector(axis).to_track_quat("Z", "Y")
+    o.location = Vector(at)
+    active(o)
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
+
+
+def label(name, s, size, loc, rot, mat_list, part, extrude=0.002):
+    t = text_mesh(name, s, size, loc, rot, extrude=extrude)
+    return tag(t, part, mat_list)
+
+
+# ================================================================================================ shared launcher geometry
+# (mirrored in KrlFlight on the Java side: keep them in step)
+
+EL = math.radians(60)
+SE, CE = math.sin(EL), math.cos(EL)
+PIV = Vector((0, 0.6, 1.25))          # trunnion (rail pivot), Blender axes; front of the launcher is -Y
+RD = Vector((0, -CE, SE))             # rail direction: forward and up
+RN = Vector((0, SE, CE))              # rail "top": the side the missile rides on
+SPEAR_UP = 0.42                       # missile axis above the rail centreline
+NOZZLE_K = 0.3                        # missile nozzle this far along the rail from the pivot
+
+
+def rail_pt(k, n=0.0, x=0.0):
+    return PIV + RD * k + RN * n + Vector((x, 0, 0))
+
+
+# ================================================================================================ the missile
 
 SPEAR_L = 7.0
+NOSE_Z = 4.95
+
+LIVERIES = [
+    # name, primary, accent (fins), stencil ink, band (motor), band (warhead), checker
+    ("standard", (0.6, 0.61, 0.6), (0.44, 0.45, 0.44), (0.04, 0.04, 0.04), (0.33, 0.2, 0.09), (0.8, 0.62, 0.06), False),
+    ("olive", (0.25, 0.27, 0.16), (0.19, 0.2, 0.13), (0.82, 0.8, 0.72), (0.33, 0.2, 0.09), (0.8, 0.62, 0.06), False),
+    ("arctic", (0.85, 0.85, 0.83), (0.66, 0.66, 0.64), (0.04, 0.04, 0.04), (0.33, 0.2, 0.09), (0.8, 0.62, 0.06), False),
+    ("desert", (0.63, 0.53, 0.37), (0.52, 0.43, 0.3), (0.06, 0.05, 0.04), (0.33, 0.2, 0.09), (0.8, 0.62, 0.06), False),
+    ("darkgrey", (0.2, 0.205, 0.21), (0.12, 0.122, 0.125), (0.82, 0.82, 0.8), (0.3, 0.18, 0.08), (0.7, 0.55, 0.06), False),
+    ("test", (0.86, 0.86, 0.84), (0.85, 0.36, 0.05), (0.04, 0.04, 0.04), (0.85, 0.36, 0.05), (0.85, 0.36, 0.05), True),
+]
 
 
 def spear_profile():
     """(radius, z) from the nozzle exit to the tip."""
-    pts = [(0.0, 0.0), (0.27, 0.0), (0.24, 0.12), (0.18, 0.3), (0.16, 0.34), (0.3, 0.38), (0.3, 1.5), (0.27, 1.62),
-           (0.235, 1.7), (0.235, 4.9), (0.25, 5.0), (0.25, 5.25), (0.23, 5.35)]
-    # a long ogive to a sharp tip
-    for k in range(1, 15):
-        f = k / 14
-        z = 5.35 + f * (SPEAR_L - 5.35)
-        r = 0.23 * (1 - f) ** 0.62
-        pts.append((max(r, 0.0), z))
+    pts = [(0.0, 0.0), (0.22, 0.0), (0.2, 0.08), (0.145, 0.25), (0.13, 0.3), (0.26, 0.34), (0.28, 0.42),
+           (0.28, 3.3), (0.287, 3.33), (0.287, 3.45), (0.272, 3.48), (0.265, 3.5), (0.265, NOSE_Z)]
+    # a tangent ogive to a small blunted tip
+    L = SPEAR_L - NOSE_Z
+    R = 0.265
+    rho = (R * R + L * L) / (2 * R)
+    for k in range(1, 17):
+        f = k / 16
+        x = f * L
+        r = math.sqrt(max(0.0, rho * rho - (L - x) ** 2)) + R - rho
+        pts.append((max(r, 0.012 if k < 16 else 0.0), NOSE_Z + x))
     return pts
+
+
+def spear_objects(m):
+    """The missile's primitives; m maps roles to materials. Returns (body, nose, nozzle) object lists."""
+    body, nose, nozzle = [], [], []
+    prof = spear_profile()
+    nose_from = next(i for i, p in enumerate(prof) if p[1] >= NOSE_Z)
+
+    def mat_of(i):
+        z = prof[i][1]
+        if z < 0.34:
+            return 0
+        if z < 0.42:
+            return 1
+        if 3.3 <= z <= 3.48:
+            return 1
+        return 2
+
+    o = lathe("m_body", prof[:nose_from + 1], 32, mat_of_edge=mat_of)
+    body.append(tag(o, "body", [m["nozzle"], m["dark"], m["paint"]], smooth=True))
+    o = lathe("m_nose", prof[nose_from:], 32)
+    nose.append(tag(o, "nose", m["tung"], smooth=True))
+    o = lathe("m_throat", [(0.0, 0.03), (0.19, 0.03), (0.135, 0.25), (0.0, 0.25)], 24)
+    nozzle.append(tag(o, "nozzle", m["glow"]))
+    # identification bands: brown round the motor, yellow round the warhead section
+    for (z0, z1, key) in ((2.88, 3.04, "band1"), (4.32, 4.44, "band2")):
+        r = 0.281 if z0 < 3.5 else 0.266
+        o = lathe(f"m_band{z0}", [(r, z0), (r + 0.002, z0 + 0.005), (r + 0.002, z1 - 0.005), (r, z1)], 32)
+        body.append(tag(o, "body", m[key], smooth=True))
+    # clipped-delta tail fins and small canards (both in an X)
+    tail = [(0.27, 0.46), (0.8, 0.52), (0.8, 0.74), (0.27, 1.42)]
+    can = [(0.26, 4.42), (0.5, 4.52), (0.5, 4.64), (0.26, 4.84)]
+    for k in range(4):
+        for nm, outline, th in (("fin", tail, 0.03), ("can", can, 0.024)):
+            o = extrude_outline(f"m_{nm}{k}", outline, th)
+            o.rotation_euler = (0, 0, math.radians(45 + 90 * k))
+            active(o)
+            bpy.ops.object.transform_apply(rotation=True)
+            body.append(tag(o, "body", [m["accent"], m["accent"]]))
+    # cable raceway along the top, launch lugs underneath (+X rides on the rail)
+    o = box("m_raceway", (-0.292, 0, 2.55), (0.035, 0.075, 3.5), bevel=0.01)
+    body.append(tag(o, "body", m["paint"]))
+    for z in (1.0, 3.95):
+        o = box(f"m_lug{z}", (0.305, 0, z), (0.06, 0.09, 0.15), bevel=0.01)
+        body.append(tag(o, "body", m["metal"]))
+    # stencilled data blocks on both flanks
+    for sy in (-1, 1):
+        o = box(f"m_sten{sy}", (0, sy * 0.281, 2.05), (0.17, 0.006, 0.55))
+        body.append(tag(o, "body", m["stencil"]))
+        o = box(f"m_sten2{sy}", (0, sy * 0.267, 3.95), (0.13, 0.006, 0.22))
+        body.append(tag(o, "body", m["stencil"]))
+    # aft closure bolt ring
+    for k in range(12):
+        a = k * math.tau / 12
+        o = cyl(f"m_bolt{k}", 0.013, 0.395, 0.43, 6, math.cos(a) * 0.27, math.sin(a) * 0.27)
+        body.append(tag(o, "body", m["metal"]))
+    return body, nose, nozzle
+
+
+def spear_mats(prefix):
+    lv = LIVERIES[0]
+    return {
+        "paint": mil_mat(f"{prefix}_paint", lv[1], seams=0.0, wear=0.15, grime=0.18, scale=3.0, checker=True),
+        "accent": mil_mat(f"{prefix}_accent", lv[2], wear=0.25, grime=0.2, scale=4.0),
+        "band1": mil_mat(f"{prefix}_band1", lv[4], wear=0.1, grime=0.15, scale=6.0),
+        "band2": mil_mat(f"{prefix}_band2", lv[5], wear=0.1, grime=0.15, scale=6.0),
+        "stencil": stencil_mat(f"{prefix}_sten", lv[3], lv[1]),
+        "dark": metal_mat(f"{prefix}_dark", (0.11, 0.11, 0.11), 8.0),
+        "metal": metal_mat(f"{prefix}_metal", (0.34, 0.34, 0.33), 8.0),
+        "nozzle": flat_mat(f"{prefix}_noz", (0.05, 0.048, 0.046), glow=(0.08, 0.03, 0.01)),
+        "tung": metal_mat(f"{prefix}_tung", (0.27, 0.27, 0.26), 5.0, rings=0.25),
+        "glow": glow_mat(f"{prefix}_glow", (1.0, 0.45, 0.12), 1.0),
+    }
+
+
+def set_livery(m, lv):
+    name, prim, acc, ink, b1, b2, chk = lv
+    m["paint"].rgb.outputs[0].default_value = (*prim, 1)
+    m["paint"].check.outputs[0].default_value = 1.0 if chk else 0.0
+    m["accent"].rgb.outputs[0].default_value = (*acc, 1)
+    m["band1"].rgb.outputs[0].default_value = (*b1, 1)
+    m["band2"].rgb.outputs[0].default_value = (*b2, 1)
+    m["stencil"].rgb.outputs[0].default_value = (*prim, 1)
+    m["stencil"].ink.outputs[0].default_value = (*ink, 1)
 
 
 def build_spear(assets, out):
     reset()
-    steel = steel_mat("krl_s_steel", 4.0)
-    red = red_mat("krl_s_red")
-    tung = tungsten_mat("krl_s_tung")
-    noz = flat_mat("krl_s_noz", (0.02, 0.018, 0.017), glow=(0.25, 0.02, 0.01))
-    glow = glow_mat("krl_s_glow", RED, 1.0)
-    body, nose, nozzle = [], [], []
-    prof = spear_profile()
-    nose_from = next(i for i, p in enumerate(prof) if p[1] >= 5.35)
-
-    def mat_of(i):
-        z = prof[i][1]
-        if z < 0.36:
-            return 0
-        if 1.5 <= z <= 1.7 or 4.85 <= z <= 5.3:
-            return 2
-        return 1
-
-    o = lathe("spear_body", prof[:nose_from + 1], 32, mat_of_edge=mat_of)
-    body.append(tag(o, "body", [noz, steel, red], smooth=True))
-    o = lathe("spear_nose", prof[nose_from:], 32)
-    nose.append(tag(o, "nose", tung, smooth=True))
-    # the nozzle throat glows faintly (separate part so the game can fire it up)
-    o = lathe("throat", [(0.0, 0.05), (0.2, 0.05), (0.15, 0.26), (0.0, 0.26)], 24)
-    nozzle.append(tag(o, "nozzle", glow))
-    # red bands
-    for z in (2.6, 3.4, 4.2):
-        o = lathe(f"band{z}", [(0.237, z), (0.242, z + 0.01), (0.242, z + 0.07), (0.237, z + 0.08)], 32)
-        body.append(tag(o, "body", red))
-    # cruciform tail fins on the motor section
-    fin = [(0.28, 0.42), (0.86, 0.3), (0.86, 0.6), (0.28, 1.35)]
-    for k in range(4):
-        o = extrude_outline(f"fin{k}", fin, 0.035)
-        o.rotation_euler = (0, 0, math.radians(45 + 90 * k))
-        active(o)
-        bpy.ops.object.transform_apply(rotation=True)
-        body.append(tag(o, "body", [steel, red]))
-    # four long low strakes along the rod
-    strake = [(0.235, 2.2), (0.31, 2.4), (0.31, 4.4), (0.235, 4.7)]
-    for k in range(4):
-        o = extrude_outline(f"strake{k}", strake, 0.02)
-        o.rotation_euler = (0, 0, math.radians(90 * k))
-        active(o)
-        bpy.ops.object.transform_apply(rotation=True)
-        body.append(tag(o, "body", [steel, steel]))
-    # glowing seams
-    for z in (1.66, 5.02):
-        o = lathe(f"seam{z}", [(0.24, z), (0.252, z), (0.252, z + 0.015), (0.24, z + 0.015)], 32, closed=True)
-        body.append(tag(o, "body", glow))
-
+    m = spear_mats("ks")
+    body, nose, nozzle = spear_objects(m)
     parts = ["body", "nose", "nozzle"]
     allo = body + nose + nozzle
     stamp(allo, parts)
     o = join(allo, "spear")
     unwrap(o, 0.003)
-    imgs = bake(o, [steel, red, tung, noz, glow], 1024, f"{assets}/textures/krl/spear.png", f"{assets}/textures/krl/spear_glow.png")
+    mats = list(m.values())
+    imgs = []
+    for lv in LIVERIES:
+        set_livery(m, lv)
+        imgs.append(bake_one(o, mats, 1024, f"{assets}/textures/krl/spear_{lv[0]}.png"))
+    glow = bake_one(o, mats, 512, f"{assets}/textures/krl/spear_glow.png", "glow")
     export(o, parts, {}, f"{assets}/models/krl/spear.json")
-    pm = preview_material("krl_prev_s", imgs["color"], imgs["glow"], 4.0)
-    preview(o, pm, f"{out}/krl_spear.png", (4.5, -4.5, 4.6), (0, 0, 3.4), lens=40)
+    if not ARGS.no_render:
+        # all the liveries side by side
+        copies = []
+        for i, img in enumerate(imgs):
+            c = o.copy()
+            c.data = o.data.copy()
+            bpy.context.scene.collection.objects.link(c)
+            c.location = ((i - (len(imgs) - 1) / 2) * 1.05, 0, 0)
+            c.data.materials.clear()
+            c.data.materials.append(preview_material(f"krl_prev_lv{i}", img, glow, 2.0))
+            copies.append(c)
+        o.hide_render = True
+        preview(copies[0], copies[0].data.materials[0], f"{out}/krl_liveries.png", (0.8, -13.0, 4.0), (0, 0, 3.5), lens=40,
+                bg=(0.25, 0.27, 0.3))
+        for c in copies:
+            bpy.data.objects.remove(c)
+        o.hide_render = False
+    pm = preview_material("krl_prev_s", imgs[0], glow, 2.0)
+    preview(o, pm, f"{out}/krl_spear.png", (5.6, -7.0, 5.0), (0, 0, 3.5), lens=42, bg=(0.25, 0.27, 0.3))
+    return o
+
+
+# ================================================================================================ the launcher
+
+def build_launcher(assets, out):
+    reset()
+    grey = mil_mat("kl_grey", (0.4, 0.41, 0.39), seams=1.4, wear=0.35, grime=0.35)
+    dgrey = mil_mat("kl_dgrey", (0.22, 0.225, 0.215), seams=1.8, wear=0.3, grime=0.3)
+    tread = tread_mat("kl_tread")
+    steel = metal_mat("kl_steel", (0.32, 0.32, 0.31), 7.0)
+    chrome = metal_mat("kl_chrome", (0.62, 0.62, 0.6), 12.0)
+    rubber = flat_mat("kl_rubber", (0.025, 0.025, 0.025))
+    haz = hazard_mat("kl_haz", 4.0)
+    sten = stencil_mat("kl_sten", (0.85, 0.85, 0.8), (0.22, 0.225, 0.215))
+    lamp = glow_mat("kl_lamp", AMBER, 1.0)
+    grn = glow_mat("kl_green", GREEN, 0.9)
+    white = flat_mat("kl_white", (0.86, 0.86, 0.82))
+    base, turret, clamps, umb, beacon = [], [], [], [], []
+
+    # ---- base: a steel launch platform on four outrigger jacks
+    o = box("deck", (0, 0, 0.22), (2.9, 2.9, 0.3), bevel=0.04)
+    base.append(tag(o, "base", dgrey))
+    o = box("tread", (0, 0, 0.373), (2.72, 2.72, 0.008))
+    base.append(tag(o, "base", tread))
+    for i, (cx, cy, sx, sy) in enumerate(((0, -1.4, 2.72, 0.1), (0, 1.4, 2.72, 0.1), (-1.4, 0, 0.1, 2.72), (1.4, 0, 0.1, 2.72))):
+        o = box(f"edge{i}", (cx, cy, 0.375), (sx, sy, 0.01))
+        base.append(tag(o, "base", haz))
+    o = lathe("bearing", [(0.92, 0.37), (1.0, 0.37), (1.0, 0.45), (0.92, 0.45)], 48, closed=True)
+    base.append(tag(o, "base", steel, smooth=True))
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            o = beam(f"outr{sx}{sy}", (sx * 1.15, sy * 1.15, 0.22), (sx * 1.5, sy * 1.5, 0.16), 0.16, 0.12)
+            base.append(tag(o, "base", grey))
+            o = cyl(f"jack{sx}{sy}", 0.07, 0.06, 0.36, 12, sx * 1.5, sy * 1.5)
+            base.append(tag(o, "base", chrome, smooth=True))
+            o = cyl(f"jbody{sx}{sy}", 0.1, 0.22, 0.42, 12, sx * 1.5, sy * 1.5)
+            base.append(tag(o, "base", grey))
+            o = cyl(f"pad{sx}{sy}", 0.22, 0.0, 0.06, 16, sx * 1.5, sy * 1.5)
+            base.append(tag(o, "base", steel))
+    # generator, battery and cable reel on the deck corners
+    o = box("gen", (0.95, 1.0, 0.68), (0.62, 0.62, 0.62), bevel=0.03)
+    base.append(tag(o, "base", grey))
+    for k in range(6):
+        o = box(f"gen_louvre{k}", (0.95, 0.685, 0.5 + k * 0.06), (0.46, 0.012, 0.025))
+        base.append(tag(o, "base", rubber))
+    base.append(label("gen_lbl", "PWR 28V", 0.08, (0.95, 0.684, 0.88), (math.radians(90), 0, 0), [sten], "base"))
+    o = box("batt", (1.05, -1.0, 0.56), (0.45, 0.42, 0.38), bevel=0.02)
+    base.append(tag(o, "base", dgrey))
+    o = box("batt_lamp", (1.05, -1.212, 0.66), (0.08, 0.01, 0.05))
+    base.append(tag(o, "base", grn))
+    o = rod("reel", (-1.25, 1.0, 0.62), (-0.75, 1.0, 0.62), 0.24, 20)
+    base.append(tag(o, "base", grey, smooth=True))
+    o = rod("reel_core", (-1.28, 1.0, 0.62), (-0.72, 1.0, 0.62), 0.1, 12)
+    base.append(tag(o, "base", steel))
+    o = rod("reel_cable", (-1.2, 1.0, 0.62), (-0.8, 1.0, 0.62), 0.18, 20)
+    base.append(tag(o, "base", rubber, smooth=True))
+    for sx in (-1.27, -0.73):
+        o = box(f"reel_stand{sx}", (sx, 1.0, 0.5), (0.04, 0.3, 0.26))
+        base.append(tag(o, "base", grey))
+    # access steps at the front
+    for k in range(2):
+        o = box(f"step{k}", (-0.95, -1.52 - k * 0.12, 0.28 - k * 0.12), (0.5, 0.14, 0.04))
+        base.append(tag(o, "base", tread))
+    base.append(label("deck_lbl", "DANGER  -  ROCKET BLAST AREA", 0.09, (0, -1.18, 0.379), (0, 0, 0), [white], "base"))
+    base.append(label("deck_lbl2", "KRL-1", 0.16, (-0.95, -0.95, 0.379), (0, 0, 0), [white], "base"))
+
+    # ---- turret: turntable, yoke, trunnion, elevation rams and the inclined launch rail
+    o = cyl("turntable", 0.9, 0.45, 0.62, 48)
+    turret.append(tag(o, "turret", grey))
+    o = lathe("tt_rim", [(0.9, 0.6), (0.93, 0.6), (0.93, 0.63), (0.9, 0.63)], 48, closed=True)
+    turret.append(tag(o, "turret", haz))
+    yoke = [(-0.55, 0.62), (0.88, 0.62), (0.88, 1.02), (0.72, 1.45), (0.46, 1.5), (-0.15, 0.98)]
+    for sx in (-1, 1):
+        o = extrude_outline(f"yoke{sx}", yoke, 0.07)
+        o.rotation_euler = (0, 0, math.radians(90))
+        active(o)
+        bpy.ops.object.transform_apply(rotation=True)
+        o.location = (sx * 0.34, 0, 0)
+        active(o)
+        bpy.ops.object.transform_apply(location=True)
+        turret.append(tag(o, "turret", [grey, dgrey]))
+    o = rod("trunnion", PIV + Vector((-0.42, 0, 0)), PIV + Vector((0.42, 0, 0)), 0.11, 16)
+    turret.append(tag(o, "turret", steel, smooth=True))
+    for sx in (-1, 1):
+        o = rod(f"trun_cap{sx}", PIV + Vector((sx * 0.38, 0, 0)), PIV + Vector((sx * 0.43, 0, 0)), 0.16, 16)
+        turret.append(tag(o, "turret", dgrey))
+    # the rail: a box girder with top guides, a truss underneath and three cradles
+    o = beam("rail_main", rail_pt(-0.6), rail_pt(7.7), 0.34, 0.22)
+    turret.append(tag(o, "turret", grey))
+    for sx in (-0.1, 0.1):
+        o = beam(f"rail_guide{sx}", rail_pt(-0.4, 0.14, sx), rail_pt(7.6, 0.14, sx), 0.04, 0.06)
+        turret.append(tag(o, "turret", chrome))
+    o = beam("rail_chord", rail_pt(0.4, -0.44), rail_pt(6.9, -0.44), 0.12, 0.1)
+    turret.append(tag(o, "turret", dgrey))
+    for k in range(13):
+        k0, k1 = 0.4 + k * 0.5, 0.4 + (k + 1) * 0.5
+        for sx in (-0.15, 0.15):
+            a = rail_pt(k0, -0.1 if k % 2 == 0 else -0.44, sx)
+            b = rail_pt(k1, -0.44 if k % 2 == 0 else -0.1, sx)
+            o = beam(f"web{k}{sx}", a, b, 0.035, 0.035)
+            turret.append(tag(o, "turret", steel))
+    for k in (1.2, 3.6, 6.0):
+        o = beam(f"cradle{k}", rail_pt(k - 0.08, 0.17), rail_pt(k + 0.08, 0.17), 0.56, 0.06)
+        turret.append(tag(o, "turret", dgrey))
+        for sx in (-0.27, 0.27):
+            o = beam(f"cradle_side{k}{sx}", rail_pt(k - 0.08, 0.2, sx), rail_pt(k + 0.08, 0.2, sx), 0.04, 0.22)
+            turret.append(tag(o, "turret", dgrey))
+            o = beam(f"pad{k}{sx}", rail_pt(k - 0.07, 0.22, sx * 0.9), rail_pt(k + 0.07, 0.22, sx * 0.9), 0.02, 0.1)
+            turret.append(tag(o, "turret", rubber))
+    # rail end stops and the rear blast plate
+    o = beam("rail_stop", rail_pt(-0.6, 0.0), rail_pt(-0.45, 0.0), 0.44, 0.5)
+    turret.append(tag(o, "turret", dgrey))
+    o = beam("rail_tip", rail_pt(7.6, 0.0), rail_pt(7.75, 0.0), 0.4, 0.3)
+    turret.append(tag(o, "turret", haz))
+    for k, s_ in ((2.0, "KRL-1  RAIL"), (5.2, "NO STEP")):
+        # stencilled down the left side of the girder: text X along the rail, text up along the rail top
+        t_ = text_mesh(f"rail_lbl{k}", s_, 0.09, (0, 0, 0), (0, 0, 0), extrude=0.002)
+        rot = Matrix((RD, RN, RD.cross(RN))).transposed().to_4x4()
+        t_.matrix_world = Matrix.Translation(rail_pt(k, 0.0, -0.173)) @ rot
+        active(t_)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        turret.append(tag(t_, "turret", [white]))
+    # elevation rams: barrel and chrome rod from the turret front to the rail truss
+    for sx in (-0.2, 0.2):
+        a = Vector((sx, -0.5, 0.7))
+        b = rail_pt(2.7, -0.46, sx)
+        mid = a.lerp(b, 0.58)
+        o = rod(f"ram_barrel{sx}", a, mid, 0.075, 14)
+        turret.append(tag(o, "turret", grey, smooth=True))
+        o = rod(f"ram_rod{sx}", mid, b, 0.042, 12)
+        turret.append(tag(o, "turret", chrome, smooth=True))
+        o = rod(f"ram_eye{sx}", a + Vector((-0.06, 0, 0)), a + Vector((0.06, 0, 0)), 0.09, 12)
+        turret.append(tag(o, "turret", dgrey))
+    o = box("ram_mount", (0, -0.5, 0.66), (0.56, 0.2, 0.12))
+    turret.append(tag(o, "turret", dgrey))
+    # the launch control box with its warning beacon
+    o = box("ctl", (-0.62, 0.2, 0.86), (0.34, 0.62, 0.48), bevel=0.02)
+    turret.append(tag(o, "turret", grey))
+    o = box("ctl_door", (-0.792, 0.2, 0.86), (0.01, 0.5, 0.38))
+    turret.append(tag(o, "turret", dgrey))
+    o = box("ctl_lamp", (-0.798, 0.05, 1.0), (0.01, 0.06, 0.04))
+    turret.append(tag(o, "turret", grn))
+    o = box("ctl_lamp2", (-0.798, 0.15, 1.0), (0.01, 0.06, 0.04))
+    turret.append(tag(o, "turret", lamp))
+    o = cyl("beacon_post", 0.035, 1.1, 1.3, 8, -0.62, 0.36)
+    turret.append(tag(o, "turret", steel))
+    o = lathe("beacon_lamp", [(0.0, 1.3), (0.07, 1.31), (0.075, 1.4), (0.05, 1.45), (0.0, 1.46)], 16)
+    beacon.append(tag(o, "beacon", lamp, smooth=True))
+    # counterweight at the back
+    o = box("cw", (0, 0.72, 0.8), (0.6, 0.3, 0.36), bevel=0.03)
+    turret.append(tag(o, "turret", dgrey))
+    turret.append(label("cw_lbl", "CW 2.4T", 0.07, (0, 0.871, 0.82), (math.radians(90), 0, math.radians(180)), [sten], "turret"))
+
+    # ---- clamps: two latch straps over the missile, hinged on the rail's right side (swing open before launch)
+    hinge = rail_pt(0, SPEAR_UP, 0.31)
+    for k in (0.95, 5.3):
+        ctr = rail_pt(k, SPEAR_UP)
+        prof = [(0.3, -0.05), (0.335, -0.05), (0.335, 0.05), (0.3, 0.05)]
+        o = lathe(f"latch{k}", prof, 24, a0=math.radians(-80), a1=math.radians(190), closed=True, cap=True)
+        # lathe axis (+Z) along the rail; the strap's open side faces the rail
+        o.rotation_mode = "QUATERNION"
+        q1 = RD.to_track_quat("Z", "Y")
+        o.rotation_quaternion = q1
+        o.location = ctr
+        active(o)
+        bpy.ops.object.transform_apply(location=True, rotation=True)
+        clamps.append(tag(o, "clamps", haz))
+        o = beam(f"latch_hinge{k}", rail_pt(k - 0.06, SPEAR_UP - 0.12, 0.31), rail_pt(k + 0.06, SPEAR_UP - 0.12, 0.31), 0.07, 0.1)
+        clamps.append(tag(o, "clamps", steel))
+
+    # ---- umbilical: a boom from the control box to the missile's motor section
+    ua = Vector((-0.62, 0.25, 1.1))
+    ub = rail_pt(1.7, SPEAR_UP, -0.3)
+    o = beam("umb_boom", ua, ub, 0.06, 0.06)
+    umb.append(tag(o, "umbilical", dgrey))
+    o = box("umb_plug", tuple(ub), (0.12, 0.12, 0.12), bevel=0.01)
+    umb.append(tag(o, "umbilical", haz))
+    o = rod("umb_cable", ua + Vector((0, 0, -0.05)), ub + Vector((0, 0, -0.06)), 0.025, 8)
+    umb.append(tag(o, "umbilical", rubber))
+
+    parts = ["base", "turret", "clamps", "umbilical", "beacon"]
+    allo = base + turret + clamps + umb + beacon
+    stamp(allo, parts)
+    mats = [grey, dgrey, tread, steel, chrome, rubber, haz, sten, lamp, grn, white]
+    o = join(allo, "launcher")
+    unwrap(o, 0.003)
+    col = bake_one(o, mats, 2048, f"{assets}/textures/krl/launcher.png")
+    glow = bake_one(o, mats, 1024, f"{assets}/textures/krl/launcher_glow.png", "glow")
+    export(o, parts, {"clamps": tuple(hinge), "umbilical": tuple(ua), "beacon": (-0.62, 0.36, 1.3)}, f"{assets}/models/krl/launcher.json")
+    if not ARGS.no_render:
+        # a missile on the rail, for the preview only
+        sm = spear_mats("pv")
+        sb, sn, sz = spear_objects(sm)
+        sp = join(sb + sn + sz, "pv_spear")
+        sp.data.materials.clear()
+        pmat = bpy.data.materials.new("pv_spear_m")
+        pmat.use_nodes = True
+        pmat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.36, 0.37, 0.36, 1)
+        sp.data.materials.append(pmat)
+        orient(sp, RD, rail_pt(NOZZLE_K, SPEAR_UP))
+    pm = preview_material("krl_prev_l", col, glow, 3.0)
+    preview(o, pm, f"{out}/krl_launcher.png", (7.2, -8.6, 5.2), (0, 0.2, 3.0), lens=42, bg=(0.25, 0.27, 0.3))
+    preview(o, pm, f"{out}/krl_launcher_side.png", (10.5, 0.8, 3.6), (0, 0.4, 3.0), lens=42, bg=(0.25, 0.27, 0.3))
     return o
 
 
@@ -902,16 +1204,18 @@ def build_spear(assets, out):
 
 def build_console(assets, out):
     reset()
-    steel = steel_mat("krl_c_steel", 3.0)
-    red = red_mat("krl_c_red")
-    panel = panel_mat("krl_c_panel")
-    scr = screen_mat("krl_c_screen")
-    dial = dial_mat("krl_c_dial")
-    glow = glow_mat("krl_c_glow", RED, 1.0)
-    amber = glow_mat("krl_c_amber", (1.0, 0.45, 0.05), 1.0)
-    white = glow_mat("krl_c_white", (0.95, 0.9, 0.85), 0.7)
-    dark = flat_mat("krl_c_dark", (0.01, 0.01, 0.01))
-    glass = flat_mat("krl_c_glass", (0.25, 0.04, 0.03), glow=(0.12, 0.01, 0.005))
+    steel = mil_mat("kc_grey", (0.42, 0.43, 0.41), seams=2.6, wear=0.25, grime=0.25)
+    dgrey = mil_mat("kc_dgrey", (0.18, 0.185, 0.18), wear=0.2, grime=0.2)
+    haz = hazard_mat("kc_haz", 9.0)
+    panel = mil_panel_mat("kc_panel")
+    scr = mil_screen_mat("kc_screen", GREEN)
+    dial = dial_mat("kc_dial")
+    green = glow_mat("kc_green", GREEN, 0.9)
+    amber = glow_mat("kc_amber", AMBER, 1.0)
+    white = glow_mat("kc_white", (0.95, 0.93, 0.85), 0.7)
+    red = glow_mat("kc_red", (1.0, 0.12, 0.06), 1.0)
+    dark = flat_mat("kc_dark", (0.025, 0.025, 0.025))
+    glass = flat_mat("kc_glass", (0.32, 0.33, 0.3), glow=(0.03, 0.03, 0.025))
     body, cover, ann = [], [], []
     W = 2.96
 
@@ -926,13 +1230,14 @@ def build_console(assets, out):
         o.location = (sx * (W / 2 + 0.02), 0, 0)
         active(o)
         bpy.ops.object.transform_apply(location=True, rotation=True)
-        body.append(tag(o, "body", [steel, red]))
-    # cabinet front: louvres and a stencilled red band
+        body.append(tag(o, "body", [steel, dgrey]))
     for i in range(10):
         o = box(f"louvre{i}", (-1.2 + i * 0.12, -0.415, 0.3), (0.07, 0.02, 0.32))
         body.append(tag(o, "body", dark))
     o = box("band", (0, -0.413, 0.66), (W - 0.06, 0.012, 0.06))
-    body.append(tag(o, "body", red))
+    body.append(tag(o, "body", haz))
+    t_ = text_mesh("front_lbl", "KRL FIRE CONTROL  -  UNIT 1", 0.06, (0.85, -0.416, 0.3), (math.radians(90), 0, 0), extrude=0.002)
+    body.append(tag(t_, "body", white))
 
     # ---- the slanted control deck
     tilt = math.radians(24)
@@ -944,7 +1249,6 @@ def build_console(assets, out):
     body.append(tag(o, "body", panel))
 
     def on_deck(x, v, h=0.0):
-        """A point on the deck: x across, v from front (-0.38) to back (0.38), h above the surface."""
         n = Vector((0, -math.sin(tilt), math.cos(tilt)))
         t = Vector((0, math.cos(tilt), math.sin(tilt)))
         return deck_c + Vector((x, 0, 0)) + t * v + n * (0.03 + h)
@@ -956,85 +1260,75 @@ def build_console(assets, out):
         bpy.ops.object.transform_apply(location=True, rotation=True)
         return o
 
-    # three analog gauges (bezel, face, needle)
     for i, x in enumerate((-1.0, -0.62, -0.24)):
         bz = lathe(f"bezel{i}", [(0.0, 0.0), (0.15, 0.0), (0.15, 0.03), (0.13, 0.035), (0.13, 0.01), (0.0, 0.01)], 28)
-        body.append(tag(deck_obj(bz, x, 0.18), "body", steel, smooth=True))
+        body.append(tag(deck_obj(bz, x, 0.18), "body", dgrey, smooth=True))
         fc = cyl(f"face{i}", 0.128, 0.0, 0.012, 28)
         body.append(tag(deck_obj(fc, x, 0.18, 0.005), "body", dial))
         nd = box(f"needle{i}", (0.0, 0.05, 0.02), (0.012, 0.1, 0.006))
         nd.rotation_euler = (0, 0, math.radians(-40 + 35 * i))
         active(nd)
         bpy.ops.object.transform_apply(rotation=True)
-        body.append(tag(deck_obj(nd, x, 0.18, 0.012), "body", glow))
-    # rows of guarded toggle switches with lit legends
+        body.append(tag(deck_obj(nd, x, 0.18, 0.012), "body", dark))
     for r_ in range(2):
         for i in range(8):
             x = 0.12 + i * 0.1
             v = -0.06 - r_ * 0.15
             b = box(f"tg{r_}{i}", (0, 0, 0.015), (0.05, 0.05, 0.03))
-            body.append(tag(deck_obj(b, x, v), "body", steel))
+            body.append(tag(deck_obj(b, x, v), "body", dgrey))
             lv = beam(f"lever{r_}{i}", (0, 0, 0.03), (0, -0.03 if (i + r_) % 3 else 0.03, 0.09), 0.012, 0.012)
-            body.append(tag(deck_obj(lv, x, v), "body", white if (i + r_) % 3 else red))
+            body.append(tag(deck_obj(lv, x, v), "body", white))
             lg = box(f"legend{r_}{i}", (0, -0.045, 0.002), (0.06, 0.016, 0.004))
-            body.append(tag(deck_obj(lg, x, v), "body", amber if (i * 3 + r_) % 5 == 0 else glow))
-    # push-button matrix (left front)
+            body.append(tag(deck_obj(lg, x, v), "body", amber if (i * 3 + r_) % 5 == 0 else green))
     for r_ in range(3):
         for i in range(6):
             b = lathe(f"pb{r_}{i}", [(0.0, 0.0), (0.03, 0.0), (0.03, 0.02), (0.026, 0.028), (0.0, 0.03)], 12)
-            m_ = glow if (r_ + i) % 4 == 0 else amber if (r_ * 2 + i) % 7 == 0 else white
+            m_ = green if (r_ + i) % 4 == 0 else amber if (r_ * 2 + i) % 7 == 0 else white
             body.append(tag(deck_obj(b, -1.25 + i * 0.09, -0.08 - r_ * 0.085), "body", m_, smooth=True))
-    # slide faders
     for i in range(4):
         t_ = box(f"track{i}", (0, 0, 0.004), (0.02, 0.26, 0.008))
         body.append(tag(deck_obj(t_, -0.56 + i * 0.08, -0.17), "body", dark))
         k_ = box(f"knob{i}", (0, 0, 0.02), (0.05, 0.035, 0.03))
-        body.append(tag(deck_obj(k_, -0.56 + i * 0.08, -0.25 + i * 0.05), "body", red))
-    # the key switch and the big launch button under its flip cover
+        body.append(tag(deck_obj(k_, -0.56 + i * 0.08, -0.25 + i * 0.05), "body", dark))
     ks = lathe("keysw", [(0.0, 0.0), (0.05, 0.0), (0.05, 0.03), (0.0, 0.03)], 16)
-    body.append(tag(deck_obj(ks, 0.98, 0.12), "body", steel, smooth=True))
+    body.append(tag(deck_obj(ks, 0.98, 0.12), "body", dgrey, smooth=True))
     key = box("key", (0, 0, 0.05), (0.012, 0.05, 0.04))
     body.append(tag(deck_obj(key, 0.98, 0.12), "body", white))
     btn = lathe("launch_btn", [(0.0, 0.0), (0.11, 0.0), (0.11, 0.03), (0.09, 0.05), (0.07, 0.065), (0.0, 0.07)], 24)
-    body.append(tag(deck_obj(btn, 1.15, -0.12), "body", glow, smooth=True))
+    body.append(tag(deck_obj(btn, 1.15, -0.12), "body", red, smooth=True))
     ring = lathe("launch_ring", [(0.12, 0.0), (0.15, 0.0), (0.15, 0.015), (0.12, 0.015)], 24, closed=True)
-    body.append(tag(deck_obj(ring, 1.15, -0.12), "body", red))
+    body.append(tag(deck_obj(ring, 1.15, -0.12), "body", haz))
     cv = box("cover", (0, 0, 0.1), (0.3, 0.3, 0.008))
     cover.append(tag(deck_obj(cv, 1.15, -0.12), "cover", glass))
     for sx in (-1, 1):
         sw = box(f"cover_side{sx}", (sx * 0.15, 0, 0.05), (0.008, 0.3, 0.1))
         cover.append(tag(deck_obj(sw, 1.15, -0.12), "cover", glass))
-    # hazard stripes round the launch area
     for i in range(6):
         st = box(f"haz{i}", (0, 0, 0.001), (0.035, 0.36, 0.002))
         st.rotation_euler = (0, 0, math.radians(35))
         active(st)
         bpy.ops.object.transform_apply(rotation=True)
-        body.append(tag(deck_obj(st, 0.96 + i * 0.075, -0.12), "body", red))
+        body.append(tag(deck_obj(st, 0.96 + i * 0.075, -0.12), "body", haz))
 
     # ---- the upright board behind the deck
     bz0, bz1 = 1.06, 1.72
     o = box("board", (0, 0.3, (bz0 + bz1) / 2), (W - 0.04, 0.1, bz1 - bz0))
     body.append(tag(o, "body", steel))
-    # three screens with hoods
     for i, x in enumerate((-0.95, 0.0, 0.95)):
         s_ = box(f"screen{i}", (x, 0.244, 1.36), (0.78, 0.01, 0.42))
         body.append(tag(s_, "body", scr))
         for sz in (1.585, 1.135):
             h = box(f"hood{i}{sz}", (x, 0.2, sz), (0.84, 0.1, 0.03))
-            body.append(tag(h, "body", steel))
+            body.append(tag(h, "body", dgrey))
         for sx in (-1, 1):
             h = box(f"hoodside{i}{sx}", (x + sx * 0.41, 0.2, 1.36), (0.03, 0.1, 0.48))
-            body.append(tag(h, "body", steel))
-    # annunciator tiles above the screens: a 2 x 24 grid of lit legends
+            body.append(tag(h, "body", dgrey))
     for r_ in range(2):
         for i in range(24):
             t_ = box(f"ann{r_}{i}", (-1.38 + i * 0.12, 0.243, 1.64 + r_ * 0.045), (0.1, 0.008, 0.035))
-            ann.append(tag(t_, "annunciators", glow if (i * 7 + r_ * 3) % 5 else amber))
-    # title strip
+            ann.append(tag(t_, "annunciators", green if (i * 7 + r_ * 3) % 5 else amber))
     t_ = text_mesh("title", "KRL-1  KINETIC RAIL LAUNCHER  //  FIRE CONTROL", 0.05, (0, 0.245, 1.11), (math.radians(90), 0, 0), extrude=0.003)
     body.append(tag(t_, "body", white))
-    # cable conduits on the back
     for i in range(3):
         o = beam(f"conduit{i}", (-1.2 + i * 1.2, 0.38, 0.1), (-1.2 + i * 1.2, 0.38, 1.6), 0.06, 0.06)
         body.append(tag(o, "body", dark))
@@ -1044,12 +1338,13 @@ def build_console(assets, out):
     stamp(allo, parts)
     o = join(allo, "console")
     unwrap(o, 0.002)
-    imgs = bake(o, [steel, red, panel, scr, dial, glow, amber, white, dark, glass], 2048,
-                f"{assets}/textures/krl/console.png", f"{assets}/textures/krl/console_glow.png")
+    mats = [steel, dgrey, haz, panel, scr, dial, green, amber, white, red, dark, glass]
+    col = bake_one(o, mats, 2048, f"{assets}/textures/krl/console.png")
+    glow = bake_one(o, mats, 1024, f"{assets}/textures/krl/console_glow.png", "glow")
     hinge = on_deck(1.15, 0.03, 0.0)
     export(o, parts, {"cover": tuple(hinge)}, f"{assets}/models/krl/console.json")
-    pm = preview_material("krl_prev_c", imgs["color"], imgs["glow"], 5.0)
-    preview(o, pm, f"{out}/krl_console.png", (1.6, -3.6, 2.4), (0, 0, 0.9), lens=40)
+    pm = preview_material("krl_prev_c", col, glow, 3.0)
+    preview(o, pm, f"{out}/krl_console.png", (1.6, -3.6, 2.4), (0, 0, 0.9), lens=40, bg=(0.25, 0.27, 0.3))
     return o
 
 
@@ -1062,8 +1357,8 @@ def main():
     ap.add_argument("--no-render", action="store_true")
     ARGS = ap.parse_args(argv)
     os.makedirs(ARGS.out, exist_ok=True)
-    build_launcher(ARGS.assets, ARGS.out)
     build_spear(ARGS.assets, ARGS.out)
+    build_launcher(ARGS.assets, ARGS.out)
     build_console(ARGS.assets, ARGS.out)
     print("[krl] done")
 

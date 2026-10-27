@@ -6,7 +6,9 @@ set -uo pipefail
 BLENDER="${1:-${BLENDER:-blender}}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 EXTRA=""
+# ONLY=krl skips the railgun models (their committed assets are kept) - used by dev-krl* branches to iterate faster
 for attempt in 1 2 3 4; do
+  if [ "${ONLY:-}" = "krl" ]; then code=0; break; fi
   "$BLENDER" -b --factory-startup --python-exit-code 1 \
     -P "$ROOT/tools/blender/build_models.py" -- \
     --assets "$ROOT/src/main/resources/assets/orbital_railgun" \

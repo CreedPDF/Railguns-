@@ -4,7 +4,6 @@ import com.creedpdf.orbitalrailgun.client.config.Quality;
 import com.creedpdf.orbitalrailgun.client.render.BeamRenderLayers;
 import com.creedpdf.orbitalrailgun.krl.Krl;
 import com.creedpdf.orbitalrailgun.krl.KrlFlight;
-import com.creedpdf.orbitalrailgun.krl.KrlImpact;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BufferBuilder;
@@ -17,6 +16,7 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.random.Random;
+import net.minecraft.world.Heightmap;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -25,20 +25,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Everything a KRL flight looks like, drawn from the flight's time alone:
+ * What a KRL flight looks like, drawn from the flight's time alone:
  * <ul>
- *   <li>the minute on the pad - the motor held down on the rail, its flame driven into the trench and out of the front of
- *   the pad, the deluge flashing to steam that rolls out in a growing white bank;</li>
- *   <li>liftoff - a flash, the sonic boom's condensation collar round the spear and its shock ring racing out across the
- *   ground, the steam blown out in every direction;</li>
- *   <li>the climb - the plume with its shock diamonds, a white contrail that hangs in the sky and drifts, the vapour cone
- *   as the spear goes through Mach 1, burnout;</li>
+ *   <li>ignition - the motor lights on the inclined rail; its 3D plume ({@link KrlFlame}) hits the ground behind the
+ *   launcher and splashes out across it, for two seconds;</li>
+ *   <li>liftoff - a flash and the sonic boom's shock ring racing out across the ground;</li>
+ *   <li>the climb - the 3D plume with its shock diamonds, a thin contrail once the missile is clear of the pad, the
+ *   vapour cone as it goes through Mach 1, burnout;</li>
  *   <li>the stall - attitude-control puffs as it noses over;</li>
- *   <li>the fall - the nose glowing white-hot inside its plasma sheath as it closes on Mach 13 (seen from the ground only
- *   at night);</li>
- *   <li>the impact - the flash, a plasma fireball that cools from white through orange to deep red, the shock ring and
- *   condensation shell, a rising column of dust and smoke, molten spatter, and a crater floor that glows for minutes.</li>
+ *   <li>the fall - the nose glowing white-hot inside its plasma sheath as it closes on Mach 13 (seen from the ground
+ *   only at night).</li>
  * </ul>
+ * The impact itself is an ordinary explosion (made by the server).
  */
 public final class KrlFx {
     private KrlFx() {}
@@ -46,8 +44,10 @@ public final class KrlFx {
     private static final VertexConsumerProvider.Immediate BUF = VertexConsumerProvider.immediate(new BufferBuilder(1 << 20));
     private static final Random RND = Random.create();
     static final float BURNOUT = KrlFlight.BOOST * 0.82f;
+    /** The contrail starts this far from the launcher (no smoke at the pad). */
+    private static final double TRAIL_CLEAR = 28;
 
-    // ------------------------------------------------------------------------------------------- particles
+    // ------------------------------------------------------------------------------------------- particles (contrail, RCS)
 
     static final class Puff {
         double x, y, z;
@@ -56,16 +56,10 @@ public final class KrlFx {
         double d2;
     }
 
-    static final class Spark {
-        double x, y, z;
-        float vx, vy, vz, age, life, size;
-    }
-
     private static final List<Puff> PUFFS = new ArrayList<>();
-    private static final List<Spark> SPARKS = new ArrayList<>();
 
     private static int cap() {
-        return (int) (2400 * Math.max(0.3f, Quality.fx()));
+        return (int) (1600 * Math.max(0.3f, Quality.fx()));
     }
 
     static void puff(double x, double y, double z, double vx, double vy, double vz, float life, float s0, float s1, float gray, float alpha, float heat,
@@ -92,20 +86,6 @@ public final class KrlFx {
         PUFFS.add(p);
     }
 
-    static void spark(double x, double y, double z, double vx, double vy, double vz, float life, float size) {
-        if (SPARKS.size() > 600) return;
-        Spark s = new Spark();
-        s.x = x;
-        s.y = y;
-        s.z = z;
-        s.vx = (float) vx;
-        s.vy = (float) vy;
-        s.vz = (float) vz;
-        s.life = life;
-        s.size = size;
-        SPARKS.add(s);
-    }
-
     static float r(float a, float b) {
         return a + RND.nextFloat() * (b - a);
     }
@@ -116,10 +96,8 @@ public final class KrlFx {
 
     public static void clear() {
         PUFFS.clear();
-        SPARKS.clear();
     }
 
-    /** High-altitude wind that carries contrails. */
     private static float windX(double y) {
         return (float) (0.012 + Math.max(0, y - 80) * 0.00012);
     }
@@ -144,62 +122,14 @@ public final class KrlFx {
             p.y += p.vy;
             p.z += p.vz;
             p.rot += p.spin;
-            p.heat *= 0.955f;
-        }
-        for (int i = SPARKS.size() - 1; i >= 0; i--) {
-            Spark s = SPARKS.get(i);
-            s.age++;
-            if (s.age >= s.life) {
-                SPARKS.set(i, SPARKS.get(SPARKS.size() - 1));
-                SPARKS.remove(SPARKS.size() - 1);
-                continue;
-            }
-            s.vy -= 0.055f;
-            s.vx *= 0.985f;
-            s.vz *= 0.985f;
-            s.x += s.vx;
-            s.y += s.vy;
-            s.z += s.vz;
+            p.heat *= 0.94f;
         }
     }
-
-    // ------------------------------------------------------------------------------------------- spawning
 
     static void tick(KrlClient.CFlight f, double t) {
         float q = Math.max(0.35f, Quality.fx());
         KrlFlight p = f.path;
-        Vec3d front = f.front(), side = new Vec3d(-front.z, 0, front.x);
-        Vec3d l = f.launch;
-        // the minute on the pad: steam rolling out of the front of the flame trench
-        if (t < 0 && t > -Krl.IGNITION) {
-            double ramp = MathHelper.clamp((t + Krl.IGNITION) / 40.0, 0, 1);
-            double n = (1.6 + 0.6 * Math.sin(t * 0.37)) * ramp * q;
-            for (int i = 0; i < n + RND.nextFloat(); i++) {
-                Vec3d at = l.add(front.multiply(1.8)).add(side.multiply(rs() * 0.9)).add(0, -0.15, 0);
-                Vec3d v = front.multiply(r(0.3f, 0.62f)).add(side.multiply(rs() * 0.14));
-                puff(at.x, at.y, at.z, v.x, r(0.01f, 0.06f), v.z, r(170, 300), r(1f, 1.6f), r(7f, 11f), r(0.86f, 0.95f), 0.5f, 0.9f, 0.968f, 0.0045f);
-            }
-            // a little escapes straight up past the spear
-            if (RND.nextFloat() < 0.25f * ramp * q) puff(l.x + rs() * 1.2, l.y + 0.3, l.z + rs() * 1.2, 0, r(0.06f, 0.12f), 0, r(80, 140), 0.8f, 4f, 0.9f, 0.35f, 0.5f, 0.97f, 0.002f);
-        }
-        // liftoff: the steam bank is blown out in every direction
-        if (t >= -4 && t < 36) {
-            int n = (int) ((t < 12 ? 7 : 3) * q);
-            for (int i = 0; i < n; i++) {
-                double a = RND.nextDouble() * Math.PI * 2;
-                double sp = r(0.45f, 1.0f) * (t < 12 ? 1.2 : 0.8);
-                puff(l.x + Math.cos(a) * 1.5, l.y + r(-0.2f, 0.6f), l.z + Math.sin(a) * 1.5, Math.cos(a) * sp, r(0.02f, 0.08f), Math.sin(a) * sp, r(300, 460),
-                        r(2f, 3f), r(11f, 16f), r(0.84f, 0.93f), 0.55f, 1.2f, 0.955f, 0.004f);
-            }
-        }
-        if (t >= 0 && !f.boomed) {
-            f.boomed = true;
-            for (int i = 0; i < 40 * q; i++) {
-                double a = RND.nextDouble() * Math.PI * 2, sp = r(1.2f, 2.2f);
-                puff(l.x, l.y + 0.2, l.z, Math.cos(a) * sp, 0.02, Math.sin(a) * sp, r(140, 220), 1f, r(5f, 8f), 0.62f, 0.45f, 0.4f, 0.9f, 0.002f);
-            }
-        }
-        // the contrail
+        // the contrail, once clear of the launcher
         if (t > 0 && t <= BURNOUT + 2) {
             double t0 = Math.max(f.lastTrailT, 0.05), t1 = Math.min(t, BURNOUT);
             double tt = t0;
@@ -207,13 +137,17 @@ public final class KrlFx {
                 double sp = p.speed(tt);
                 Vec3d d = p.dir(tt);
                 Vec3d at = p.pos(tt).subtract(d.multiply(1.2));
-                double alt = Math.max(0, at.y - l.y);
-                float low = (float) MathHelper.clamp(1 - alt / 60, 0, 1);
-                float s0 = (float) (0.9 + 0.35 * sp), s1 = (float) (s0 * 3.5 + alt / 45 + low * 6);
-                Vec3d v = d.multiply(-0.05 - 0.05 * low).add(rs() * 0.02, rs() * 0.02, rs() * 0.02);
-                puff(at.x + rs() * 0.3, at.y + rs() * 0.3, at.z + rs() * 0.3, v.x, v.y, v.z, r(420, 640) * (0.7f + 0.3f * q), s0, s1,
-                        0.93f - low * 0.12f, 0.5f - (float) Math.min(0.2, alt / 2500), 1.1f, 0.985f, 0.0008f);
-                tt += (1.6 + sp * 0.28) / Math.max(0.2, sp) / Math.max(0.5, q);
+                double step = (1.8 + sp * 0.3) / Math.max(0.2, sp) / Math.max(0.5, q);
+                if (at.distanceTo(f.launch) < TRAIL_CLEAR) {
+                    tt += step;
+                    continue;
+                }
+                double alt = Math.max(0, at.y - f.launch.y);
+                float s0 = (float) (0.5 + 0.18 * sp), s1 = (float) (s0 * 3.2 + alt / 70);
+                Vec3d v = d.multiply(-0.04).add(rs() * 0.015, rs() * 0.015, rs() * 0.015);
+                puff(at.x + rs() * 0.2, at.y + rs() * 0.2, at.z + rs() * 0.2, v.x, v.y, v.z, r(360, 560) * (0.7f + 0.3f * q), s0, s1,
+                        0.94f, 0.36f - (float) Math.min(0.16, alt / 3000), 0.8f, 0.985f, 0.0006f);
+                tt += step;
             }
             f.lastTrailT = tt;
         }
@@ -224,50 +158,9 @@ public final class KrlFx {
             Vec3d sd = d.crossProduct(new Vec3d(0, 1, 0));
             if (sd.lengthSquared() < 1e-4) sd = new Vec3d(1, 0, 0);
             sd = sd.normalize().multiply(((int) t / 5) % 2 == 0 ? 1 : -1);
-            Vec3d at = tip.subtract(d.multiply(1.1)).add(sd.multiply(0.3));
+            Vec3d at = tip.subtract(d.multiply(2.6)).add(sd.multiply(0.3));
             for (int i = 0; i < 2; i++)
-                puff(at.x, at.y, at.z, sd.x * 0.16 + rs() * 0.02, sd.y * 0.16, sd.z * 0.16 + rs() * 0.02, r(26, 40), 0.25f, 1.5f, 1f, 0.55f, 0, 0.9f, 0);
-        }
-        // impact
-        if (t >= KrlFlight.TOTAL && !f.impacted) {
-            f.impacted = true;
-            impactBurst(f, q);
-        }
-        double ti = t - KrlFlight.TOTAL;
-        if (ti >= 0 && ti < 60) {
-            Vec3d c = f.target;
-            double rise = 72 * (1 - Math.exp(-ti / 22));
-            for (int i = 0; i < 3 * q; i++) {
-                double a = RND.nextDouble() * Math.PI * 2, rr = r(0, 5f) + ti * 0.08;
-                puff(c.x + Math.cos(a) * rr, c.y + rise * r(0.2f, 1f), c.z + Math.sin(a) * rr, Math.cos(a) * 0.05, 0.22 * Math.exp(-ti / 18) + 0.01,
-                        Math.sin(a) * 0.05, r(520, 760), r(4f, 6f), r(15f, 22f), r(0.22f, 0.32f), 0.75f, (float) (1.3 * Math.exp(-ti / 26)), 0.975f, 0.0006f);
-            }
-            if (ti > 18) {
-                // the cap spreading out
-                for (int i = 0; i < 2 * q; i++) {
-                    double a = RND.nextDouble() * Math.PI * 2, rr = 8 + (ti - 18) * 0.5;
-                    puff(c.x + Math.cos(a) * rr, c.y + rise + r(-3, 4), c.z + Math.sin(a) * rr, Math.cos(a) * 0.12, 0.02, Math.sin(a) * 0.12, r(600, 800),
-                            r(6f, 8f), r(18f, 26f), r(0.24f, 0.34f), 0.7f, (float) (0.8 * Math.exp(-ti / 30)), 0.985f, 0.0004f);
-                }
-            }
-        }
-        // the crater keeps smoking
-        if (ti >= 60 && ti < 900 && RND.nextFloat() < 0.5f * q * (1 - ti / 900)) {
-            Vec3d c = f.target;
-            puff(c.x + rs() * 8, c.y - 3, c.z + rs() * 8, 0, r(0.05f, 0.12f), 0, r(200, 320), 2f, r(8f, 12f), 0.25f, 0.45f, 0.5f, 0.98f, 0.001f);
-        }
-    }
-
-    private static void impactBurst(KrlClient.CFlight f, float q) {
-        Vec3d c = f.target;
-        for (int i = 0; i < 80 * q; i++) {
-            double a = RND.nextDouble() * Math.PI * 2, sp = r(0.8f, 2.1f);
-            puff(c.x + Math.cos(a) * 3, c.y + r(0, 2), c.z + Math.sin(a) * 3, Math.cos(a) * sp, r(0.02f, 0.1f), Math.sin(a) * sp, r(320, 520), r(3f, 4.5f),
-                    r(12f, 18f), r(0.3f, 0.42f), 0.8f, 1.4f, 0.94f, 0.0018f);
-        }
-        for (int i = 0; i < 160 * q; i++) {
-            double a = RND.nextDouble() * Math.PI * 2, el = r(0.15f, 1.3f), sp = r(1.0f, 3.6f);
-            spark(c.x, c.y + 1, c.z, Math.cos(a) * Math.cos(el) * sp, Math.sin(el) * sp, Math.sin(a) * Math.cos(el) * sp, r(40, 110), r(0.25f, 0.6f));
+                puff(at.x, at.y, at.z, sd.x * 0.16 + rs() * 0.02, sd.y * 0.16, sd.z * 0.16 + rs() * 0.02, r(26, 40), 0.22f, 1.3f, 1f, 0.5f, 0, 0.9f, 0);
         }
     }
 
@@ -305,7 +198,7 @@ public final class KrlFx {
         return KrlClient.riding == f.id;
     }
 
-    /** Daylight hides the falling spear from anyone not riding it (or right next to it). */
+    /** Daylight hides the falling missile from anyone not riding it (or right next to it). */
     static float fallVis(KrlClient.CFlight f, double t, Vec3d cam) {
         if (isRider(f) && KrlCine.onSpear(t)) return 1;
         if (cam.distanceTo(nose(f, t)) < 40) return 1;
@@ -326,51 +219,44 @@ public final class KrlFx {
         boolean any = false;
         for (KrlClient.CFlight f : KrlClient.flights()) if (KrlClient.here(f)) any = true;
         if (KrlCine.active()) KrlCine.farTerrain(ctx);
-        if (!any && PUFFS.isEmpty() && SPARKS.isEmpty()) return;
+        if (!any && PUFFS.isEmpty()) return;
 
         ms.push();
         Matrix4f m = ms.peek().getPositionMatrix();
-        // 1. the spears
+        // 1. the missiles
         for (KrlClient.CFlight f : KrlClient.flights()) {
             if (!KrlClient.here(f)) continue;
             double t = f.t(pt);
             if (t >= KrlFlight.TOTAL) continue;
-            if (t < 0) {
-                // on the rail: the launcher's renderer draws it when it is close enough to be drawn at all
-                if (cam.distanceTo(f.launch) < 180) continue;
-            }
+            // on the rail the launcher's renderer draws it, when it is close enough to be drawn at all
+            if (t < 0 && cam.distanceTo(f.launch) < 180) continue;
             float vis = t > KrlFlight.BOOST + KrlFlight.STALL ? fallVis(f, t, cam) : 1;
             if (vis < 0.03f) continue;
             drawSpear(ms, cam, f, t, vis);
         }
         BUF.draw();
 
-        // 2. smoke (alpha blended, back to front)
+        // 2. the contrail (alpha blended, back to front)
         drawSmoke(m, cam, pt);
 
-        // 3. light: flames, glows, sheath, shock rings, fireballs
+        // 3. light: flames, flashes, sheath
         for (KrlClient.CFlight f : KrlClient.flights()) {
             if (!KrlClient.here(f)) continue;
-            double t = f.t(pt);
-            drawLight(ms, m, cam, eye, f, t, pt);
+            drawLight(ms, m, cam, eye, f, f.t(pt));
         }
-        drawSparks(m, cam, pt);
         ms.pop();
     }
 
     private static void drawSpear(MatrixStack ms, Vec3d cam, KrlClient.CFlight f, double t, float vis) {
         KrlMesh mesh = KrlModels.SPEAR;
         if (mesh == null) return;
-        Vec3d n = nozzle(f, t), d = t <= 0 ? new Vec3d(0, 1, 0) : f.path.dir(t);
+        Vec3d n = nozzle(f, t), d = f.path.dir(t);
         ms.push();
         ms.translate(n.x - cam.x, n.y - cam.y, n.z - cam.z);
-        Quaternionf q = new Quaternionf().rotationTo(0, 1, 0, (float) d.x, (float) d.y, (float) d.z);
-        q.rotateY((float) (Math.max(0, t) * 0.045));
-        ms.multiply(q);
-        var w = KrlClient.world();
-        int light = WorldRenderer.getLightmapCoordinates(w, BlockPos.ofFloored(n.add(d.multiply(3))));
+        ms.multiply(frame(f, d, t));
+        int light = WorldRenderer.getLightmapCoordinates(KrlClient.world(), BlockPos.ofFloored(n.add(d.multiply(3))));
         float h = heat(f, t);
-        mesh.render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.SPEAR_TEX)), light, null, (nx, ny, nz, o) -> {
+        mesh.render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.spearTex(f.livery))), light, null, (nx, ny, nz, o) -> {
             o[0] = vis;
             o[1] = vis * (1 - h * 0.35f);
             o[2] = vis * (1 - h * 0.5f);
@@ -383,6 +269,19 @@ public final class KrlFx {
             o[3] = 1;
         });
         ms.pop();
+    }
+
+    /**
+     * The missile's orientation: +Y along its heading, +Z the normal of the flight plane (constant), so it leaves the
+     * rail with exactly the roll it had on it (lugs down); after liftoff it rolls slowly.
+     */
+    static Quaternionf frame(KrlClient.CFlight f, Vec3d d, double t) {
+        Vec3d z = f.path.h.crossProduct(new Vec3d(0, 1, 0)).normalize();
+        Vec3d y = d.subtract(z.multiply(d.dotProduct(z))).normalize();
+        Vec3d x = y.crossProduct(z);
+        org.joml.Matrix3f m = new org.joml.Matrix3f((float) x.x, (float) x.y, (float) x.z, (float) y.x, (float) y.y, (float) y.z, (float) z.x,
+                (float) z.y, (float) z.z);
+        return new Quaternionf().setFromNormalized(m).rotateY((float) (Math.max(0, t) * 0.045));
     }
 
     private static void drawSmoke(Matrix4f m, Vec3d cam, float pt) {
@@ -400,9 +299,9 @@ public final class KrlFx {
             float s = MathHelper.lerp((float) (1 - Math.pow(1 - a, 2.4)), p.s0, p.s1);
             float al = p.alpha * Math.min(1, (p.age + pt) / 6f) * (float) Math.pow(1 - a, 1.6);
             if (al < 0.01f) continue;
-            float h = Math.min(1.2f, p.heat);
-            float r = MathHelper.clamp(p.gray * amb + h * 0.9f, 0, 1), g = MathHelper.clamp(p.gray * amb + h * 0.42f, 0, 1),
-                    b = MathHelper.clamp(p.gray * amb * 0.98f + h * 0.12f, 0, 1);
+            float h = Math.min(1f, p.heat);
+            float r = MathHelper.clamp(p.gray * amb + h * 0.6f, 0, 1), g = MathHelper.clamp(p.gray * amb + h * 0.3f, 0, 1),
+                    b = MathHelper.clamp(p.gray * amb * 0.98f + h * 0.08f, 0, 1);
             float u0 = (p.tile % 2) * 0.5f, v0 = (p.tile / 2) * 0.5f;
             double px = p.x + p.vx * pt - cam.x, py = p.y + p.vy * pt - cam.y, pz = p.z + p.vz * pt - cam.z;
             KrlDraw.spriteUv(vc, m, (float) px, (float) py, (float) pz, s, p.rot, u0, v0, u0 + 0.5f, v0 + 0.5f, r, g, b, al);
@@ -410,100 +309,108 @@ public final class KrlFx {
         BUF.draw();
     }
 
-    private static void drawSparks(Matrix4f m, Vec3d cam, float pt) {
-        if (SPARKS.isEmpty()) return;
-        VertexConsumer vc = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.TRAIL));
-        Vector3f eye = new Vector3f();
-        for (Spark s : SPARKS) {
-            float a = (s.age + pt) / s.life;
-            float k = 1 - a;
-            Vector3f head = new Vector3f((float) (s.x + s.vx * pt - cam.x), (float) (s.y + s.vy * pt - cam.y), (float) (s.z + s.vz * pt - cam.z));
-            Vector3f tail = new Vector3f(head).sub(s.vx * 2.5f, s.vy * 2.5f, s.vz * 2.5f);
-            KrlDraw.streak(vc, m, tail, head, eye, s.size * (0.6f + 0.4f * k), 1f, 0.55f * k + 0.25f, 0.18f * k, k);
-        }
-        BUF.draw();
+    private static Vec3d relv(Vec3d p, Vec3d cam) {
+        return p.subtract(cam);
     }
 
     private static Vector3f rel(Vec3d p, Vec3d cam) {
         return new Vector3f((float) (p.x - cam.x), (float) (p.y - cam.y), (float) (p.z - cam.z));
     }
 
-    /** At least this big on screen (so a distant flame or a star-like falling spear stays a point of light). */
+    /** At least this big on screen (so a distant flame or a star-like falling missile stays a point of light). */
     private static float minSize(float s, Vec3d p, Vec3d cam, float k) {
         return Math.max(s, (float) (cam.distanceTo(p) * k));
     }
 
-    private static void drawLight(MatrixStack ms, Matrix4f m, Vec3d cam, Vector3f eye, KrlClient.CFlight f, double t, float pt) {
+    /** Where the hold-down exhaust meets the ground behind the launcher, or null if it is further than `max`. */
+    private static double groundHit(Vec3d from, Vec3d dir, double max) {
+        var w = KrlClient.world();
+        for (double s = 0.5; s <= max; s += 0.25) {
+            Vec3d p = from.add(dir.multiply(s));
+            BlockPos b = BlockPos.ofFloored(p);
+            if (!w.getBlockState(b).getCollisionShape(w, b).isEmpty() && !w.getBlockState(b).isOf(Krl.LAUNCHER)) return s;
+            if (p.y < w.getTopY(Heightmap.Type.MOTION_BLOCKING, b.getX(), b.getZ())) return s;
+        }
+        return max;
+    }
+
+    private static void drawLight(MatrixStack ms, Matrix4f m, Vec3d cam, Vector3f eye, KrlClient.CFlight f, double t) {
         KrlFlight p = f.path;
+        float time = (float) (KrlClient.now() % 100000) + (float) (t - Math.floor(t));
         float flick = 0.9f + 0.1f * MathHelper.sin((float) t * 2.7f) * MathHelper.sin((float) t * 1.3f + 1);
-        // ---- the motor held down on the pad
-        if (t < 0 && t > -Krl.IGNITION) {
-            float ramp = (float) MathHelper.clamp((t + Krl.IGNITION) / 30.0, 0, 1);
-            Vec3d l = f.launch, front = f.front();
-            Vector3f a = rel(l, cam);
-            VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLAME));
-            KrlDraw.beam(fl, m, a, rel(l.add(0, -0.45, 0), cam), eye, 0.42f, 0, 0.45f, 1f, 0.78f, 0.5f, ramp * flick);
-            KrlDraw.beam(fl, m, rel(l.add(0, -0.25, 0), cam), rel(l.add(front.multiply(6.5)).add(0, -0.1, 0), cam), eye, 0.9f * ramp, 0, 6.5f, 1f, 0.55f, 0.22f,
-                    0.8f * ramp * flick);
+        // ---- ignition: the motor burning on the rail, the plume striking the ground behind the launcher
+        if (t < 0 && t >= -Krl.FLAME) {
+            float ramp = (float) MathHelper.clamp((t + Krl.FLAME) / 5.0, 0, 1);
+            float flash = (float) Math.max(0, 1 - (t + Krl.FLAME) / 4.0);
+            Vec3d l = f.launch, back = p.rail.multiply(-1);
+            double hit = groundHit(l, back, 6);
+            float len = (float) Math.min(5.5, hit + 0.8) * ramp;
+            VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
+            KrlFlame.plume(m, pl, relv(l, cam), back, len, 0.26f, ramp * flick, time);
+            // the splash: tongues of flame spreading out over the ground from where the plume lands
+            Vec3d hp = l.add(back.multiply(hit));
+            Vec3d bh = new Vec3d(back.x, 0, back.z).normalize();
+            Vec3d sd = new Vec3d(-bh.z, 0, bh.x);
+            for (int i = -2; i <= 2; i++) {
+                double a = i * 0.55;
+                Vec3d dir = bh.multiply(Math.cos(a)).add(sd.multiply(Math.sin(a))).add(0, 0.12, 0).normalize();
+                float tl = (float) (1.6 + 0.9 * Math.cos(a)) * ramp * (0.85f + 0.15f * MathHelper.sin(time * 3.3f + i));
+                KrlFlame.plume(m, pl, relv(hp.add(0, 0.15, 0), cam), dir, tl, 0.32f, 0.55f * ramp, time + i);
+            }
+            BUF.draw();
+            VertexConsumer wh = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.WHITE_TEX));
+            KrlFlame.diamonds(m, wh, relv(l, cam), back, len, 0.26f, ramp * 0.8f, time);
             BUF.draw();
             VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
-            Vector3f g0 = rel(l.add(front.multiply(2.5)).add(0, 0.2, 0), cam);
-            KrlDraw.sprite(gl, m, g0.x, g0.y, g0.z, 6f, 0, 1f, 0.5f, 0.18f, 0.55f * ramp * flick);
-            KrlDraw.sprite(gl, m, g0.x, g0.y, g0.z, 16f, 0, 1f, 0.35f, 0.1f, (0.12f + 0.25f * KrlClient.night()) * ramp * flick);
-            KrlDraw.sprite(gl, m, a.x, a.y - 0.2f, a.z, 1.6f, 0, 1f, 0.9f, 0.7f, 0.9f * ramp);
+            Vector3f a = rel(l, cam), g0 = rel(hp.add(0, 0.3, 0), cam);
+            KrlDraw.flat(gl, m, rel(l.add(back.multiply(0.05)), cam), vec(KrlFlame.basis(back)[0]), vec(KrlFlame.basis(back)[1]), 0.3f, 1f, 0.9f, 0.7f, ramp);
+            KrlDraw.sprite(gl, m, g0.x, g0.y, g0.z, 3.5f, 0, 1f, 0.55f, 0.2f, 0.6f * ramp * flick);
+            KrlDraw.sprite(gl, m, g0.x, g0.y, g0.z, 12f, 0, 1f, 0.4f, 0.12f, (0.12f + 0.3f * KrlClient.night()) * ramp * flick);
+            KrlDraw.sprite(gl, m, a.x, a.y, a.z, 1.2f, 0, 1f, 0.92f, 0.75f, 0.8f * ramp + flash);
             BUF.draw();
         }
-        // ---- liftoff: flash, sonic-boom collar and ground shock ring
+        // ---- liftoff: flash and the sonic boom's shock ring across the ground
         if (t >= 0 && t < 40) {
             Vec3d l = f.launch;
             float tb = (float) t;
-            VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
-            Vector3f a = rel(l.add(0, 1.5, 0), cam);
-            if (tb < 6) KrlDraw.sprite(gl, m, a.x, a.y, a.z, 22f * (1 - tb / 6f) + 4, 0, 1f, 0.9f, 0.75f, 1 - tb / 6f);
+            VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
+            Vector3f a = rel(l.add(0, 1, 0), cam);
+            if (tb < 6) KrlDraw.sprite(fl, m, a.x, a.y, a.z, 18f * (1 - tb / 6f) + 4, 0, 1f, 0.9f, 0.75f, 1 - tb / 6f);
             BUF.draw();
             VertexConsumer ring = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.RING));
+            double gy = KrlClient.world().getTopY(Heightmap.Type.MOTION_BLOCKING, (int) Math.floor(l.x), (int) Math.floor(l.z));
             float rr = 3 + tb * 3.4f;
-            KrlDraw.flat(ring, m, rel(l.add(0, 0.25, 0), cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), rr, 1f, 0.92f, 0.85f,
-                    0.7f * (float) Math.pow(1 - tb / 40f, 1.6));
+            KrlDraw.flat(ring, m, rel(new Vec3d(l.x, gy + 0.2, l.z), cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), rr, 1f, 0.95f, 0.9f,
+                    0.6f * (float) Math.pow(1 - tb / 40f, 1.6));
             BUF.draw();
-            if (tb < 16) {
-                // the condensation collar the boom leaves round the spear as it clears the tower
-                Vec3d mid = nozzle(f, t).add(0, 3.2, 0);
-                VertexConsumer vap = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.VAPOR));
-                float k = tb / 16f;
-                float day = 0.35f + 0.65f * KrlClient.daylight();
-                KrlDraw.flat(vap, m, rel(mid, cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), 2.2f + tb * 0.9f, day, day, day, 0.8f * (1 - k) * (1 - k));
-                KrlDraw.sprite(vap, m, (float) (mid.x - cam.x), (float) (mid.y - cam.y), (float) (mid.z - cam.z), 2f + tb * 0.75f, tb * 0.05f, day, day, day,
-                        0.55f * (1 - k));
-                BUF.draw();
-            }
         }
         // ---- the climb
         if (t >= 0 && t < KrlFlight.BOOST) {
-            Vec3d n = nozzle(f, t), d = p.dir(t);
+            Vec3d n = nozzle(f, t), d = p.dir(t), back = d.multiply(-1);
             double sp = p.speed(t);
             double alt = Math.max(0, n.y - f.launch.y);
             float burn = (float) MathHelper.clamp((BURNOUT - t) / 18.0, 0, 1);
             if (burn > 0) {
-                float len = (float) (5 + 16 * Math.min(1, sp / 4) + alt / 60);
-                float wid = (float) (0.55 + 0.4 * Math.min(1, sp / 4) + alt / 400) * burn;
-                Vec3d tail = n.subtract(d.multiply(len * (0.6 + 0.4 * burn)));
-                VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLAME));
-                KrlDraw.beam(fl, m, rel(n, cam), rel(tail, cam), eye, wid, 0, (float) n.distanceTo(tail), 1f, 0.72f, 0.42f, burn * flick);
-                KrlDraw.beam(fl, m, rel(n, cam), rel(n.subtract(d.multiply(len * 0.35)), cam), eye, wid * 0.45f, 0, len * 0.35f, 1f, 0.95f, 0.85f, burn);
+                float len = (float) (4.5 + 13 * Math.min(1, sp / 4) + alt / 55) * (0.6f + 0.4f * burn);
+                float rad = (float) (0.26 + 0.2 * Math.min(1, sp / 4) + alt / 420) * burn;
+                VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
+                KrlFlame.plume(m, pl, relv(n, cam), back, len, rad, burn * flick, time);
                 BUF.draw();
+                VertexConsumer wh = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.WHITE_TEX));
+                KrlFlame.diamonds(m, wh, relv(n, cam), back, len, rad, burn * 0.9f, time);
+                BUF.draw();
+                // a soft halo so the flame still reads as a point of light far away
                 VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
-                Vector3f a = rel(n.subtract(d.multiply(0.6)), cam);
-                float s = minSize(2.4f, n, cam, 0.006f);
-                KrlDraw.sprite(gl, m, a.x, a.y, a.z, s, 0, 1f, 0.75f, 0.45f, 0.9f * burn);
-                KrlDraw.sprite(gl, m, a.x, a.y, a.z, s * 3.2f, 0, 1f, 0.45f, 0.15f, (0.18f + 0.3f * KrlClient.night()) * burn);
+                Vector3f a = rel(n.add(back.multiply(len * 0.2)), cam);
+                float s = minSize(1.6f, n, cam, 0.006f);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, s, 0, 1f, 0.75f, 0.45f, 0.45f * burn);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, s * 3.2f, 0, 1f, 0.45f, 0.15f, (0.1f + 0.3f * KrlClient.night()) * burn);
                 BUF.draw();
             } else if (t < BURNOUT + 40) {
-                // the nozzle cooling after burnout
                 float k = (float) (1 - (t - BURNOUT) / 40);
                 VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
                 Vector3f a = rel(n, cam);
-                KrlDraw.sprite(gl, m, a.x, a.y, a.z, 0.8f, 0, 1f, 0.3f, 0.08f, 0.6f * k);
+                KrlDraw.sprite(gl, m, a.x, a.y, a.z, 0.6f, 0, 1f, 0.3f, 0.08f, 0.6f * k);
                 BUF.draw();
             }
             // the vapour cone as it goes through Mach 1
@@ -516,7 +423,7 @@ public final class KrlFx {
                 VertexConsumer vap = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.VAPOR));
                 for (int i = 0; i < 3; i++) {
                     Vec3d c = mid.subtract(d.multiply(i * 0.7));
-                    KrlDraw.flat(vap, m, rel(c, cam), e1, e2, 1.3f + i * 0.55f + k * 0.8f, day, day, day, 0.7f * (float) Math.sin(Math.PI * k) * (1 - i * 0.25f));
+                    KrlDraw.flat(vap, m, rel(c, cam), e1, e2, 1.2f + i * 0.5f + k * 0.7f, day, day, day, 0.6f * (float) Math.sin(Math.PI * k) * (1 - i * 0.25f));
                 }
                 BUF.draw();
             }
@@ -527,9 +434,10 @@ public final class KrlFx {
             float vis = fallVis(f, t, cam);
             if (vis > 0.02f) drawSheath(ms, m, cam, eye, f, t, h * vis);
         }
-        // ---- the impact
-        double ti = t - KrlFlight.TOTAL;
-        if (ti >= 0) drawImpact(m, cam, eye, f, (float) ti);
+    }
+
+    private static Vector3f vec(Vec3d v) {
+        return new Vector3f((float) v.x, (float) v.y, (float) v.z);
     }
 
     static void basis(Vec3d d, Vector3f e1, Vector3f e2) {
@@ -547,7 +455,7 @@ public final class KrlFx {
         if (mesh != null) {
             ms.push();
             ms.translate(n.x - cam.x, n.y - cam.y, n.z - cam.z);
-            ms.multiply(new Quaternionf().rotationTo(0, 1, 0, (float) d.x, (float) d.y, (float) d.z).rotateY((float) (t * 0.045)));
+            ms.multiply(frame(f, d, t));
             float base = KrlModels.NOSE_FROM;
             float[][] shells = {{1.02f, 1.0f, 0.95f, 0.85f, 0.55f}, {1.10f, 1.0f, 0.7f, 0.35f, 0.42f}, {1.24f, 1.0f, 0.42f, 0.12f, 0.3f},
                     {1.45f, 0.9f, 0.18f, 0.05f, 0.2f}};
@@ -584,81 +492,5 @@ public final class KrlFx {
         Vector3f b0 = rel(tip.subtract(d.multiply(0.4)), cam), b1 = rel(tip.subtract(d.multiply(4.5 + 5 * h)), cam);
         KrlDraw.beam(pl, m, b0, b1, eye, 0.45f + 0.35f * h, -time * 0.35f, 3f, 1f, 0.45f, 0.14f, 0.55f * h * h);
         BUF.draw();
-    }
-
-    /** White -> yellow -> orange -> deep red as k goes 1 -> 0. */
-    static float[] fireColor(float k) {
-        k = MathHelper.clamp(k, 0, 1);
-        float[][] st = {{0f, 0.35f, 0.04f, 0.02f}, {0.25f, 0.85f, 0.2f, 0.05f}, {0.5f, 1f, 0.45f, 0.1f}, {0.75f, 1f, 0.75f, 0.35f}, {1f, 1f, 0.96f, 0.88f}};
-        for (int i = 1; i < st.length; i++) {
-            if (k <= st[i][0]) {
-                float u = (k - st[i - 1][0]) / (st[i][0] - st[i - 1][0]);
-                return new float[]{MathHelper.lerp(u, st[i - 1][1], st[i][1]), MathHelper.lerp(u, st[i - 1][2], st[i][2]), MathHelper.lerp(u, st[i - 1][3], st[i][3])};
-            }
-        }
-        return new float[]{1, 0.96f, 0.88f};
-    }
-
-    private static void drawImpact(Matrix4f m, Vec3d cam, Vector3f eye, KrlClient.CFlight f, float ti) {
-        Vec3d c = f.target;
-        // flash
-        if (ti < 10) {
-            VertexConsumer fl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.FLARE));
-            Vector3f a = rel(c.add(0, 4, 0), cam);
-            float k = 1 - ti / 10f;
-            KrlDraw.sprite(fl, m, a.x, a.y, a.z, minSize(70 * (float) Math.sqrt(k) + 10, c, cam, 0.06f), 0, 1, 0.95f, 0.9f, k);
-            BUF.draw();
-        }
-        // the fireball
-        if (ti < 150) {
-            float R = (float) (5 + 23 * (1 - Math.exp(-ti / 5)));
-            float temp = (float) Math.exp(-ti / 30);
-            float[] col = fireColor(temp);
-            float al = MathHelper.clamp(1 - (ti - 60) / 90f, 0, 1);
-            Vec3d ctr = c.add(0, R * 0.5 + ti * 0.14, 0);
-            Vector3f a = rel(ctr, cam);
-            VertexConsumer pl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.PLASMA));
-            for (int i = 0; i < 4; i++) {
-                float rot = ti * (0.012f + i * 0.006f) * (i % 2 == 0 ? 1 : -1) + i * 1.7f;
-                KrlDraw.sprite(pl, m, a.x, a.y, a.z, R * (0.75f + i * 0.12f), rot, col[0], col[1], col[2], al * (0.85f - i * 0.12f));
-            }
-            BUF.draw();
-            VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
-            KrlDraw.sprite(gl, m, a.x, a.y, a.z, R * 1.9f, 0, col[0], col[1] * 0.8f, col[2] * 0.6f, al * 0.6f);
-            KrlDraw.sprite(gl, m, a.x, a.y, a.z, R * 4f, 0, 1f, 0.4f, 0.12f, al * 0.2f * (0.4f + KrlClient.night()));
-            BUF.draw();
-        }
-        // ground shock ring and the condensation shell
-        if (ti < 40) {
-            float k = ti / 40f;
-            VertexConsumer ring = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.RING));
-            KrlDraw.flat(ring, m, rel(c.add(0, 0.4, 0), cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), 6 + ti * 4.4f, 1f, 0.7f, 0.4f,
-                    0.85f * (float) Math.pow(1 - k, 1.5));
-            BUF.draw();
-            if (ti < 26) {
-                float kk = ti / 26f;
-                float day = 0.3f + 0.7f * KrlClient.daylight();
-                VertexConsumer vap = BUF.getBuffer(BeamRenderLayers.translucent(KrlDraw.VAPOR));
-                Vector3f a = rel(c.add(0, 8 + ti * 0.6, 0), cam);
-                KrlDraw.sprite(vap, m, a.x, a.y, a.z, 8 + ti * 3.6f, ti * 0.01f, day, day, day, 0.5f * (float) Math.sin(Math.PI * kk));
-                KrlDraw.flat(vap, m, rel(c.add(0, 1.5, 0), cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), 8 + ti * 4.6f, day, day, day,
-                        0.45f * (1 - kk));
-                BUF.draw();
-            }
-        }
-        // the crater floor, glowing as it cools
-        if (ti < 1250) {
-            float k = (float) Math.exp(-ti / 380);
-            float fl = 0.85f + 0.15f * MathHelper.sin(ti * 0.21f) * MathHelper.sin(ti * 0.07f + 2);
-            Vec3d floor = c.add(0, -KrlImpact.RADIUS * 0.62 + 0.15, 0);
-            VertexConsumer cr = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.CRACKS));
-            float[] col = fireColor(0.2f + 0.55f * k);
-            KrlDraw.flat(cr, m, rel(floor, cam), new Vector3f(1, 0, 0), new Vector3f(0, 0, 1), KrlImpact.RADIUS * 0.85f, col[0], col[1], col[2], k * fl);
-            BUF.draw();
-            VertexConsumer gl = BUF.getBuffer(BeamRenderLayers.textured(KrlDraw.GLOW));
-            Vector3f a = rel(floor.add(0, 2.5, 0), cam);
-            KrlDraw.sprite(gl, m, a.x, a.y, a.z, KrlImpact.RADIUS * 1.6f, 0, 1f, 0.32f, 0.08f, 0.35f * k * fl * (0.3f + 0.7f * KrlClient.night()));
-            BUF.draw();
-        }
     }
 }

@@ -78,7 +78,7 @@ public class KrlConsoleBlock extends BlockWithEntity {
             }
             if (n > 0) {
                 world.playSound(null, pos, Krl.S_LINK, SoundCategory.BLOCKS, 1f, 1f);
-                if (placer instanceof PlayerEntity pl) pl.sendMessage(Text.literal("Fire control linked " + n + " launcher" + (n > 1 ? "s" : "") + ".").formatted(Formatting.RED), true);
+                if (placer instanceof PlayerEntity pl) pl.sendMessage(Text.literal("Fire control linked " + n + " launcher" + (n > 1 ? "s" : "") + ".").formatted(Formatting.YELLOW), true);
             }
         }
     }
@@ -127,7 +127,7 @@ public class KrlConsoleBlock extends BlockWithEntity {
                 player.sendMessage(Text.literal("Fire control holds " + Krl.MAX_LINKS + " launchers at most.").formatted(Formatting.GRAY), true);
             } else {
                 world.playSound(null, center, Krl.S_LINK, SoundCategory.BLOCKS, 1f, 1f);
-                player.sendMessage(Text.literal("Launcher linked (" + c.links().size() + "/" + Krl.MAX_LINKS + ").").formatted(Formatting.RED), true);
+                player.sendMessage(Text.literal("Launcher linked (" + c.links().size() + "/" + Krl.MAX_LINKS + ").").formatted(Formatting.YELLOW), true);
             }
             return ActionResult.CONSUME;
         }
