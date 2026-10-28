@@ -1422,6 +1422,22 @@ public class RailgunEntity extends Entity implements GeoEntity {
         return true;
     }
 
+    /**
+     * Cosmic Reliquary's Orbital Link: cut the cooldown short and reset the scan and rift timers. Returns true if
+     * anything was waiting.
+     */
+    public boolean orbitalLink() {
+        boolean any = this.age < riftReadyAge || this.age < scanReadyAge;
+        riftReadyAge = this.age;
+        scanReadyAge = this.age;
+        if (getState() == RailgunState.COOLDOWN) {
+            setCharge(0f);
+            setState(RailgunState.IDLE);
+            any = true;
+        }
+        return any;
+    }
+
     public boolean abortCharge() {
         if (getState() != RailgunState.CHARGING) return false;
         setCharge(0f);

@@ -1,0 +1,74 @@
+{
+  "star_eater_hum": {
+    "subtitle": "subtitles.cosmic_reliquary.star_eater_hum",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:star_eater_hum",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "singularity_form": {
+    "subtitle": "subtitles.cosmic_reliquary.singularity_form",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:singularity_form",
+        "attenuation_distance": 64
+      }
+    ]
+  },
+  "core_implode": {
+    "subtitle": "subtitles.cosmic_reliquary.core_implode",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:core_implode",
+        "attenuation_distance": 48
+      }
+    ]
+  },
+  "void_slash": {
+    "subtitle": "subtitles.cosmic_reliquary.void_slash",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:void_slash",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "void_arc": {
+    "subtitle": "subtitles.cosmic_reliquary.void_arc",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:void_arc",
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "core_revolver_fire": {
+    "subtitle": "subtitles.cosmic_reliquary.core_revolver_fire",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:core_revolver_fire",
+        "attenuation_distance": 160
+      }
+    ]
+  },
+  "molten_sizzle": {
+    "subtitle": "subtitles.cosmic_reliquary.molten_sizzle",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:molten_sizzle",
+        "attenuation_distance": 16
+      }
+    ]
+  },
+  "orbital_link": {
+    "subtitle": "subtitles.cosmic_reliquary.orbital_link",
+    "sounds": [
+      {
+        "name": "cosmic_reliquary:orbital_link",
+        "attenuation_distance": 64
+      }
+    ]
+  }
+}

@@ -256,6 +256,13 @@ public class Ares0Entity extends Entity implements GeoEntity {
         return true;
     }
 
+    /** Cosmic Reliquary's Orbital Link: out of cooldown at once. Returns true if it was cooling down. */
+    public boolean orbitalLink() {
+        if (getState() != State.COOLDOWN) return false;
+        setState(State.IDLE);
+        return true;
+    }
+
     public void select(Body body) {
         if (getState() == State.IDLE || getState() == State.COOLDOWN) setTarget(body);
     }

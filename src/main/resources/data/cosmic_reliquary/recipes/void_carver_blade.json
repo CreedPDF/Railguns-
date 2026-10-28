@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "  C",
+    "EC ",
+    "SE "
+  ],
+  "key": {
+    "C": {
+      "item": "minecraft:echo_shard"
+    },
+    "E": {
+      "item": "minecraft:ender_pearl"
+    },
+    "S": {
+      "item": "minecraft:netherite_sword"
+    }
+  },
+  "result": {
+    "item": "cosmic_reliquary:void_carver_blade"
+  }
+}

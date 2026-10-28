@@ -47,4 +47,7 @@ public interface RailgunClientBridge {
 
     /** Arsenal Legion: a flying weapon's kinetic_gaze trail, emitted each client tick. */
     default void legionTrail(com.creedpdf.orbitalrailgun.legion.entity.AutonomousWeaponEntity weapon) {}
+
+    /** Cosmic Reliquary: the local player used a Reliquary weapon looking straight up (try the Orbital Link). */
+    default void reliquaryLink() {}
 }

@@ -159,6 +159,7 @@ public final class RailgunMod implements ModInitializer {
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
         com.creedpdf.orbitalrailgun.legion.ArsenalLegion.init();
+        com.creedpdf.orbitalrailgun.reliquary.CosmicReliquary.init();
 
         // Deluxs Armory has three creative tabs: Railguns (the orbital weapons, the ship, the EVA suit), Military (the KRL
         // launcher system) and Arsenal Legion (the autonomous weapon swarm).

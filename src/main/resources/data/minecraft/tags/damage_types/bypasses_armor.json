@@ -1,1 +1,12 @@
-{"replace": false, "values": ["orbital_railgun:beam", "orbital_railgun:vacuum", "orbital_railgun:crushed", "orbital_railgun:krl_plasma"]}
+{
+  "replace": false,
+  "values": [
+    "orbital_railgun:beam",
+    "orbital_railgun:vacuum",
+    "orbital_railgun:crushed",
+    "orbital_railgun:krl_plasma",
+    "cosmic_reliquary:disintegrate",
+    "cosmic_reliquary:void_arc",
+    "cosmic_reliquary:molten_scar"
+  ]
+}

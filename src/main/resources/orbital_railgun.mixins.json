@@ -6,7 +6,8 @@
   "mixins": [
     "EntityVoidMixin",
     "PlayerDismountMixin",
-    "PlayerEntitySwarmMixin"
+    "PlayerEntitySwarmMixin",
+    "PlayerEntityReliquaryMixin"
   ],
   "injectors": {
     "defaultRequire": 1
