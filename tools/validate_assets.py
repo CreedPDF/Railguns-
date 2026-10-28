@@ -90,7 +90,9 @@ for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.pn
                         ("../arsenal_legion/models/entity/floating_blade.json", "../arsenal_legion/textures/entity/floating_blade.png",
                          "../arsenal_legion/textures/entity/floating_blade_glow.png"),
                         ("../arsenal_legion/models/entity/legion_altar.json", "../arsenal_legion/textures/entity/legion_altar.png",
-                         "../arsenal_legion/textures/entity/legion_altar_glow.png")):
+                         "../arsenal_legion/textures/entity/legion_altar_glow.png"),
+                        *((f"../cosmic_reliquary/models/item/{n}.json", f"../cosmic_reliquary/textures/item/{n}.png",
+                           f"../cosmic_reliquary/textures/item/{n}_glow.png") for n in ("star_eater_gaze", "void_carver_blade", "core_revolver"))):
     for f in (mesh, tex, glow):
         if not (ASSETS / f).exists():
             errors.append(f"{f}: missing")

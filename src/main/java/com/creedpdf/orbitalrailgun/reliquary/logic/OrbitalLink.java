@@ -12,7 +12,6 @@ import com.creedpdf.orbitalrailgun.reliquary.network.ReliquaryNet;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.sound.SoundCategory;
 
@@ -67,9 +66,5 @@ public final class OrbitalLink {
         ReliquaryNet.sendCharge(p);
         p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.ORBITAL_LINK, SoundCategory.PLAYERS, 2.5f, 1f);
         ReliquaryNet.broadcastLink(p);
-    }
-
-    static boolean holding(PlayerEntity p) {
-        return ModItems.isReliquary(p.getMainHandStack());
     }
 }

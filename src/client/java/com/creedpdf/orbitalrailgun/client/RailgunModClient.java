@@ -50,6 +50,7 @@ public final class RailgunModClient implements ClientModInitializer {
         com.creedpdf.orbitalrailgun.client.render.RiftFx.register();
         com.creedpdf.orbitalrailgun.client.krl.KrlClient.register();
         com.creedpdf.orbitalrailgun.client.legion.LegionClient.register();
+        com.creedpdf.orbitalrailgun.client.reliquary.CosmicReliquaryClient.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);
@@ -125,6 +126,11 @@ public final class RailgunModClient implements ClientModInitializer {
         @Override
         public void legionTrail(com.creedpdf.orbitalrailgun.legion.entity.AutonomousWeaponEntity weapon) {
             com.creedpdf.orbitalrailgun.client.legion.LegionClient.trail(weapon);
+        }
+
+        @Override
+        public void reliquaryLink() {
+            com.creedpdf.orbitalrailgun.client.reliquary.input.ReliquaryInput.link();
         }
 
         @Override

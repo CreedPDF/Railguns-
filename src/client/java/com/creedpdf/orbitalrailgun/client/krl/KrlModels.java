@@ -28,6 +28,16 @@ public final class KrlModels {
     public static final Identifier BLADE_TEX = al("textures/entity/floating_blade.png"), BLADE_GLOW = al("textures/entity/floating_blade_glow.png"),
             ALTAR_TEX = al("textures/entity/legion_altar.png"), ALTAR_GLOW = al("textures/entity/legion_altar_glow.png");
 
+    /** Cosmic Reliquary (tools/blender/build_reliquary.py): meshes carried inside the item model files. */
+    public static KrlMesh STAR_EATER, VOID_CARVER, REVOLVER;
+    public static final Identifier STAR_EATER_TEX = cr("textures/item/star_eater_gaze.png"), STAR_EATER_GLOW = cr("textures/item/star_eater_gaze_glow.png"),
+            VOID_CARVER_TEX = cr("textures/item/void_carver_blade.png"), VOID_CARVER_GLOW = cr("textures/item/void_carver_blade_glow.png"),
+            REVOLVER_TEX = cr("textures/item/core_revolver.png"), REVOLVER_GLOW = cr("textures/item/core_revolver_glow.png");
+
+    private static Identifier cr(String path) {
+        return new Identifier("cosmic_reliquary", path);
+    }
+
     private static Identifier al(String path) {
         return new Identifier("arsenal_legion", path);
     }
@@ -71,6 +81,9 @@ public final class KrlModels {
                 SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
                 BLADE = load(rm, al("models/entity/floating_blade.json"), BLADE_GLOW);
                 ALTAR = load(rm, al("models/entity/legion_altar.json"), ALTAR_GLOW);
+                STAR_EATER = load(rm, cr("models/item/star_eater_gaze.json"), STAR_EATER_GLOW);
+                VOID_CARVER = load(rm, cr("models/item/void_carver_blade.json"), VOID_CARVER_GLOW);
+                REVOLVER = load(rm, cr("models/item/core_revolver.json"), REVOLVER_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];
