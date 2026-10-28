@@ -259,31 +259,7 @@ Your weapons leave your hands and fight beside you as a hovering telekinetic swa
   keepInventory) and are saved with you otherwise.
 * Extra items can join the swarm through the item tag `arsenal_legion:swarm_weapons`.
 
-## The Cosmic Reliquary Handheld Arsenal
-Three handheld weapons in their own **Cosmic Reliquary** creative tab (namespace `cosmic_reliquary`). The attack key
-fires them; they never mine or swing like vanilla tools.
-
-* **The Star-Eater's Gaze** (nether star, gold blocks, ender eye, netherite): a gyroscopic stellar apparatus whose
-  three hoops spin on their own axes. **Hold attack** to project a twisting neon-blue ray up to 30 blocks: anything it
-  touches has its motion cut to a tenth every tick. Hold it **3 seconds** and the ray collapses into a **singularity**
-  where it ends: for 7 seconds it drags every living thing within 10 blocks inward, harder and faster as it ages, and
-  anything that reaches the centre is erased - crushed with a vacuum fracture and vaporised into expanding neon-blue
-  rings. The drone's pitch climbs as the ray charges.
-* **Void-Carver's Edge** (netherite sword, echo shards, ender pearls): a jagged fracture greatsword. Each swing cuts a
-  plane through space up to 5 blocks out and 80 degrees either side, leaving a violet ribbon along the arc; everything
-  it crosses takes the cut and is **marked**, and a **rift** stays where the blade passed for 5 seconds, throwing
-  crackling arcs into everything marked every half second (arcs ignore invulnerability frames, so they stack).
-* **The Core-Infused Revolver** (netherite, blaze rods, iron block, magma block): a heavy magnum with an exposed engine
-  core. Each round travels 64 blocks, **pierces every mob** on its line and leaves a **molten scar** on the surface it
-  hits; anything standing on a scar burns every second (health and armour durability), trailing shimmering heat
-  voxels. Scars cool after 30 seconds.
-* **Aetheric Charge:** every kill with these weapons (or their singularity, arcs and scars) adds to a hidden charge,
-  shown only as a ring round your crosshair. When the ring closes (100 kills), **look straight up and use** any of
-  them: the **Orbital Link** pulls ARES-9 out of its cooldown (and resets its scan and rift timers), pulls ARES-0 out of
-  its cooldown and clears the uplink's drop timer.
-
-Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military**, **Deluxs Armory: Arsenal Legion** and
-**Cosmic Reliquary**.
+Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Arsenal Legion**.
 
 ## Asset pipeline
 | Tool | Produces |
@@ -292,8 +268,6 @@ Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military**, **Delux
 | `tools/blender/build_ship.py` | The ARES Kestrel starship: lofted superellipse fuselage and engine boom, airfoil wings, lathed engine pods and nozzles, cabin and cockpit interiors; baked albedo + glow atlases; exported as a `krl_mesh` with movable parts (pods, gear, ramp, glass). |
 | `tools/blender/build_legion.py` | Arsenal Legion: the floating weapons' telekinetic harness (`arsenal_legion:models/entity/floating_blade`) and the Legion Altar, same pipeline. |
 | `tools/textures/legion_textures.py` | The `kinetic_gaze` particle sprites (distortion ripples, energy streak). |
-| `tools/blender/build_reliquary.py` | The three Cosmic Reliquary weapons; each mesh is written into its own item model file (`cosmic_reliquary:models/item/<name>.json`) next to the hand / GUI display transforms. |
-| `tools/sfx/reliquary_sounds.py` | 8 Cosmic Reliquary sounds synthesised from scratch (star-eater drone loop, singularity, implosion, void slash and arcs, revolver boom, sizzle, orbital link). |
 | `tools/sfx/legion_sounds.py` | 5 Arsenal Legion sounds synthesised from scratch (swarm hum loop, weapon launch, pierce, parry, altar bind). |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |

@@ -11,8 +11,7 @@
     "GameRendererMixin",
     "WorldRendererSkyMixin",
     "InGameHudMixin",
-    "BackgroundRendererMixin",
-    "MinecraftClientReliquaryMixin"
+    "BackgroundRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

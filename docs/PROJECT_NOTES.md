@@ -15,7 +15,7 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 ## Pipelines
 - `tools/blender/build.sh` runs `build_models.py` (railgun GeckoLib models), `build_krl.py` (KRL), `build_ship.py`
   (starship) and `build_legion.py` (Arsenal Legion). Dev branches build one set: `dev-krl*` -> ONLY=krl,
-  `dev-ship*` -> ONLY=ship, `dev-legion*` -> ONLY=legion, `dev-reliquary*` -> ONLY=reliquary; renders are committed to `docs/renders/`.
+  `dev-ship*` -> ONLY=ship, `dev-legion*` -> ONLY=legion; renders are committed to `docs/renders/`.
 - KRL meshes use the "krl_mesh" JSON format (`client/krl/KrlMesh.java`): named parts with pivots, Minecraft axes
   (Blender (x, y, z) -> (x, z, -y)), textures baked from procedural materials. `KrlMesh.prepare` builds distance LODs
   and glow-only subsets; `KrlCompat` detects Iris shadow passes.
@@ -41,12 +41,8 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
   `SwarmManager` (entities from the capability, strikes, projectile defence, death drops), Legion Altar block,
   packets `swarm_sync` / `swarm_toggle`, key G. Assets: `build_legion.py`, `legion_textures.py`, `legion_sounds.py`.
 
-- v4.17 **Cosmic Reliquary** (namespace `cosmic_reliquary`, code in `reliquary/` and `client/reliquary/`): ModItems,
-  ModEntities (CustomSingularityEntity, VoidRiftEntity), ModBlocks (molten scar), ModDataComponentTypes (the player's
-  Aetheric Charge, stored via `mixin/PlayerEntityReliquaryMixin` - 1.20.1 has no Data Components), ModDamageTypes,
-  ModSounds; logic in `reliquary/logic`; packets `reliquary/network/ReliquaryNet`; the attack key is taken over by
-  `client/mixin/MinecraftClientReliquaryMixin`. Meshes live inside the item model JSONs (`build_reliquary.py`).
-  Owner asked for neon-blue effects here (an exception to the no-blue rule for this feature).
+- v4.17 Cosmic Reliquary (handheld arsenal) was built, then **removed in v4.16.1** at the owner's request; Arsenal
+  Legion kept.
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set
