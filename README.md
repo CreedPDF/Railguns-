@@ -248,11 +248,19 @@ Your weapons leave your hands and fight beside you as a hovering telekinetic swa
   sword, axe, trident or shield: the weapon leaves your hand and joins your swarm. Up to **6** weapons (the
   `arsenal_legion:swarm_capacity` attribute; any attribute modifier, e.g. on armour, raises it to 24). Sneak-use the
   altar empty-handed to get them all back. **G** stows / redeploys the swarm anywhere.
-* **Orbit:** the weapons circle you, evenly spaced, bobbing out of step, each in a spinning gyroscope harness,
-  trailing a faint humming distortion. A low telekinetic hum follows you while they fly.
+* **Formations (H):** HALO (a ring round you), CROWN (tip-up above your head), WINGS (fanned behind your shoulders,
+  beating) and VANGUARD (an arc in front, pointing where you look). The swarm is computed every frame from your
+  smoothed position, so it stays glued to you walking, sprinting or flying. Each blade rides a spinning three-ring
+  gyroscope harness with a rune halo, drags an afterimage ribbon in its own colour (by material; enchanted blades run
+  rose) and a wavering tether back to your chest, over a turning rune sigil at your feet. A low hum follows you.
 * **Strike:** hit something, or get hit, and a third of the swarm whips out of orbit and dashes straight through the
   target, dealing that weapon's own damage with its enchantments (Sharpness, Smite, Fire Aspect, Knockback...), any
-  potion effects in its NBT and any on-hit behaviour of modded weapons, leaving a bright energy streak - then returns.
+  potion effects in its NBT and any on-hit behaviour of modded weapons, leaving a bright energy streak, crossed crescent
+  slashes and sparks - then glides back into formation. **Sneak-attack** for a focus volley: every ready blade, one
+  after another. A kill is an **Execution**: shock rings, a pillar of light, a sharper sound.
+* **Fury and Blade Storm (V):** strikes, parries and executions fill the Fury gauge on the HUD. When it is full, V
+  hurls the whole swarm into a 3.5-second vortex that widens to ~6.5 blocks round you, cutting everything it passes
+  (several hits a second), with spiral ribbons, ground shock rings and the sigil swelling beneath it.
 * **Defend:** with a shield or a heavy weapon (axe, trident, or anything hitting for 7+) in the swarm, arrows aimed
   at you are batted back and fireballs and other shots are destroyed in mid-air.
 * Weapons wear as they fight (Unbreaking applies) and break like any other; bound weapons drop when you die (unless

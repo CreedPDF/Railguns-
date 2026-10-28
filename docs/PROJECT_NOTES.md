@@ -44,6 +44,10 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - v4.17 Cosmic Reliquary (handheld arsenal) was built, then **removed in v4.16.1** at the owner's request; Arsenal
   Legion kept.
 
+- v4.18 Arsenal Legion upgrade: shared path maths `legion/SwarmPaths` (formations `SwarmFormation`, storm), client
+  evaluates per frame (`client/legion/render/LegionVisual`) and ignores position packets in analytic states; focus
+  volleys (sneak-attack), Fury + Blade Storm (V), formations (H); VFX in `client/legion/render/LegionFx`.
+
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set
   (reinforced concrete, blast door, periscope camera).
