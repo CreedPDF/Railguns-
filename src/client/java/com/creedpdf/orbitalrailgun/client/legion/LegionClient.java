@@ -29,7 +29,7 @@ import org.lwjgl.glfw.GLFW;
 public final class LegionClient {
     private LegionClient() {}
 
-    private static KeyBinding toggle;
+    private static KeyBinding toggle, formation, storm;
     private static SwarmHumSoundInstance hum;
     private static int ticks;
 
@@ -40,16 +40,25 @@ public final class LegionClient {
         LegionClientPackets.register();
         toggle = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arsenal_legion.toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G,
                 "key.categories.arsenal_legion"));
+        formation = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arsenal_legion.formation", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H,
+                "key.categories.arsenal_legion"));
+        storm = KeyBindingHelper.registerKeyBinding(new KeyBinding("key.arsenal_legion.storm", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_V,
+                "key.categories.arsenal_legion"));
         ClientTickEvents.END_CLIENT_TICK.register(LegionClient::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(com.creedpdf.orbitalrailgun.client.legion.render.LegionFx::tick);
+        net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents.AFTER_TRANSLUCENT.register(com.creedpdf.orbitalrailgun.client.legion.render.LegionFx::render);
         HudRenderCallback.EVENT.register(SwarmHud::render);
         ClientPlayConnectionEvents.DISCONNECT.register((h, c) -> {
             SwarmHud.clear();
+            com.creedpdf.orbitalrailgun.client.legion.render.LegionFx.clear();
             hum = null;
         });
     }
 
     private static void tick(MinecraftClient mc) {
         while (toggle.wasPressed()) if (mc.player != null) LegionClientPackets.sendToggle();
+        while (formation.wasPressed()) if (mc.player != null) LegionClientPackets.sendFormation();
+        while (storm.wasPressed()) if (mc.player != null) LegionClientPackets.sendStorm();
         if (mc.player == null || mc.world == null || ++ticks % 10 != 0) return;
         // the hum follows the number of your own weapons flying round you
         int mine = mc.world.getEntitiesByClass(AutonomousWeaponEntity.class, mc.player.getBoundingBox().expand(16),
@@ -68,11 +77,9 @@ public final class LegionClient {
         Vec3d m = e.getPos().subtract(e.prevX, e.prevY, e.prevZ);
         double speed = m.length();
         Vec3d tail = e.getPos().add(0, 0.3, 0);
-        if (e.state() == SwarmState.ORBIT && speed < 0.9) {
-            if ((e.age + e.getId()) % 3 == 0) {
-                Vec3d back = speed > 1e-3 ? tail.subtract(m.normalize().multiply(0.5)) : tail;
-                mc.world.addParticle(ArsenalLegion.KINETIC_GAZE, back.x, back.y, back.z, 0, 0, 0);
-            }
+        if (e.state() == SwarmState.ORBIT) {
+            // a faint distortion shimmer now and then (the afterimage ribbon carries the motion)
+            if ((e.age + e.getId()) % 7 == 0) mc.world.addParticle(ArsenalLegion.KINETIC_GAZE, tail.x, tail.y, tail.z, 0, 0, 0);
         } else if (speed > 1e-3) {
             Vec3d d = m.normalize().multiply(Math.max(1.0, speed * 2.2));
             mc.world.addParticle(ArsenalLegion.KINETIC_GAZE, true, tail.x, tail.y, tail.z, d.x, d.y, d.z);

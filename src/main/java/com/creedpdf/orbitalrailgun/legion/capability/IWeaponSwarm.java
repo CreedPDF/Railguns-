@@ -26,6 +26,18 @@ public interface IWeaponSwarm {
 
     void setActive(boolean active);
 
+    /** Idle formation. */
+    com.creedpdf.orbitalrailgun.legion.SwarmFormation formation();
+
+    void setFormation(com.creedpdf.orbitalrailgun.legion.SwarmFormation f);
+
+    /** Fury 0..{@link #MAX_FURY}: built by strikes, parries and kills; a full gauge unleashes a Blade Storm. */
+    int MAX_FURY = 100;
+
+    int fury();
+
+    void setFury(int fury);
+
     /** Bind a weapon into the first free slot below {@code limit}; returns the slot, or -1 if full. */
     int bind(ItemStack stack, int limit);
 

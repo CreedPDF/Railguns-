@@ -83,7 +83,8 @@ public final class ArsenalLegion {
     public static final TagKey<Item> SWARM_WEAPONS = TagKey.of(RegistryKeys.ITEM, id("swarm_weapons"));
     public static final DefaultParticleType KINETIC_GAZE = Registry.register(Registries.PARTICLE_TYPE, id("kinetic_gaze"), FabricParticleTypes.simple(true));
     public static final SoundEvent SWARM_HUM = sound("swarm_hum"), WEAPON_LAUNCH = sound("weapon_launch"), WEAPON_PIERCE = sound("weapon_pierce"),
-            WEAPON_PARRY = sound("weapon_parry"), ALTAR_BIND = sound("altar_bind");
+            WEAPON_PARRY = sound("weapon_parry"), ALTAR_BIND = sound("altar_bind"), EXECUTION = sound("execution"),
+            BLADE_STORM = sound("blade_storm"), FORMATION_SHIFT = sound("formation_shift"), FURY_READY = sound("fury_ready");
 
     private static SoundEvent sound(String name) {
         Identifier i = id(name);

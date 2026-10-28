@@ -85,9 +85,56 @@ def altar_bind():
     return B.room(out, 1.6, 0.35)
 
 
+def execution():
+    out = B.canvas(1.6)
+    B.place(out, B.filt(B.white(0.02), "highpass", 2000) * B.decay(0.02, 0.004) * 1.8, 0.0)
+    B.place(out, B.kick(130, 35, 0.9, 0.22, 0.8) * 1.3, 0.0)
+    B.place(out, whip(0.2, 4200, 900, 6000) * 0.9, 0.0)
+    B.place(out, B.metal(990, 1.2, 0.45, 2.0) * 0.4, 0.01)
+    t = B.t_axis(0.9)
+    B.place(out, B.fm(523, 2.0, 2.0 * np.exp(-t / 0.15), 0.9) * B.decay(0.9, 0.35) * 0.35, 0.03)
+    return B.room(B.mband_sat(out, (2.6, 1.8, 1.3)), 1.0, 0.3)
+
+
+def blade_storm():
+    d = 3.8
+    t = B.t_axis(d)
+    e = np.minimum(1, t / 0.4) * np.minimum(1, (d - t) / 0.8)
+    howl = B.sweep(B.white(d), "bandpass", 500, 2600, 200, 2, 2.4) * 0.6
+    swish = np.zeros_like(t)
+    for k in range(26):
+        at = 0.2 + k * 0.13 + rng.random() * 0.04
+        w = whip(0.12, 3800, 900, 4800) * (0.4 + 0.4 * rng.random())
+        swish[int(at * SR):int(at * SR) + len(w)] += w[:max(0, len(swish) - int(at * SR))]
+    drone = B.unison(B.glide(70, 140, d, 1.0), d, 5, 0.02, "saw")
+    drone = B.filt(drone, "lowpass", 900) * 0.3
+    out = (howl + swish + drone) * e
+    B.place(out, B.kick(100, 28, 1.2, 0.4, 0.6), 0.0)
+    return B.room(out, 1.6, 0.35)
+
+
+def formation_shift():
+    out = B.canvas(1.0)
+    for k, f in enumerate((660, 880, 990)):
+        t = B.t_axis(0.5)
+        B.place(out, B.fm(f, 1.5, 1.2 * np.exp(-t / 0.08), 0.5) * B.decay(0.5, 0.2) * 0.3, k * 0.05)
+    B.place(out, whip(0.3, 1500, 600, 3500) * 0.4, 0.0)
+    return B.room(out, 0.9, 0.3)
+
+
+def fury_ready():
+    out = B.canvas(1.8)
+    t = B.t_axis(1.4)
+    B.place(out, B.unison(B.glide(220, 660, 0.5, 0.6), 0.5, 4, 0.01, "saw") * B.env(0.5, 0.05, 0.1, 0.7, 0.2) * 0.25, 0.0)
+    B.place(out, B.fm(440, 1.5, 2.2 * np.exp(-t / 0.2), 1.4) * B.decay(1.4, 0.6) * 0.45, 0.4)
+    B.place(out, B.kick(80, 40, 0.6, 0.2, 0.2) * 0.6, 0.4)
+    return B.room(out, 1.2, 0.35)
+
+
 SOUNDS = {"swarm_hum": swarm_hum, "weapon_launch": weapon_launch, "weapon_pierce": weapon_pierce, "weapon_parry": weapon_parry,
-          "altar_bind": altar_bind}
-DIST = {"swarm_hum": 12, "weapon_launch": 24, "weapon_pierce": 24, "weapon_parry": 24, "altar_bind": 16}
+          "altar_bind": altar_bind, "execution": execution, "blade_storm": blade_storm, "formation_shift": formation_shift,
+          "fury_ready": fury_ready}
+DIST = {"swarm_hum": 12, "weapon_launch": 24, "weapon_pierce": 24, "weapon_parry": 24, "altar_bind": 16, "execution": 32, "blade_storm": 48, "formation_shift": 16, "fury_ready": 12}
 
 
 def main():
