@@ -13,6 +13,8 @@ import java.util.List;
 public final class WeaponSwarm implements IWeaponSwarm {
     private final DefaultedList<ItemStack> slots = DefaultedList.ofSize(MAX_SLOTS, ItemStack.EMPTY);
     private boolean active = true;
+    private com.creedpdf.orbitalrailgun.legion.SwarmFormation formation = com.creedpdf.orbitalrailgun.legion.SwarmFormation.HALO;
+    private int fury;
     private int revision;
 
     @Override
@@ -43,6 +45,33 @@ public final class WeaponSwarm implements IWeaponSwarm {
     public void setActive(boolean active) {
         if (this.active != active) {
             this.active = active;
+            revision++;
+        }
+    }
+
+    @Override
+    public com.creedpdf.orbitalrailgun.legion.SwarmFormation formation() {
+        return formation;
+    }
+
+    @Override
+    public void setFormation(com.creedpdf.orbitalrailgun.legion.SwarmFormation f) {
+        if (formation != f) {
+            formation = f;
+            revision++;
+        }
+    }
+
+    @Override
+    public int fury() {
+        return fury;
+    }
+
+    @Override
+    public void setFury(int v) {
+        v = Math.max(0, Math.min(MAX_FURY, v));
+        if (v != fury) {
+            fury = v;
             revision++;
         }
     }
@@ -81,6 +110,8 @@ public final class WeaponSwarm implements IWeaponSwarm {
     public NbtCompound writeNbt() {
         NbtCompound nbt = new NbtCompound();
         nbt.putBoolean("Active", active);
+        nbt.putInt("Formation", formation.ordinal());
+        nbt.putInt("Fury", fury);
         NbtList list = new NbtList();
         for (int i = 0; i < MAX_SLOTS; i++) {
             ItemStack s = slots.get(i);
@@ -97,6 +128,8 @@ public final class WeaponSwarm implements IWeaponSwarm {
     public void readNbt(NbtCompound nbt) {
         for (int i = 0; i < MAX_SLOTS; i++) slots.set(i, ItemStack.EMPTY);
         active = !nbt.contains("Active") || nbt.getBoolean("Active");
+        formation = com.creedpdf.orbitalrailgun.legion.SwarmFormation.byId(nbt.getInt("Formation"));
+        fury = Math.max(0, Math.min(MAX_FURY, nbt.getInt("Fury")));
         NbtList list = nbt.getList("Items", NbtElement.COMPOUND_TYPE);
         for (int i = 0; i < list.size(); i++) {
             NbtCompound c = list.getCompound(i);

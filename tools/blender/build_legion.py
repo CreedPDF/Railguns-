@@ -97,7 +97,7 @@ def build_blade(assets, out):
     point at the origin; the game draws the weapon itself along the same axis."""
     K.reset()
     M = mats("fb")
-    b = B(["frame", "ring_outer", "ring_inner"])
+    b = B(["frame", "ring_outer", "ring_inner", "ring_third", "runes"])
     # gyroscope rings round the middle of the blade (they lie in planes containing the axis, so they read as a gyro)
     o = K.lathe("ro", [(0.36 + 0.022 * math.cos(a), 0.022 * math.sin(a)) for a in (k * math.tau / 8 for k in range(8))], 44, closed=True)
     o.rotation_euler = (math.radians(90), 0, 0)
@@ -122,6 +122,32 @@ def build_blade(assets, out):
         c = Vector((0.27 * math.cos(a), 0, 0.35 + 0.27 * math.sin(a)))
         o = K.box("node", tuple(c), (0.05, 0.05, 0.05))
         b.add(o, [M["amber"]], "ring_inner")
+    # a third, tilted ring of red steel with glowing beads (spins on its own axis)
+    o = K.lathe("rt", [(0.44 + 0.012 * math.cos(a), 0.012 * math.sin(a)) for a in (k * math.tau / 8 for k in range(8))], 48, closed=True)
+    o.rotation_euler = (math.radians(90), math.radians(55), 0)
+    o.location = (0, 0, 0.35)
+    K.active(o)
+    bpy.ops.object.transform_apply(location=True, rotation=True)
+    b.add(o, [M["red"]], "ring_third", smooth=True)
+    for k in range(6):
+        a = k * math.tau / 6
+        bead = K.box("bead", (0.44 * math.cos(a), 0.44 * math.sin(a), 0), (0.03, 0.03, 0.03))
+        S.rot_about(bead, "X", 90, (0, 0, 0))
+        S.rot_about(bead, "Y", 55, (0, 0, 0))
+        bead.location = (bead.location[0], bead.location[1], bead.location[2] + 0.35)
+        K.active(bead)
+        bpy.ops.object.transform_apply(location=True)
+        b.add(bead, [M["hot"]], "ring_third")
+    # a halo of rune plates hovering round the guard (turns the other way)
+    for k in range(8):
+        a = k * math.tau / 8
+        c = (0.3 * math.cos(a), 0.3 * math.sin(a), 0.05)
+        plate = K.box("rune", c, (0.07, 0.012, 0.11), rot_z=a + math.pi / 2)
+        b.add(plate, [M["gold"]], "runes")
+        glyph = K.box("glyph", (c[0] * 1.04, c[1] * 1.04, 0.05), (0.04, 0.004, 0.07), rot_z=a + math.pi / 2)
+        b.add(glyph, [M["hot"] if k % 2 else M["amber"]], "runes")
+    # a floating focus prism ahead of the blade's tip
+    b.lathe("tip_prism", [(0.0, 1.05), (0.035, 1.1), (0.0, 1.2)], [M["hot"]], "frame", segs=4)
     # clamp jaws at the guard and a focus crystal at the pommel
     for sx in (-1, 1):
         jaw = S.prism("jaw", [(0.0, -0.06), (0.16, -0.02), (0.18, 0.06), (0.05, 0.1), (0.0, 0.06)], "y", -0.03, 0.03, rim_mat=1)
@@ -139,7 +165,7 @@ def build_blade(assets, out):
     b.lathe("crystal", crystal, [M["hot"]], "frame", segs=6)
     b.lathe("cradle", [(0.0, -0.36), (0.07, -0.34), (0.1, -0.3), (0.06, -0.26), (0.0, -0.27)], [M["gold"]], "frame", segs=12)
     mlist = list(M.values())
-    o, col, gl = b.finish("floating_blade", mlist, 512, 256, assets, {"ring_outer": (0, 0, 0.35), "ring_inner": (0, 0, 0.35)})
+    o, col, gl = b.finish("floating_blade", mlist, 512, 256, assets, {"ring_outer": (0, 0, 0.35), "ring_inner": (0, 0, 0.35), "ring_third": (0, 0, 0.35), "runes": (0, 0, 0.05)})
     pm = K.preview_material("fb_prev", col, gl, 4.0)
     K.preview(o, pm, f"{out}/legion_floating_blade.png", (1.2, -1.6, 0.6), (0, 0, 0.1), lens=50, bg=(0.012, 0.011, 0.012))
 

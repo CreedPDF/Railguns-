@@ -37,7 +37,9 @@ import java.util.UUID;
  *   player's capacity) while the swarm is deployed, none while it is stowed, the owner is dead or a spectator. Entities
  *   are rebuilt after a dimension change or a relog; they are never saved in the world.</li>
  *   <li>Strikes: when the player hits something, or something hits the player, a third of the swarm (at least one ready
- *   striker) dashes through it.</li>
+ *   striker) dashes through it. Sneak-attack for a focus volley: every ready blade, one after another.</li>
+ *   <li>Fury: strikes, parries and executions fill it; at full, the storm key unleashes a Blade Storm.</li>
+ *   <li>Formations: the formation key cycles HALO, CROWN, WINGS and VANGUARD.</li>
  *   <li>Defence: if the swarm holds a shield or a heavy weapon, projectiles flying at the player are intercepted (each
  *   projectile by one defender).</li>
  *   <li>Death drops the bound weapons (unless keepInventory), like the rest of the inventory.</li>
@@ -55,12 +57,12 @@ public final class SwarmManager {
         ServerTickEvents.END_SERVER_TICK.register(SwarmManager::tick);
         AttackEntityCallback.EVENT.register((player, world, hand, entity, hit) -> {
             if (!world.isClient && player instanceof ServerPlayerEntity sp && !(entity instanceof AutonomousWeaponEntity) && entity.isAlive())
-                retaliate(sp, entity);
+                retaliate(sp, entity, sp.isSneaking());
             return ActionResult.PASS;
         });
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> {
             if (entity instanceof ServerPlayerEntity sp && source.getAttacker() instanceof LivingEntity att && att != sp && att.isAlive())
-                retaliate(sp, att);
+                retaliate(sp, att, false);
             return true;
         });
         ServerLivingEntityEvents.AFTER_DEATH.register((entity, source) -> {
@@ -72,6 +74,7 @@ public final class SwarmManager {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
             LIVE.clear();
             SENT.clear();
+            STORM_UNTIL.clear();
         });
     }
 
@@ -105,7 +108,7 @@ public final class SwarmManager {
                     } else if (!ItemStack.areEqual(e.getStack(), stack)) {
                         e.setStack(stack);
                     }
-                    e.setOrder(order, size);
+                    e.setOrder(order, size, swarm.formation());
                     if (SwarmCapability.canDefend(stack)) hasDefender = true;
                     order++;
                 } else if (e != null) {
@@ -115,7 +118,7 @@ public final class SwarmManager {
             }
             if (hasDefender && (server.getTicks() & 1) == 0) defend(p, live);
             // tell the owner's HUD when the swarm changes
-            int key = swarm.revision() * 31 + cap * 7 + (swarm.isActive() ? 1 : 0);
+            int key = swarm.revision() * 31 + cap * 7 + (swarm.isActive() ? 1 : 0) + (stormUntil(p) > server.getTicks() ? 2 : 0);
             Integer last = SENT.get(p.getUuid());
             if (last == null || last != key) {
                 SENT.put(p.getUuid(), key);
@@ -133,15 +136,15 @@ public final class SwarmManager {
 
     // ------------------------------------------------------------------------------------------- strikes
 
-    /** A third of the swarm (at least one ready striker) goes for {@code target}. */
-    static void retaliate(ServerPlayerEntity p, Entity target) {
+    /** A third of the swarm (at least one ready striker) goes for {@code target}; a focus volley sends every ready blade. */
+    static void retaliate(ServerPlayerEntity p, Entity target, boolean focus) {
         AutonomousWeaponEntity[] live = LIVE.get(p.getUuid());
         if (live == null || target == p) return;
         int flying = 0;
         for (AutonomousWeaponEntity e : live) if (e != null && !e.isRemoved()) flying++;
-        int send = Math.max(1, flying / 3);
+        int send = focus ? flying : Math.max(1, flying / 3);
         Vec3d at = target.getPos();
-        // nearest ready strikers first
+        int delay = 0;
         while (send > 0) {
             AutonomousWeaponEntity best = null;
             double bd = Double.MAX_VALUE;
@@ -153,9 +156,55 @@ public final class SwarmManager {
                     best = e;
                 }
             }
-            if (best == null || !best.strike(target)) return;
+            if (best == null || !best.strike(target, delay)) return;
+            if (focus) delay += 3;   // one blade after another, a rapid chain
             send--;
         }
+    }
+
+    // ------------------------------------------------------------------------------------------- fury and the blade storm
+
+    private static final Map<UUID, Integer> STORM_UNTIL = new HashMap<>();
+
+    static int stormUntil(ServerPlayerEntity p) {
+        return STORM_UNTIL.getOrDefault(p.getUuid(), 0);
+    }
+
+    /** Add Fury for the swarm's owner; announces a full gauge. */
+    public static void addFury(net.minecraft.entity.player.PlayerEntity owner, int n) {
+        IWeaponSwarm s = SwarmCapability.of(owner);
+        if (owner instanceof ServerPlayerEntity sp && STORM_UNTIL.getOrDefault(sp.getUuid(), 0) > sp.getServer().getTicks()) return;
+        int before = s.fury();
+        s.setFury(before + n);
+        if (before < IWeaponSwarm.MAX_FURY && s.fury() >= IWeaponSwarm.MAX_FURY)
+            owner.getWorld().playSound(null, owner.getX(), owner.getY(), owner.getZ(), ArsenalLegion.FURY_READY, net.minecraft.sound.SoundCategory.PLAYERS, 1f, 1f);
+    }
+
+    /** The storm key: with full Fury and blades flying, every weapon joins a Blade Storm. */
+    public static void storm(ServerPlayerEntity p) {
+        IWeaponSwarm s = SwarmCapability.of(p);
+        AutonomousWeaponEntity[] live = LIVE.get(p.getUuid());
+        if (s.fury() < IWeaponSwarm.MAX_FURY || live == null || !s.isActive()) return;
+        int t0 = (int) p.getWorld().getTime();
+        int n = 0;
+        for (AutonomousWeaponEntity e : live) if (e != null && !e.isRemoved()) {
+            e.storm(t0);
+            n++;
+        }
+        if (n == 0) return;
+        s.setFury(0);
+        STORM_UNTIL.put(p.getUuid(), p.getServer().getTicks() + SwarmPaths.STORM_TICKS);
+        p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(), ArsenalLegion.BLADE_STORM, net.minecraft.sound.SoundCategory.PLAYERS, 2f, 1f);
+        LegionPackets.fx(p.getServerWorld(), LegionPackets.FX_STORM, p.getPos(), new Vec3d(0, 1, 0), p.getId());
+    }
+
+    /** The formation key. */
+    public static void cycleFormation(ServerPlayerEntity p) {
+        IWeaponSwarm s = SwarmCapability.of(p);
+        if (s.count() == 0) return;
+        s.setFormation(s.formation().next());
+        p.getWorld().playSound(null, p.getX(), p.getY(), p.getZ(), ArsenalLegion.FORMATION_SHIFT, net.minecraft.sound.SoundCategory.PLAYERS, 0.9f, 1f);
+        LegionPackets.fx(p.getServerWorld(), LegionPackets.FX_FORMATION, p.getPos(), new Vec3d(0, 1, 0), p.getId());
     }
 
     // ------------------------------------------------------------------------------------------- defence
