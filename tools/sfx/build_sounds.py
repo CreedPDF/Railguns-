@@ -1777,7 +1777,7 @@ def main():
     sj = OUT.parent / "sounds.json"
     old = json.loads(sj.read_text()) if sj.exists() else {}
     # events owned by other generators (tools/sfx/krl_sounds.py) are kept
-    sounds_json = {k: v for k, v in old.items() if k.startswith(("krl.", "sc."))}
+    sounds_json = {k: v for k, v in old.items() if k.startswith("krl.")}
     for event, (file, props) in EVENTS.items():
         sounds_json[event] = {
             "subtitle": f"subtitles.orbital_railgun.{event}",

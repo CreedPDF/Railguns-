@@ -473,8 +473,6 @@ public final class ModPackets {
         buf.writeVarInt(shipState);
         buf.writeBlockPos(sh != null ? sh.getBlockPos() : se.pos);
         buf.writeString(sh != null ? sh.getWorld().getRegistryKey().getValue().getPath() : se.dim);
-        // Space Command strike satellite block
-        com.creedpdf.orbitalrailgun.station.ScNet.writeTablet(player, buf);
         ServerPlayNetworking.send(player, TABLET_INFO, buf);
     }
 }

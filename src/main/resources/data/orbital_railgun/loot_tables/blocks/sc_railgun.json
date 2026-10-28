@@ -1,4 +1,0 @@
-{
-  "type": "minecraft:block",
-  "pools": [{"rolls": 1, "entries": [{"type": "minecraft:item", "name": "orbital_railgun:sc_railgun"}], "conditions": [{"condition": "minecraft:survives_explosion"}]}]
-}

@@ -42,13 +42,6 @@ public abstract class CameraMixin {
             this.thirdPerson = true;
             return;
         }
-        double[] sc = com.creedpdf.orbitalrailgun.client.station.ScCine.camera(tickDelta);
-        if (sc != null) {
-            setRotation((float) sc[3], (float) sc[4]);
-            setPos(new Vec3d(sc[0], sc[1], sc[2]));
-            this.thirdPerson = true;
-            return;
-        }
         double[] film = com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.camera(tickDelta);
         if (film != null) {
             setRotation((float) film[3], (float) film[4]);

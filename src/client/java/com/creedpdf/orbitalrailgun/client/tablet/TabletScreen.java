@@ -77,14 +77,13 @@ public class TabletScreen extends Screen {
 
     private record HoldZone(String key, float x, float y, float w, float h, Runnable action, boolean enabled) {}
 
-    private enum Asset { A9, A0, DROP, HANGAR, SAT }
+    private enum Asset { A9, A0, DROP, HANGAR }
 
     private enum Page {
         A9_DEPLOY(Asset.A9, "DEPLOY"), A9_STATUS(Asset.A9, "STATUS"), A9_FIRE(Asset.A9, "FIRE CONTROL"), A9_SCAN(Asset.A9, "SCAN"), A9_RIFT(Asset.A9, "RIFT"), A9_RECALL(Asset.A9, "RECALL"),
         A0_TARGETS(Asset.A0, "TARGETS"), A0_RECALL(Asset.A0, "RECALL"),
         DROP_A9(Asset.DROP, "ARES-9 POD"), DROP_A0(Asset.DROP, "ARES-0 POD"),
-        SHIP(Asset.HANGAR, "STARSHIP"),
-        SAT_STRIKE(Asset.SAT, "ORBITAL STRIKE");
+        SHIP(Asset.HANGAR, "STARSHIP");
 
         final Asset asset;
         final String title;
@@ -146,7 +145,7 @@ public class TabletScreen extends Screen {
             case A0_TARGETS, A0_RECALL -> a0();
             case DROP_A9 -> !a9();
             case DROP_A0 -> !a0();
-            case SHIP, SAT_STRIKE -> true;
+            case SHIP -> true;
         };
     }
 
@@ -526,7 +525,7 @@ public class TabletScreen extends Screen {
     private void nav(float time) {
         TabletStatus t = st();
         Asset[] assets = Asset.values();
-        float h = 35, gap = 2.5f;
+        float h = 44, gap = 3;
         for (int i = 0; i < assets.length; i++) {
             Asset a = assets[i];
             float y0 = TOP + i * (h + gap), y1 = y0 + h;
@@ -537,7 +536,6 @@ public class TabletScreen extends Screen {
                 case A0 -> ORANGE;
                 case DROP -> AMBER;
                 case HANGAR -> CYAN;
-                case SAT -> AMBER;
             };
             ui.fill(NAV_X0, y0, NAV_X1, y1, sel ? PANEL_HI : hv ? 0xE01A1C1D : PANEL);
             ui.outline(NAV_X0, y0, NAV_X1, y1, 0.5f, sel ? accent : EDGE);
@@ -547,14 +545,12 @@ public class TabletScreen extends Screen {
                 case A0 -> "ARES-0";
                 case DROP -> "ORBITAL DROP";
                 case HANGAR -> "HANGAR";
-                case SAT -> "STRIKE SAT";
             };
             String role = switch (a) {
                 case A9 -> "ORBITAL RAILGUN";
                 case A0 -> "CORE COLLAPSE ARRAY";
                 case DROP -> "POD DELIVERY";
                 case HANGAR -> "ARES STARSHIP";
-                case SAT -> "SPACE COMMAND";
             };
             String status;
             int sc;
@@ -571,10 +567,6 @@ public class TabletScreen extends Screen {
                     status = t.pending ? "INBOUND" : onCooldown() ? "RECHARGING" : "READY";
                     sc = t.pending || onCooldown() ? AMBER : GREEN;
                 }
-                case SAT -> {
-                    status = t.satCount == 0 ? "NONE IN ORBIT" : t.satBusy ? "FIRING" : t.satCharge >= 1f ? "READY" : t.satPowered ? "CHARGING" : "NO POWER";
-                    sc = t.satCount == 0 ? DIM : t.satBusy ? RED : t.satCharge >= 1f ? GREEN : AMBER;
-                }
                 default -> {
                     String[] sst = {"NONE", "IN ORBIT", "DOCKED", "IN FLIGHT"};
                     int ss = MathHelper.clamp(t.shipState, 0, 3);
@@ -582,18 +574,17 @@ public class TabletScreen extends Screen {
                     sc = ss == 0 ? DIM : ss == 3 ? AMBER : GREEN;
                 }
             }
-            ui.head(name, NAV_X0 + 6, y0 + 3, sel ? WHITE : GREY, 0.66f);
-            ui.text(role, NAV_X0 + 6, y0 + 12.5f, DIM, 0.38f);
-            ui.fill(NAV_X0 + 6, y0 + 20, NAV_X0 + 9, y0 + 23, sc);
-            ui.text(status, NAV_X0 + 12, y0 + 19.6f, sc, 0.43f);
+            ui.head(name, NAV_X0 + 6, y0 + 4, sel ? WHITE : GREY, 0.72f);
+            ui.text(role, NAV_X0 + 6, y0 + 15, DIM, 0.4f);
+            ui.fill(NAV_X0 + 6, y0 + 25, NAV_X0 + 9, y0 + 28, sc);
+            ui.text(status, NAV_X0 + 12, y0 + 24.6f, sc, 0.45f);
             // a tiny live bar per asset
             float v = switch (a) {
                 case A9 -> a9() ? t.charge : 0;
                 case A0 -> a0() && t.a0State == Ares0Entity.State.CHARGING ? Math.min(1f, t.a0Ticks / (float) Ares0Entity.CHARGE_TICKS) : 0;
-                case SAT -> t.satCount > 0 ? t.satCharge : 0;
                 default -> 0;
             };
-            ui.meter(NAV_X0 + 6, y0 + 28, NAV_X1 - NAV_X0 - 12, 2, v, accent, 0xFF26292B);
+            ui.meter(NAV_X0 + 6, y0 + 34, NAV_X1 - NAV_X0 - 12, 2, v, accent, 0xFF26292B);
             final Asset fa = a;
             ui.hits.add(new KrlUi.Hit(NAV_X0, y0, NAV_X1 - NAV_X0, h, () -> select(firstOf(fa)), true));
         }
@@ -720,7 +711,6 @@ public class TabletScreen extends Screen {
             case DROP_A9 -> drop(time, 0);
             case DROP_A0 -> drop(time, 1);
             case SHIP -> hangar(time);
-            case SAT_STRIKE -> satStrike(time);
         }
     }
 
@@ -1106,60 +1096,6 @@ public class TabletScreen extends Screen {
         });
         holdButton("shiprecall", "RETURN TO ORBIT", MAIN_X0 + 164, BOTTOM - 36, 130, 22, AMBER, ss == 2,
                 () -> ClientPackets.sendHangar(1, BlockPos.ORIGIN, 0));
-    }
-
-    private void satStrike(float time) {
-        TabletStatus t = st();
-        float y0 = cardTop();
-        float lx1 = MAIN_X0 + 196;
-        card(MAIN_X0, y0, lx1, BOTTOM, "SPACE COMMAND  //  STRIKE SATELLITE", AMBER);
-        float y = y0 + 14, w = lx1 - MAIN_X0 - 12;
-        if (t.satCount == 0) {
-            ui.head("NO SATELLITE IN ORBIT", MAIN_X0 + 6, y, RED, 0.62f);
-            ui.para("Build a Command Hub, power it with Solar Arrays, and dock a Strike Satellite within its reach. "
-                    + "It charges from the grid, and keeps charging in orbit while you are away.", MAIN_X0 + 6, y + 11, w, GREY, 0.5f, 7f);
-            return;
-        }
-        kv("SATELLITES", Integer.toString(t.satCount), MAIN_X0 + 6, y, w, WHITE);
-        y += 8;
-        kv("ORBIT", t.satDim.isEmpty() ? "?" : t.satDim.toUpperCase(Locale.ROOT), MAIN_X0 + 6, y, w, WHITE);
-        y += 8;
-        if (aimed != null) {
-            kv("TARGET", String.format(Locale.ROOT, "%d  %d  %d", aimed.getX(), aimed.getY(), aimed.getZ()), MAIN_X0 + 6, y, w, WHITE);
-            y += 8;
-            int d = distTo(aimed);
-            kv("RANGE", d + " m", MAIN_X0 + 6, y, w, d > com.creedpdf.orbitalrailgun.station.Sc.STRIKE_RANGE ? RED : WHITE);
-            y += 10;
-        } else {
-            ui.text("NO TARGET  //  AIM AT THE GROUND AND RAISE THE TABLET", MAIN_X0 + 6, y, DIM, 0.45f);
-            y += 10;
-        }
-        ui.para("A beam from orbit: a blast crater, fire, and everything near it burned. Range "
-                + (int) com.creedpdf.orbitalrailgun.station.Sc.STRIKE_RANGE + " m. You will watch it from the satellite (sneak to skip).",
-                MAIN_X0 + 6, y, w, GREY, 0.48f, 6.5f);
-        boolean inRange = aimed != null && distTo(aimed) <= com.creedpdf.orbitalrailgun.station.Sc.STRIKE_RANGE;
-        boolean can = inRange && t.satCharge >= 1f && !t.satBusy;
-        holdButton("satstrike", "ORBITAL STRIKE", MAIN_X0 + 6, BOTTOM - 36, 150, 22, RED, can, () -> {
-            net.minecraft.network.PacketByteBuf b = net.fabricmc.fabric.api.networking.v1.PacketByteBufs.create();
-            b.writeBlockPos(aimed);
-            net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(com.creedpdf.orbitalrailgun.station.ScNet.SAT_STRIKE, b);
-            beginClose();
-        });
-        String hint = t.satBusy ? "STRIKE IN PROGRESS" : t.satCharge < 1f ? (t.satPowered ? "CHARGING" : "NO POWER AT THE STATION")
-                : aimed == null ? "NO TARGET" : !inRange ? "OUT OF RANGE" : "READY";
-        ui.text(hint, MAIN_X0 + 160, BOTTOM - 28, can ? GREEN : AMBER, 0.45f);
-        // the charge ring
-        float rx0 = lx1 + 4;
-        card(rx0, y0, MAIN_X1, BOTTOM, "EMITTER", AMBER);
-        float cx = (rx0 + MAIN_X1) / 2, cy = (y0 + BOTTOM) / 2 + 2;
-        ringGauge(cx, cy, 26, t.satCharge, t.satCharge >= 1f ? GREEN : AMBER,
-                t.satCharge >= 1f ? "READY" : (int) (t.satCharge * 100) + "%", t.satPowered || t.satCharge >= 1f ? "CHARGE" : "NO POWER");
-        float spin = time * 0.05f;
-        for (int i = 0; i < 3; i++) {
-            float a = spin + i * MathHelper.TAU / 3;
-            ui.fill(cx + MathHelper.cos(a) * 33 - 1, cy + MathHelper.sin(a) * 33 - 1, cx + MathHelper.cos(a) * 33 + 1, cy + MathHelper.sin(a) * 33 + 1,
-                    t.satCharge >= 1f ? RED : DIM);
-        }
     }
 
     // ---- misc -----------------------------------------------------------------------------------

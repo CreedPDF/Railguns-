@@ -158,31 +158,20 @@ public final class RailgunMod implements ModInitializer {
         ModParticles.init();
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
-        com.creedpdf.orbitalrailgun.station.Sc.init();
 
-        // Deluxs Armory has three creative tabs: Railguns (the orbital weapons), Military (the KRL launcher system)
-        // and Space Command (the starship, the EVA suit and the orbital station modules).
+        // Deluxs Armory has two creative tabs: Railguns (the orbital weapons, the ship, the EVA suit) and
+        // Military (the KRL launcher system).
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
                 .entries((context, entries) -> {
                     entries.add(RAILGUN_REMOTE);
-                })
-                .build());
-        Registry.register(Registries.ITEM_GROUP, id("space"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
-                .icon(() -> new net.minecraft.item.ItemStack(STARSHIP))
-                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.space"))
-                .entries((context, entries) -> {
                     entries.add(STARSHIP);
                     entries.add(FLIGHT_CONSOLE_ITEM);
                     entries.add(EVA_HELMET);
                     entries.add(EVA_CHESTPLATE);
                     entries.add(EVA_LEGGINGS);
                     entries.add(EVA_BOOTS);
-                    entries.add(com.creedpdf.orbitalrailgun.station.Sc.HUB_ITEM);
-                    entries.add(com.creedpdf.orbitalrailgun.station.Sc.SOLAR_ITEM);
-                    entries.add(com.creedpdf.orbitalrailgun.station.Sc.RAILGUN_ITEM);
-                    entries.add(com.creedpdf.orbitalrailgun.station.Sc.SATELLITE_ITEM);
                 })
                 .build());
         Registry.register(Registries.ITEM_GROUP, id("military"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()

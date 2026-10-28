@@ -70,7 +70,7 @@ jobs:
       - name: Build models in Blender
         id: blender
         env:
-          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || startsWith(github.ref_name, 'dev-ship') && 'ship' || startsWith(github.ref_name, 'dev-station') && 'station' || '' }}
+          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || startsWith(github.ref_name, 'dev-ship') && 'ship' || startsWith(github.ref_name, 'dev-legion') && 'legion' || '' }}
         run: |
           set -o pipefail
           tools/blender/build.sh ~/blender/blender 2>&1 | tee blender.log
@@ -90,7 +90,7 @@ jobs:
           cp build/blender/*.png docs/renders/ || true
           git config user.name "github-actions[bot]"
           git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
-          git add src/main/resources/assets/orbital_railgun docs/renders src/main/resources/orbital_railgun_collision.json
+          git add src/main/resources/assets/orbital_railgun src/main/resources/assets/arsenal_legion docs/renders src/main/resources/orbital_railgun_collision.json
           if git diff --cached --quiet; then echo "unchanged"; else
             git commit -m "Dev: Blender renders and assets [skip ci]"
             git pull --rebase -X theirs origin "${GITHUB_REF_NAME}" || true
@@ -107,6 +107,6 @@ jobs:
             src/main/resources/assets/orbital_railgun/textures/entity/
             src/main/resources/assets/orbital_railgun/textures/item/
             src/main/resources/assets/orbital_railgun/textures/ship/
-            src/main/resources/assets/orbital_railgun/textures/station/
             src/main/resources/assets/orbital_railgun/textures/armor/
             src/main/resources/assets/orbital_railgun/models/
+            src/main/resources/assets/arsenal_legion/
