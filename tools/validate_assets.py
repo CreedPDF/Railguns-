@@ -85,7 +85,12 @@ for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glo
     if n == 0:
         errors.append(f"{extra}: no visible pixels (GeckoLib would crash)")
 # Blender-built (krl_mesh) models: mesh and both baked textures must be present, and the glow must light something
-for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.png", "textures/ship/starship_glow.png"),):
+LEGION = ASSETS.parent / "arsenal_legion"
+for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.png", "textures/ship/starship_glow.png"),
+                        ("../arsenal_legion/models/entity/floating_blade.json", "../arsenal_legion/textures/entity/floating_blade.png",
+                         "../arsenal_legion/textures/entity/floating_blade_glow.png"),
+                        ("../arsenal_legion/models/entity/legion_altar.json", "../arsenal_legion/textures/entity/legion_altar.png",
+                         "../arsenal_legion/textures/entity/legion_altar_glow.png")):
     for f in (mesh, tex, glow):
         if not (ASSETS / f).exists():
             errors.append(f"{f}: missing")

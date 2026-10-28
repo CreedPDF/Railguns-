@@ -1,0 +1,12 @@
+{
+  "block.arsenal_legion.legion_altar": "Legion Altar",
+  "entity.arsenal_legion.autonomous_weapon": "Autonomous Weapon",
+  "attribute.name.arsenal_legion.swarm_capacity": "Swarm Capacity",
+  "key.categories.arsenal_legion": "Arsenal Legion",
+  "key.arsenal_legion.toggle": "Stow / Deploy Swarm",
+  "subtitles.arsenal_legion.swarm_hum": "Weapon swarm hums",
+  "subtitles.arsenal_legion.weapon_launch": "Weapon launches",
+  "subtitles.arsenal_legion.weapon_pierce": "Weapon pierces",
+  "subtitles.arsenal_legion.weapon_parry": "Projectile deflected",
+  "subtitles.arsenal_legion.altar_bind": "Weapon binds to the altar"
+}

@@ -23,6 +23,14 @@ public final class KrlModels {
     public static KrlMesh SHIP;
     public static final Identifier SHIP_TEX = RailgunMod.id("textures/ship/starship.png");
     public static final Identifier SHIP_GLOW = RailgunMod.id("textures/ship/starship_glow.png");
+    /** Arsenal Legion (tools/blender/build_legion.py): the floating weapons' harness and the altar. */
+    public static KrlMesh BLADE, ALTAR;
+    public static final Identifier BLADE_TEX = al("textures/entity/floating_blade.png"), BLADE_GLOW = al("textures/entity/floating_blade_glow.png"),
+            ALTAR_TEX = al("textures/entity/legion_altar.png"), ALTAR_GLOW = al("textures/entity/legion_altar_glow.png");
+
+    private static Identifier al(String path) {
+        return new Identifier("arsenal_legion", path);
+    }
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -61,6 +69,8 @@ public final class KrlModels {
                 STATION = load(rm, "station", STATION_GLOW);
                 MAGAZINE = load(rm, "magazine", MAGAZINE_GLOW);
                 SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
+                BLADE = load(rm, al("models/entity/floating_blade.json"), BLADE_GLOW);
+                ALTAR = load(rm, al("models/entity/legion_altar.json"), ALTAR_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

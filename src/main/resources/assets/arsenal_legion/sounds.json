@@ -1,0 +1,47 @@
+{
+  "swarm_hum": {
+    "subtitle": "subtitles.arsenal_legion.swarm_hum",
+    "sounds": [
+      {
+        "name": "arsenal_legion:swarm_hum",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "weapon_launch": {
+    "subtitle": "subtitles.arsenal_legion.weapon_launch",
+    "sounds": [
+      {
+        "name": "arsenal_legion:weapon_launch",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "weapon_pierce": {
+    "subtitle": "subtitles.arsenal_legion.weapon_pierce",
+    "sounds": [
+      {
+        "name": "arsenal_legion:weapon_pierce",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "weapon_parry": {
+    "subtitle": "subtitles.arsenal_legion.weapon_parry",
+    "sounds": [
+      {
+        "name": "arsenal_legion:weapon_parry",
+        "attenuation_distance": 24
+      }
+    ]
+  },
+  "altar_bind": {
+    "subtitle": "subtitles.arsenal_legion.altar_bind",
+    "sounds": [
+      {
+        "name": "arsenal_legion:altar_bind",
+        "attenuation_distance": 16
+      }
+    ]
+  }
+}

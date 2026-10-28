@@ -5,7 +5,8 @@
   "compatibilityLevel": "JAVA_17",
   "mixins": [
     "EntityVoidMixin",
-    "PlayerDismountMixin"
+    "PlayerDismountMixin",
+    "PlayerEntitySwarmMixin"
   ],
   "injectors": {
     "defaultRequire": 1

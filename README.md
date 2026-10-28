@@ -241,62 +241,34 @@ Everything works **remotely, at any distance**: lock coordinates and fire ARES-9
 rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pick a planet and
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
-## Space Command
-An orbital station you build module by module (best in the Space dimension, but it works anywhere).
+## Arsenal Legion: Autonomous Weapon Swarms
+Your weapons leave your hands and fight beside you as a hovering telekinetic swarm.
 
-* **Command Hub** (3 x 3 x 3): the core. Every module within 32 blocks joins its power grid. Use it
-  for the station console: supply against demand, live modules, the strike satellite's charge, a
-  debris radar, **DEBRIS DRILL** (sends a 45-second swarm of rocks at the station) and point
-  defence **AUTO / HOLD**.
-* **Solar Array**: a gimballed mast whose two solar blankets roll out after you place it (about 11
-  blocks tip to tip), then track the sun. 40 kW in orbit, half that on a planet by day, nothing
-  at night. The hub's life support takes the first 20 kW.
-* **Station Railgun**: point defence on 30 kW. It tracks the nearest meteorite within 150 blocks,
-  charges its capacitor coils and fires a white-hot slug that bursts it. While a destroyed planet's
-  meteor shower rains on Earth, its debris also streams through orbit past every station.
-* **Strike Satellite**: a gold-foil satellite in a docking cradle. It charges from the grid (60 kW,
-  about two minutes) and keeps charging in orbit while you are away. Fire it from the uplink
-  tablet's new **STRIKE SAT** page at the ground you aimed at (up to 384 m away): a red reticle
-  spins up, the satellite charges overhead, a beam tears down through the sky and hits - flash,
-  shockwaves, a column of light boring into a glowing crater. You watch it in a cutscene, from the
-  satellite and then from the ground (sneak to skip).
+* **Bind:** craft a **Legion Altar** (ender eye, amethyst shards, lodestone, crying obsidian) and use it holding a
+  sword, axe, trident or shield: the weapon leaves your hand and joins your swarm. Up to **6** weapons (the
+  `arsenal_legion:swarm_capacity` attribute; any attribute modifier, e.g. on armour, raises it to 24). Sneak-use the
+  altar empty-handed to get them all back. **G** stows / redeploys the swarm anywhere.
+* **Orbit:** the weapons circle you, evenly spaced, bobbing out of step, each in a spinning gyroscope harness,
+  trailing a faint humming distortion. A low telekinetic hum follows you while they fly.
+* **Strike:** hit something, or get hit, and a third of the swarm whips out of orbit and dashes straight through the
+  target, dealing that weapon's own damage with its enchantments (Sharpness, Smite, Fire Aspect, Knockback...), any
+  potion effects in its NBT and any on-hit behaviour of modded weapons, leaving a bright energy streak - then returns.
+* **Defend:** with a shield or a heavy weapon (axe, trident, or anything hitting for 7+) in the swarm, arrows aimed
+  at you are batted back and fireballs and other shots are destroyed in mid-air.
+* Weapons wear as they fight (Unbreaking applies) and break like any other; bound weapons drop when you die (unless
+  keepInventory) and are saved with you otherwise.
+* Extra items can join the swarm through the item tag `arsenal_legion:swarm_weapons`.
 
-Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Space
-Command** (the starship, flight console, EVA suit and the station modules).
-
-## Graphics settings
-Everything the mod draws itself (planets, sky, explosions, debris, flames, beams) follows an
-**effects quality** setting, changed in Mod Menu's config screen (if Mod Menu is installed) or with
-`/orbitalquality <low|medium|high|ultra> [adaptive|fixed]`:
-
-| | |
-|---|---|
-| **Ultra** | full detail everywhere |
-| **High** (default) | looks the same at normal viewing distance, with far less geometry and fewer sprites |
-| **Medium** | lighter effects, space textures loaded at half resolution (a quarter of the video memory) |
-| **Low** | for laptops and older PCs |
-
-**Adaptive quality** (on by default) steps the effects down by itself while the frame rate stays
-under ~30 FPS and climbs back once it recovers, never above the chosen level. Saved in
-`config/orbital_railgun_client.json`.
-
-## Building
-Every push to `main` runs GitHub Actions, which:
-1. downloads Blender 4.2 LTS and runs `tools/blender/build_models.py` headless,
-2. validates the textures (`tools/validate_assets.py`),
-3. commits regenerated assets and preview renders (`docs/renders/`) back to `main`,
-4. builds the jar and publishes it to the release for the current `mod_version`.
-
-Locally: `./gradlew build` (jar in `build/libs/`), `./gradlew runClient`.
+Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Arsenal Legion**.
 
 ## Asset pipeline
 | Tool | Produces |
 |---|---|
 | `tools/blender/build_models.py` | The railgun (~380 cubes: an octagonal drop pod whose armour quarters, telescoping struts, decks, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
 | `tools/blender/build_ship.py` | The ARES Kestrel starship: lofted superellipse fuselage and engine boom, airfoil wings, lathed engine pods and nozzles, cabin and cockpit interiors; baked albedo + glow atlases; exported as a `krl_mesh` with movable parts (pods, gear, ramp, glass). |
-| `tools/blender/build_station.py` | Space Command modules (hub, solar array, station railgun, strike satellite) and their item icons, same pipeline. |
-| `tools/textures/station_textures.py` | Strike and railgun effect sprites (beam, core, spiral, reticle, shockwave, flare, tracer, scorch). |
-| `tools/sfx/sc_sounds.py` | 13 Space Command sounds synthesised from scratch. |
+| `tools/blender/build_legion.py` | Arsenal Legion: the floating weapons' telekinetic harness (`arsenal_legion:models/entity/floating_blade`) and the Legion Altar, same pipeline. |
+| `tools/textures/legion_textures.py` | The `kinetic_gaze` particle sprites (distortion ripples, energy streak). |
+| `tools/sfx/legion_sounds.py` | 5 Arsenal Legion sounds synthesised from scratch (swarm hum loop, weapon launch, pierce, parry, altar bind). |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |
 

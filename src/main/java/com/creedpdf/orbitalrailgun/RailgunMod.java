@@ -158,9 +158,10 @@ public final class RailgunMod implements ModInitializer {
         ModParticles.init();
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
+        com.creedpdf.orbitalrailgun.legion.ArsenalLegion.init();
 
-        // Deluxs Armory has two creative tabs: Railguns (the orbital weapons, the ship, the EVA suit) and
-        // Military (the KRL launcher system).
+        // Deluxs Armory has three creative tabs: Railguns (the orbital weapons, the ship, the EVA suit), Military (the KRL
+        // launcher system) and Arsenal Legion (the autonomous weapon swarm).
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
@@ -185,6 +186,12 @@ public final class RailgunMod implements ModInitializer {
                     for (int lv = 0; lv < com.creedpdf.orbitalrailgun.krl.Krl.LIVERIES.length; lv++)
                         entries.add(com.creedpdf.orbitalrailgun.krl.KineticSpearItem.withLivery(new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.krl.Krl.SPEAR), lv));
                 })
+                .build());
+
+        Registry.register(Registries.ITEM_GROUP, id("arsenal_legion"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
+                .icon(() -> new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.legion.ArsenalLegion.ALTAR_ITEM))
+                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.arsenal_legion"))
+                .entries((context, entries) -> entries.add(com.creedpdf.orbitalrailgun.legion.ArsenalLegion.ALTAR_ITEM))
                 .build());
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);

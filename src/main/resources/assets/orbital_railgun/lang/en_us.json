@@ -227,5 +227,6 @@
   "block.orbital_railgun.krl_magazine_part": "KRL-M30 Interceptor Magazine",
   "subtitles.orbital_railgun.krl.mag": "Interceptor racked",
   "subtitles.orbital_railgun.krl.refit": "Missile refitted",
-  "itemGroup.orbital_railgun.military": "Deluxs Armory: Military"
+  "itemGroup.orbital_railgun.military": "Deluxs Armory: Military",
+  "itemGroup.orbital_railgun.arsenal_legion": "Deluxs Armory: Arsenal Legion"
 }
