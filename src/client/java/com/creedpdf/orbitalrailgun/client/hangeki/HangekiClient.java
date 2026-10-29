@@ -54,6 +54,7 @@ public final class HangekiClient {
         }));
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> client.execute(ParryClient::clear));
         BuiltinItemRendererRegistry.INSTANCE.register(Hangeki.SWORD, HangekiClient::renderItem);
+        ImpactFrames.register();
 
         ClientPlayNetworking.registerGlobalReceiver(HangekiNet.SCALE, (client, h, buf, s) -> {
             float sc = buf.readFloat();
@@ -97,7 +98,8 @@ public final class HangekiClient {
             case HangekiNet.FX_REFLECT -> {
                 if (mine && now - lastFrames > 400) {
                     lastFrames = now;
-                    HangekiHud.frames("REFLECTED", true);
+                    ImpactFrames.start(true);
+                    ParryClient.lastReturn = now;
                     HangekiCine.kick(1.4f);
                     if (mc.player != null) mc.player.swingHand(net.minecraft.util.Hand.MAIN_HAND);
                 } else if (!mine && mc.player != null && mc.player.getPos().distanceTo(at) < 24) HangekiCine.kick(0.6f);
@@ -105,7 +107,8 @@ public final class HangekiClient {
             case HangekiNet.FX_REFLECT_QUICK -> {
                 if (mine && now - lastFrames > 250) {
                     lastFrames = now;
-                    HangekiHud.frames("REFLECTED", false);
+                    ImpactFrames.start(false);
+                    ParryClient.lastReturn = now;
                     HangekiCine.kick(0.8f);
                 }
             }
@@ -113,7 +116,7 @@ public final class HangekiClient {
                 if (mine) {
                     if (extra == 0 && now - lastFrames > 250) {
                         lastFrames = now;
-                        HangekiHud.frames("COUNTER", false);
+                        ImpactFrames.start(false);
                     }
                     HangekiCine.kick(0.9f);
                     if (mc.player != null) mc.player.swingHand(net.minecraft.util.Hand.MAIN_HAND);
@@ -129,6 +132,7 @@ public final class HangekiClient {
 
     private static void tick(MinecraftClient mc) {
         HangekiCine.tick(mc);
+        ParryClient.tick();
         if (mc.player == null || mc.world == null) return;
         while (parry.wasPressed()) {
             if (ParryClient.holding() && mc.currentScreen == null) ClientPlayNetworking.send(HangekiNet.PARRY, PacketByteBufs.empty());
@@ -158,13 +162,14 @@ public final class HangekiClient {
         if (mesh == null) return;
         MinecraftClient mc = MinecraftClient.getInstance();
         float time = mc.world == null ? 0 : mc.world.getTime() + mc.getTickDelta();
-        boolean hot = ParryClient.slowed || HangekiCine.active() || HangekiHud.framesActive();
+        boolean hot = ParryClient.slowed || HangekiCine.active() || ImpactFrames.active();
         ms.push();
         ms.translate(0.5, 0.5, 0.5);
         ms.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-45));
-        float s = 0.86f;
+        // grip where a vanilla sword sprite's grip is; the long blade runs out past the corner of the item box
+        float s = 0.8f;
         ms.scale(s, s, s);
-        ms.translate(0, -0.3, 0);
+        ms.translate(0, -0.48, 0);
         float spin = time * (hot ? 0.45f : 0.06f);
         KrlMesh.Pose pose = (part, st) -> {
             if ("ring".equals(part)) st.multiply(RotationAxis.POSITIVE_Y.rotation(spin));

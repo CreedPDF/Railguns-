@@ -28,6 +28,8 @@ public final class ParryClient {
     static boolean slowed;
     /** Real-time millis the local player's slow motion began (for the HUD's fade-ins). */
     static long slowSince;
+    /** Real-time millis of the local player's last reflection (the panel shows RETURN). */
+    static long lastReturn;
 
     static void meter(byte kind, float c, String l, int n, boolean s) {
         if (s && !slowed) slowSince = System.currentTimeMillis();
@@ -42,12 +44,21 @@ public final class ParryClient {
         if (phase == HangekiNet.PH_IDLE) {
             Stance old = STANCES.remove(player);
             MinecraftClient mc = MinecraftClient.getInstance();
-            if (old != null && old.phase == HangekiNet.PH_STANCE && mc.player != null && mc.player.getId() == player) HangekiCine.endStance();
+            if (old != null && old.phase == HangekiNet.PH_STANCE) {
+                // the follow-through: the body stays low for a moment and unwinds out of the stance
+                STANCES.put(player, new Stance(HangekiNet.PH_RELEASE, start, 10, old.focus()));
+                if (mc.player != null && mc.player.getId() == player) HangekiCine.endStance();
+            }
         } else {
             STANCES.put(player, new Stance(phase, start, ticks, focus));
             MinecraftClient mc = MinecraftClient.getInstance();
             if (phase == HangekiNet.PH_STANCE && mc.player != null && mc.player.getId() == player) HangekiCine.beginStance(focus);
         }
+    }
+
+    /** Drop finished follow-throughs. */
+    static void tick() {
+        STANCES.values().removeIf(s -> s.phase() == HangekiNet.PH_RELEASE && progress(s, 0) >= 1f);
     }
 
     static void clear() {
@@ -77,7 +88,8 @@ public final class ParryClient {
         Stance s = STANCES.get(p.getId());
         if (s == null) return 0f;
         float u = progress(s, pt);
-        if (s.phase() == HangekiNet.PH_STANCE) return smooth(Math.min(1f, u / 0.45f));
+        if (s.phase() == HangekiNet.PH_STANCE) return smooth(Math.min(1f, u / 0.55f));
+        if (s.phase() == HangekiNet.PH_RELEASE) return 1f - smooth(u);
         if (s.phase() == HangekiNet.PH_GUARD) return u < 0.25f ? smooth(u / 0.25f) : smooth(1f - (u - 0.25f) / 0.75f) * 0.999f;
         if (s.phase() == HangekiNet.PH_SLOW) return 0.18f * smooth(Math.min(1f, u * 6));
         return 0f;

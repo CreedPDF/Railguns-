@@ -86,7 +86,8 @@ for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glo
         errors.append(f"{extra}: no visible pixels (GeckoLib would crash)")
 # Blender-built (krl_mesh) models: mesh and both baked textures must be present, and the glow must light something
 for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.png", "textures/ship/starship_glow.png"),
-                        ("models/hangeki/hangeki.json", "textures/hangeki/hangeki.png", "textures/hangeki/hangeki_glow.png")):
+                        ("models/hangeki/hangeki.json", "textures/hangeki/hangeki.png", "textures/hangeki/hangeki_glow.png"),
+                        ("models/hangeki/hangeki_ward.json", "textures/hangeki/hangeki_ward.png", "textures/hangeki/hangeki_ward_glow.png")):
     for f in (mesh, tex, glow):
         if not (ASSETS / f).exists():
             errors.append(f"{f}: missing")

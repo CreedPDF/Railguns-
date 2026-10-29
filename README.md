@@ -242,22 +242,22 @@ rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pic
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
 ## HANGEKI // Reversal Edge (Handhelds)
-A long sci-fi katana whose one trick is to **parry anything** that comes at you.
+A long black-and-silver nodachi with a white-hot edge and crimson reactor glow, whose one trick is to **parry anything**.
 
 * **Projectiles:** arrows, tridents, ghast and blaze fireballs, wither skulls, crossbow firework rockets, llama spit,
   shulker rounds, a **KRL missile** diving on you, a **railgun beam** about to fire through you, a **warden's sonic
-  boom**. While you hold the sword, a threat meter in the bottom-left corner fills as the nearest one closes in (with
-  what it is and how many), and alarm pips quicken. About three blocks out **time slows hard** - the whole world,
-  not just the projectile - and the threat hangs in the air, creeping in. Press **Parry (R)** or right-click before
-  the ring round the crosshair runs out: a slow-motion cutscene swings round you as you set into the parry stance,
-  then time snaps back, it hits the blade with a deep, heavy impact, **REFLECTED** impact frames slam across the screen,
-  and it flies straight back to where it came from at **twice the force** (arrows at double speed, fireballs with
-  double thrust, a missile flies home and lands on its launcher with double the blast, the railgun's shot comes back
-  down its own line at double damage and blows up at its muzzle, the sonic boom goes back into the warden for 20).
-  Miss the window and it lands.
+  boom**. While you hold the sword, the threat panel in the bottom-left corner (threat, range, class, response) tracks
+  the nearest one as it closes in. About three blocks out **time slows hard** - the whole world - and it hangs in the
+  air, creeping in. Press **Parry (R)** or right-click before the ring round the crosshair runs out: the camera swings
+  round as your whole body drops into a low lunging parry stance, sword high across your face, and a small 3D samurai
+  ward (a laced lamellar shield with a turning three-tomoe crest) snaps up in front of the blade. Then time **surges**
+  back, the hit lands on the ward with a deep heavy impact, the screen cuts through real **impact frames** (the actual
+  scene burned to grainy monochrome, silhouettes and line art, black and crimson cards, speed lines tearing out of the
+  hit, a wireframe globe) and it flies straight back where it came from at **twice the force**. Miss the window and it
+  lands.
 * **Melee:** with nothing incoming, Parry raises a short guard. A blow that lands in it (a mob, a player, an
   explosion) does nothing to you and is **countered**: twice the damage back, the attacker thrown away and staggered,
-  a brief hit-stop and COUNTER frames. An arrow caught in a guard is batted straight back.
+  a brief hit-stop and a short burst of impact frames. An arrow caught in a guard is batted straight back.
 * Netherite-class sword (10 attack damage), fireproof, enchantable. Recipe: an echo shard at the tip over two
   netherite ingots, a blaze rod grip.
 * Slow motion really slows the server's tick, so in multiplayer everyone sees time slow while a parry plays out.

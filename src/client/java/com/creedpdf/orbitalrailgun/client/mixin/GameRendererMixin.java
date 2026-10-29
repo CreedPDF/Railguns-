@@ -22,4 +22,10 @@ public abstract class GameRendererMixin {
                 || com.creedpdf.orbitalrailgun.client.krl.KrlCine.active() || com.creedpdf.orbitalrailgun.client.krl.KrlClient.farFlight())
             cir.setReturnValue(Math.max(cir.getReturnValueF(), 6144f));
     }
+
+    /** HANGEKI's impact frames: a post pass over the finished world image, before the HUD is drawn on it. */
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;beginWrite(Z)V", ordinal = 0), require = 0)
+    private void orbitalRailgun$impactFrames(float tickDelta, long startTime, boolean tick, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        com.creedpdf.orbitalrailgun.client.hangeki.ImpactFrames.renderPost(tickDelta);
+    }
 }

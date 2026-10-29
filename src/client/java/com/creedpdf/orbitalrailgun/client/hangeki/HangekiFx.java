@@ -75,7 +75,7 @@ public final class HangekiFx {
     private static long ticks;
     private static final VertexConsumerProvider.Immediate BUF = VertexConsumerProvider.immediate(new BufferBuilder(1 << 19));
 
-    private static final float[] WHITE = {1f, 0.96f, 0.9f}, RED = {1f, 0.12f, 0.04f}, AMBER = {1f, 0.55f, 0.1f}, GOLD = {1f, 0.75f, 0.3f};
+    private static final float[] WHITE = {1f, 0.96f, 0.92f}, RED = {0.9f, 0.03f, 0.07f}, AMBER = {1f, 0.3f, 0.32f}, GOLD = {1f, 0.86f, 0.82f};
 
     static void clear() {
         BURSTS.clear();
@@ -158,7 +158,7 @@ public final class HangekiFx {
     static void render(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null || KrlCompat.shadowPass()) return;
-        if (BURSTS.isEmpty() && TRAILS.isEmpty() && HELD.isEmpty() && SPARKS.isEmpty()) return;
+        if (BURSTS.isEmpty() && TRAILS.isEmpty() && HELD.isEmpty() && SPARKS.isEmpty() && ParryClient.STANCES.isEmpty()) return;
         float pt = ctx.tickDelta();
         Vec3d cam = ctx.camera().getPos();
         MatrixStack ms = ctx.matrixStack();
@@ -180,8 +180,11 @@ public final class HangekiFx {
             spear(mc, ms, cam, nose, b.dir(), b.extra(), time, 1f, 14f);
         }
 
+        List<float[]> wards = wards(mc, ms, cam, pt, time);
+
         Matrix4f m = ms.peek().getPositionMatrix();
         VertexConsumer g = BUF.getBuffer(BeamRenderLayers.GLOW);
+        for (float[] wd : wards) wardGlow(g, m, wd);
         for (Burst b : BURSTS) {
             float age = ticks - b.t0() + pt;
             switch (b.kind()) {
@@ -208,6 +211,82 @@ public final class HangekiFx {
         BUF.draw();
         RenderSystem.setShaderFogStart(fs);
         RenderSystem.setShaderFogEnd(fe);
+    }
+
+    // ---- the ward: the little samurai shield in front of the blade during a parry
+
+    private static float easeOutBack(float x) {
+        float c1 = 1.9f, c3 = c1 + 1;
+        float y = x - 1;
+        return 1 + c3 * y * y * y + c1 * y * y;
+    }
+
+    /** Draws every duelist's ward; returns {x, y, z (camera-relative), fx, fy, fz, scale, flash} for the glow pass. */
+    private static List<float[]> wards(MinecraftClient mc, MatrixStack ms, Vec3d cam, float pt, float time) {
+        List<float[]> out = new ArrayList<>();
+        KrlMesh mesh = KrlModels.HANGEKI_WARD;
+        for (Map.Entry<Integer, ParryClient.Stance> en : ParryClient.STANCES.entrySet()) {
+            ParryClient.Stance s = en.getValue();
+            if (s.phase() != HangekiNet.PH_STANCE && s.phase() != HangekiNet.PH_RELEASE) continue;
+            if (!(mc.world.getEntityById(en.getKey()) instanceof net.minecraft.entity.player.PlayerEntity p)) continue;
+            float u = ParryClient.progress(s, pt);
+            float scale, flash = 0;
+            if (s.phase() == HangekiNet.PH_STANCE) scale = easeOutBack(Math.min(1f, u / 0.45f));
+            else if (u < 0.2f) {
+                scale = 1f + 0.35f * u / 0.2f;
+                flash = 1f - u / 0.2f;
+            } else scale = 1.35f * (1f - ParryClient.smooth((u - 0.2f) / 0.8f));
+            if (scale <= 0.01f) continue;
+            Vec3d eye = p.getLerpedPos(pt).add(0, p.getStandingEyeHeight() * 0.8, 0);
+            Vec3d face = s.focus().subtract(eye);
+            face = face.lengthSquared() < 1e-6 ? p.getRotationVec(pt) : face.normalize();
+            Vec3d at = eye.add(face.multiply(1.55)).add(0, -0.1, 0);
+            out.add(new float[]{(float) (at.x - cam.x), (float) (at.y - cam.y), (float) (at.z - cam.z), (float) face.x, (float) face.y, (float) face.z,
+                    scale, flash});
+            if (mesh == null) continue;
+            float sc = 0.85f * scale;
+            float spin = time * (s.phase() == HangekiNet.PH_RELEASE ? 0.5f : 0.07f);
+            float bob = MathHelper.sin(time * 0.3f) * 0.03f;
+            int light = LightmapTextureManager.MAX_LIGHT_COORDINATE;
+            ms.push();
+            ms.translate(at.x - cam.x, at.y - cam.y + bob, at.z - cam.z);
+            ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotation((float) Math.atan2(face.x, face.z)));
+            ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_X.rotation((float) -Math.asin(MathHelper.clamp(face.y, -1, 1))));
+            ms.scale(sc, sc, sc);
+            KrlMesh.Pose pose = (part, st) -> {
+                if ("mon".equals(part)) st.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation(spin));
+                else if ("halo".equals(part)) st.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Z.rotation(-spin * 0.6f));
+                return true;
+            };
+            float bright = 0.85f + 0.15f * flash;
+            mesh.lod(0).render(ms, BUF.getBuffer(RenderLayer.getEntityCutoutNoCull(KrlModels.WARD_TEX)), light, pose, null);
+            mesh.glow(0).render(ms, BUF.getBuffer(RenderLayer.getEyes(KrlModels.WARD_GLOW)), light, pose, (nx, ny, nz, o) -> {
+                o[0] = bright;
+                o[1] = bright;
+                o[2] = bright;
+                o[3] = 1f;
+            });
+            ms.pop();
+        }
+        return out;
+    }
+
+    /** A faint crimson barrier behind the ward, its rim, and on the hit a white ring blown outward. */
+    private static void wardGlow(VertexConsumer g, Matrix4f m, float[] wd) {
+        Vector3f c = new Vector3f(wd[0], wd[1], wd[2]);
+        Vector3f d = new Vector3f(wd[3], wd[4], wd[5]);
+        if (d.lengthSquared() < 1e-6f) return;
+        d.normalize();
+        Vector3f[] uv = basis(d);
+        float s = wd[6], flash = wd[7];
+        Vector3f back = new Vector3f(c).sub(new Vector3f(d).mul(0.08f));
+        ring(g, m, back, uv[0], uv[1], 0f, 0.72f * s, 36, 0, MathHelper.TAU, RED, 0.16f, 0.05f);
+        ring(g, m, back, uv[0], uv[1], 0.72f * s, 0.78f * s, 36, 0, MathHelper.TAU, RED, 0.55f, 0.55f);
+        if (flash > 0) {
+            float r = 0.8f + (1 - flash) * 2.4f;
+            ring(g, m, c, uv[0], uv[1], r, r + 0.18f, 40, 0, MathHelper.TAU, WHITE, flash, 0f);
+            ring(g, m, c, uv[0], uv[1], 0f, 0.9f * s, 30, 0, MathHelper.TAU, WHITE, 0.6f * flash, 0f);
+        }
     }
 
     /** The KRL spear, nose at `nose`, pointing along `dir`, its motor plume streaming behind. */

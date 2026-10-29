@@ -24,8 +24,9 @@ public final class KrlModels {
     public static final Identifier SHIP_TEX = RailgunMod.id("textures/ship/starship.png");
     public static final Identifier SHIP_GLOW = RailgunMod.id("textures/ship/starship_glow.png");
     /** HANGEKI // Reversal Edge (tools/blender/build_hangeki.py). */
-    public static KrlMesh HANGEKI;
-    public static final Identifier HANGEKI_TEX = RailgunMod.id("textures/hangeki/hangeki.png"), HANGEKI_GLOW = RailgunMod.id("textures/hangeki/hangeki_glow.png");
+    public static KrlMesh HANGEKI, HANGEKI_WARD;
+    public static final Identifier HANGEKI_TEX = RailgunMod.id("textures/hangeki/hangeki.png"), HANGEKI_GLOW = RailgunMod.id("textures/hangeki/hangeki_glow.png"),
+            WARD_TEX = RailgunMod.id("textures/hangeki/hangeki_ward.png"), WARD_GLOW = RailgunMod.id("textures/hangeki/hangeki_ward_glow.png");
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
     public static float NOSE_FROM = 5.35f, NOSE_TIP = 7f;
 
@@ -65,6 +66,7 @@ public final class KrlModels {
                 MAGAZINE = load(rm, "magazine", MAGAZINE_GLOW);
                 SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
                 HANGEKI = load(rm, RailgunMod.id("models/hangeki/hangeki.json"), HANGEKI_GLOW);
+                HANGEKI_WARD = load(rm, RailgunMod.id("models/hangeki/hangeki_ward.json"), WARD_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

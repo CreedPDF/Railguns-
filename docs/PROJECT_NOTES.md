@@ -56,6 +56,15 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
   impact -> reflect at 2x (railgun hook `RailgunEntity.parried`/`holdsRailgun`, KRL hook `KrlServer.intercept`,
   `KrlImpact.explodeReflected`). Melee: guard window + counter. HUD/impact frames `HangekiHud` (Bangers font,
   `font/impact.json`), world FX `HangekiFx`. Key R (also right-click).
+- v4.19.1 HANGEKI rework after the owner's feedback (reference video of "impact frames"): no text frames at all
+  (REFLECTED / COUNTER / PARRY prompt removed, Bangers font removed). Impact frames are now a real post pass over the
+  rendered frame: `ImpactFrames` + `assets/minecraft/shaders/program/hangeki_impact.*` (post program names cannot be
+  namespaced in 1.20.1, hence the minecraft namespace) + `orbital_railgun:shaders/post/hangeki_impact.json`, run from
+  `GameRendererMixin` before the HUD, uniforms via `PostEffectProcessorAccessor`; HUD wireframe overlay on top.
+  Time: stance at 0.26 for 5 ticks, then a surge (1.4x for 8 ticks). Full-body stance (`BipedEntityModelMixin`
+  crouch/lunge pivots + `PlayerEntityRendererMixin.setupTransforms` lower and side-on) with a follow-through
+  (client phase PH_RELEASE). Longer blade (Z1 1.66), theme black/silver/white/crimson (no gold/amber). 3D ward shield
+  `hangeki_ward` (Blender) drawn in `HangekiFx.wards`. Bottom-left panel restyled after the reference's lock readout.
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set

@@ -8,6 +8,7 @@ import net.minecraft.util.Hand;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -22,5 +23,21 @@ public abstract class PlayerEntityRendererMixin {
         if (player.getMainHandStack().isOf(RailgunMod.RAILGUN_REMOTE)) {
             cir.setReturnValue(BipedEntityModel.ArmPose.CROSSBOW_HOLD);
         }
+    }
+
+    /**
+     * HANGEKI's stance: the whole body sinks into the crouch and turns side-on to what it is parrying (lead shoulder
+     * toward the threat), unwinding again after the hit.
+     */
+    @Inject(method = "setupTransforms(Lnet/minecraft/client/network/AbstractClientPlayerEntity;Lnet/minecraft/client/util/math/MatrixStack;FFF)V",
+            at = @At("TAIL"))
+    private void orbitalRailgun$stanceBody(AbstractClientPlayerEntity player, net.minecraft.client.util.math.MatrixStack ms, float age, float bodyYaw,
+                                          float tickDelta, CallbackInfo ci) {
+        float k = com.creedpdf.orbitalrailgun.client.hangeki.ParryClient.poseWeight(player, tickDelta);
+        if (k <= 0.001f || player.isFallFlying() || player.isSwimming()) return;
+        float depth = com.creedpdf.orbitalrailgun.client.hangeki.ParryClient.guardPose(player) ? 0.45f * k : k;
+        float side = player.getMainArm() == net.minecraft.util.Arm.RIGHT ? 1f : -1f;
+        ms.translate(0, -0.3f * depth, 0);
+        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-38f * depth * side));
     }
 }

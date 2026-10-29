@@ -29,7 +29,7 @@ public final class HangekiNet {
     public static final Identifier PARRY = RailgunMod.id("hangeki_parry"), SCALE = RailgunMod.id("hangeki_scale"),
             METER = RailgunMod.id("hangeki_meter"), STATE = RailgunMod.id("hangeki_state"), FX = RailgunMod.id("hangeki_fx");
 
-    public static final byte PH_IDLE = 0, PH_SLOW = 1, PH_STANCE = 2, PH_GUARD = 3;
+    public static final byte PH_IDLE = 0, PH_SLOW = 1, PH_STANCE = 2, PH_GUARD = 3, PH_RELEASE = 4;
     /** fx kinds */
     public static final byte FX_REFLECT = 0, FX_REFLECT_QUICK = 1, FX_COUNTER = 2, FX_BEAM = 3, FX_SONIC = 4, FX_MISSILE = 5,
             FX_MISSILE_HOLD = 6, FX_GUARD = 7, FX_FAIL = 8;

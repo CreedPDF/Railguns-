@@ -13,7 +13,8 @@
     "InGameHudMixin",
     "BackgroundRendererMixin",
     "RenderTickCounterMixin",
-    "BipedEntityModelMixin"
+    "BipedEntityModelMixin",
+    "PostEffectProcessorAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

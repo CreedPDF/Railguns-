@@ -23,7 +23,7 @@ public abstract class RenderTickCounterMixin {
     @Inject(method = "beginRenderTick", at = @At("HEAD"), cancellable = true)
     private void orbitalRailgun$slowMotion(long timeMillis, CallbackInfoReturnable<Integer> cir) {
         float s = HangekiTime.frame(timeMillis);
-        if (s >= 0.999f) return;
+        if (Math.abs(s - 1f) < 0.001f) return;
         this.lastFrameDuration = (float) (timeMillis - this.prevTimeMillis) / this.tickTime * s;
         this.prevTimeMillis = timeMillis;
         this.tickDelta += this.lastFrameDuration;

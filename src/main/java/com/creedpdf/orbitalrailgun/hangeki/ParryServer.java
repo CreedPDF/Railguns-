@@ -82,9 +82,10 @@ public final class ParryServer {
     private ParryServer() {}
 
     public static final double SCAN = 28, TRIGGER = 3.0, CRAWL = 0.028, HOLD_STOP = 1.9;
-    public static final float SLOW_SCALE = 0.16f, HITSTOP_SCALE = 0.3f;
+    /** Slow motion while a threat hangs in the air; the stance runs a little quicker; after the hit time surges past normal. */
+    public static final float SLOW_SCALE = 0.16f, STANCE_SCALE = 0.26f, HITSTOP_SCALE = 0.3f, RUSH_SCALE = 1.4f;
     /** Ticks (slowed) the bearer has to parry once time slows; the stance; the guard; protection after a parry. */
-    public static final int SLOW_WINDOW = 26, STANCE_TICKS = 7, GUARD_TICKS = 10, GUARD_COOLDOWN = 16, PROTECT = 20, HITSTOP = 4;
+    public static final int SLOW_WINDOW = 26, STANCE_TICKS = 5, RUSH = 8, GUARD_TICKS = 10, GUARD_COOLDOWN = 16, PROTECT = 20, HITSTOP = 4;
     /** A warden's boom lands this long after its charge starts (SonicBoomTask.SOUND_DELAY). */
     public static final int SONIC_DELAY = 34;
 
@@ -130,7 +131,7 @@ public final class ParryServer {
 
     static final class Duelist {
         byte phase = HangekiNet.PH_IDLE;
-        long phaseStart, guardUntil, protectUntil, cooldownUntil, hitstopUntil;
+        long phaseStart, guardUntil, protectUntil, cooldownUntil, hitstopUntil, rushUntil;
         final List<Threat> held = new ArrayList<>();
         final Map<UUID, Long> ignore = new HashMap<>();
         final Map<Integer, Long> sonicSeen = new HashMap<>();
@@ -270,14 +271,19 @@ public final class ParryServer {
             for (Runnable r : run) r.run();
         }
         float s = 1f;
+        boolean rush = false;
         for (Map.Entry<UUID, Duelist> en : DUELISTS.entrySet()) {
             ServerPlayerEntity p = server.getPlayerManager().getPlayer(en.getKey());
             if (p == null) continue;
             Duelist d = en.getValue();
             long now = p.getWorld().getTime();
-            if (d.phase == HangekiNet.PH_SLOW || d.phase == HangekiNet.PH_STANCE) s = Math.min(s, SLOW_SCALE);
+            if (d.phase == HangekiNet.PH_SLOW) s = Math.min(s, SLOW_SCALE);
+            else if (d.phase == HangekiNet.PH_STANCE) s = Math.min(s, STANCE_SCALE);
             else if (now < d.hitstopUntil) s = Math.min(s, HITSTOP_SCALE);
+            else if (now < d.rushUntil) rush = true;
         }
+        // once the parry lands, time does not just resume - it surges, then settles
+        if (s >= 1f && rush) s = RUSH_SCALE;
         if (s != TimeScale.server) {
             TimeScale.server = s;
             HangekiNet.sendScale(server, s);
@@ -578,6 +584,7 @@ public final class ParryServer {
         d.phase = HangekiNet.PH_IDLE;
         d.protectUntil = now + PROTECT;
         d.cooldownUntil = now + 6;
+        d.rushUntil = now + RUSH;
         HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus);
         w.spawnParticles(ParticleTypes.FLASH, blade.x, blade.y, blade.z, 1, 0, 0, 0, 0);
         w.spawnParticles(ParticleTypes.CRIT, blade.x, blade.y, blade.z, 40, 0.3, 0.3, 0.3, 0.9);
@@ -719,6 +726,7 @@ public final class ParryServer {
         d.protectUntil = now + 8;
         d.cooldownUntil = now;
         d.hitstopUntil = now + HITSTOP;
+        d.rushUntil = now + HITSTOP + 4;
         Entity src = source.getSource(), att = source.getAttacker();
         Vec3d eye = p.getEyePos();
         Vec3d from = src != null ? src.getBoundingBox().getCenter() : att != null ? att.getBoundingBox().getCenter() : eye.add(p.getRotationVector().multiply(2));
