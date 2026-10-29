@@ -359,7 +359,9 @@ public final class ParryServer {
                 t.dist = chest.distanceTo(m);
                 t.speed = 40;
                 t.closeness = r.getCharge();
-                t.imminent = r.getCharge() >= 0.975f;
+                // about to fire: within a tick and a half of full charge (the rate depends on the loadout)
+                double step = 1.0 / Math.max(1, r.getLoadout().chargeTicks(RailgunConfig.CHARGE_TICKS));
+                t.imminent = r.getCharge() + step * 1.5 >= 1.0;
                 t.origin = m;
                 out.add(t);
             }
