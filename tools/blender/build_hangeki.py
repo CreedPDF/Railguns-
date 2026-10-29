@@ -215,7 +215,7 @@ def build(assets, out):
     gl = K.bake_one(o, mlist, 256, f"{assets}/textures/hangeki/hangeki_glow.png", "glow")
     K.export(o, b.parts, {"ring": (0, 0, 0.06)}, f"{assets}/models/hangeki/hangeki.json")
     pm = K.preview_material("hk_prev", col, gl, 5.0)
-    K.preview(o, pm, f"{out}/hangeki.png", (0.95, -1.25, 0.65), (0, 0, 0.32), lens=50, bg=(0.012, 0.011, 0.012))
+    K.preview(o, pm, f"{out}/hangeki.png", (1.5, -2.0, 0.85), (0, 0, 0.3), lens=50, bg=(0.012, 0.011, 0.012))
 
 
 def main():
