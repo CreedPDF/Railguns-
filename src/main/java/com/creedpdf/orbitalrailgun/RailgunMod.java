@@ -158,10 +158,10 @@ public final class RailgunMod implements ModInitializer {
         ModParticles.init();
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
-        com.creedpdf.orbitalrailgun.legion.ArsenalLegion.init();
+        com.creedpdf.orbitalrailgun.hangeki.Hangeki.init();
 
         // Deluxs Armory has three creative tabs: Railguns (the orbital weapons, the ship, the EVA suit), Military (the KRL
-        // launcher system) and Arsenal Legion (the autonomous weapon swarm).
+        // launcher system) and Handhelds (weapons you hold: HANGEKI, the parry sword).
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
@@ -188,10 +188,10 @@ public final class RailgunMod implements ModInitializer {
                 })
                 .build());
 
-        Registry.register(Registries.ITEM_GROUP, id("arsenal_legion"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
-                .icon(() -> new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.legion.ArsenalLegion.ALTAR_ITEM))
-                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.arsenal_legion"))
-                .entries((context, entries) -> entries.add(com.creedpdf.orbitalrailgun.legion.ArsenalLegion.ALTAR_ITEM))
+        Registry.register(Registries.ITEM_GROUP, id("handhelds"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
+                .icon(() -> new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.hangeki.Hangeki.SWORD))
+                .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.handhelds"))
+                .entries((context, entries) -> entries.add(com.creedpdf.orbitalrailgun.hangeki.Hangeki.SWORD))
                 .build());
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);

@@ -82,6 +82,12 @@ public final class KrlImpact {
         if (m.casing() == 1) fragments(w, new Vec3d(at.x, y, at.z), pw * 1.6f, owner);
     }
 
+    /** HANGEKI: a missile parried back home lands with twice its warhead: the normal detonation and a second blast of the same yield. */
+    public static void explodeReflected(ServerWorld w, Vec3d at, @Nullable UUID owner, KrlLoadout m) {
+        explode(w, at, owner, m);
+        boom(w, at.x, at.y + 1.5, at.z, Math.max(6f, m.power()), m.fire(), owner);
+    }
+
     /** Follow-up detonations, `step` ticks after impact. */
     public static void follow(ServerWorld w, Vec3d at, @Nullable UUID owner, KrlLoadout m, int step, int seed) {
         if ((m.warhead() == KrlLoadout.BUNKER || m.warhead() == KrlLoadout.SEISMIC) && step == 6) {

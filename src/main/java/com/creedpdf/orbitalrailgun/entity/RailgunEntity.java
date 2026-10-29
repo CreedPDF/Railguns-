@@ -776,6 +776,11 @@ public class RailgunEntity extends Entity implements GeoEntity {
             abortCharge();
             return;
         }
+        // HANGEKI: a sword-bearer in the line of fire is parrying this shot - hold it on the trigger
+        if (com.creedpdf.orbitalrailgun.hangeki.ParryServer.holdsRailgun(this)) {
+            setCharge(1f);
+            return;
+        }
         LoadoutEffects.chargingTick(this, (ServerWorld) getWorld(), t);
         float charge = Math.min(1f, getCharge() + 1f / getLoadout().chargeTicks(RailgunConfig.CHARGE_TICKS));
         setCharge(charge);
@@ -830,6 +835,23 @@ public class RailgunEntity extends Entity implements GeoEntity {
                 setState(RailgunState.COOLDOWN);
             }
         }
+    }
+
+    /**
+     * HANGEKI: the shot was parried back at this emplacement. The rail discharges into the reflection (drawn and dealt
+     * by ParryServer) instead of firing its own shot, and goes straight into cooldown.
+     */
+    public void parried() {
+        ServerWorld world = (ServerWorld) getWorld();
+        world.playSound(null, getX(), getY(), getZ(), ModSounds.RAILGUN_POWER_DOWN, SoundCategory.BLOCKS, 3.0f, 0.8f);
+        shotsLeft = 0;
+        setState(RailgunState.COOLDOWN);
+    }
+
+    /** Public owner lookup for HANGEKI's reflected beam. */
+    @Nullable
+    public Entity ownerIn(ServerWorld world) {
+        return getOwner(world);
     }
 
     private void tickCooldown(int t) {

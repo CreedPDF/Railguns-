@@ -49,7 +49,7 @@ public final class RailgunModClient implements ClientModInitializer {
         com.creedpdf.orbitalrailgun.client.render.ScanFx.register();
         com.creedpdf.orbitalrailgun.client.render.RiftFx.register();
         com.creedpdf.orbitalrailgun.client.krl.KrlClient.register();
-        com.creedpdf.orbitalrailgun.client.legion.LegionClient.register();
+        com.creedpdf.orbitalrailgun.client.hangeki.HangekiClient.register();
 
         HudRenderCallback.EVENT.register(RailgunHud::render);
         ClientTickEvents.END_CLIENT_TICK.register(RailgunHud::tick);
@@ -120,11 +120,6 @@ public final class RailgunModClient implements ClientModInitializer {
         public void openShip(com.creedpdf.orbitalrailgun.entity.ShipEntity ship) {
             MinecraftClient client = MinecraftClient.getInstance();
             if (client.currentScreen == null) client.setScreen(new com.creedpdf.orbitalrailgun.client.ship.ShipScreen(ship));
-        }
-
-        @Override
-        public void legionTrail(com.creedpdf.orbitalrailgun.legion.entity.AutonomousWeaponEntity weapon) {
-            com.creedpdf.orbitalrailgun.client.legion.LegionClient.trail(weapon);
         }
 
         @Override

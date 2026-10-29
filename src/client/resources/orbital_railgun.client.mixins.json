@@ -11,7 +11,9 @@
     "GameRendererMixin",
     "WorldRendererSkyMixin",
     "InGameHudMixin",
-    "BackgroundRendererMixin"
+    "BackgroundRendererMixin",
+    "RenderTickCounterMixin",
+    "BipedEntityModelMixin"
   ],
   "injectors": {
     "defaultRequire": 1

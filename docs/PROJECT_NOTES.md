@@ -10,12 +10,12 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - No blue anywhere in models or UI; red / amber / warm white accents.
 - Models are built in headless Blender (scripts in `tools/blender/`), not hand-made.
 - New sounds are synthesised from scratch (`tools/sfx/`), never reused or near-copies of existing ones.
-- Creative tabs: "Deluxs Armory: Railguns" and "Deluxs Armory: Military".
+- Creative tabs: "Deluxs Armory: Railguns", "Deluxs Armory: Military" and "Deluxs Armory: Handhelds".
 
 ## Pipelines
 - `tools/blender/build.sh` runs `build_models.py` (railgun GeckoLib models), `build_krl.py` (KRL), `build_ship.py`
-  (starship) and `build_legion.py` (Arsenal Legion). Dev branches build one set: `dev-krl*` -> ONLY=krl,
-  `dev-ship*` -> ONLY=ship, `dev-legion*` -> ONLY=legion; renders are committed to `docs/renders/`.
+  (starship) and `build_hangeki.py` (HANGEKI). Dev branches build one set: `dev-krl*` -> ONLY=krl,
+  `dev-ship*` -> ONLY=ship, `dev-hangeki*` -> ONLY=hangeki; renders are committed to `docs/renders/`.
 - KRL meshes use the "krl_mesh" JSON format (`client/krl/KrlMesh.java`): named parts with pivots, Minecraft axes
   (Blender (x, y, z) -> (x, z, -y)), textures baked from procedural materials. `KrlMesh.prepare` builds distance LODs
   and glow-only subsets; `KrlCompat` detects Iris shadow passes.
@@ -47,6 +47,15 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 - v4.18 Arsenal Legion upgrade: shared path maths `legion/SwarmPaths` (formations `SwarmFormation`, storm), client
   evaluates per frame (`client/legion/render/LegionVisual`) and ignores position packets in analytic states; focus
   volleys (sneak-attack), Fury + Blade Storm (V), formations (H); VFX in `client/legion/render/LegionFx`.
+
+- v4.19 **Arsenal Legion removed** at the owner's request. Added **HANGEKI // Reversal Edge** (`hangeki/`,
+  `client/hangeki/`), first item of the new Handhelds tab: a parry sword. `ParryServer` scans each sword-bearer every
+  world tick (projectiles, KRL flights, charging railguns, wardens with SONIC_BOOM_SOUND_DELAY), holds imminent threats
+  and slows time globally (`TimeScale`, server tick loop via `mixin/MinecraftServerTimeMixin`, client clock via
+  `client/mixin/RenderTickCounterMixin`); parry -> STANCE (cutscene `HangekiCine`, pose `BipedEntityModelMixin`) ->
+  impact -> reflect at 2x (railgun hook `RailgunEntity.parried`/`holdsRailgun`, KRL hook `KrlServer.intercept`,
+  `KrlImpact.explodeReflected`). Melee: guard window + counter. HUD/impact frames `HangekiHud` (Bangers font,
+  `font/impact.json`), world FX `HangekiFx`. Key R (also right-click).
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set

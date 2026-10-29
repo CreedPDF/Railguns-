@@ -6,7 +6,9 @@
   "mixins": [
     "EntityVoidMixin",
     "PlayerDismountMixin",
-    "PlayerEntitySwarmMixin"
+    "MinecraftServerTimeMixin",
+    "PersistentProjectileAccessor",
+    "FireworkRocketAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

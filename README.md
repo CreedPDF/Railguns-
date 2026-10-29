@@ -241,42 +241,36 @@ Everything works **remotely, at any distance**: lock coordinates and fire ARES-9
 rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pick a planet and
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
-## Arsenal Legion: Autonomous Weapon Swarms
-Your weapons leave your hands and fight beside you as a hovering telekinetic swarm.
+## HANGEKI // Reversal Edge (Handhelds)
+A long sci-fi katana whose one trick is to **parry anything** that comes at you.
 
-* **Bind:** craft a **Legion Altar** (ender eye, amethyst shards, lodestone, crying obsidian) and use it holding a
-  sword, axe, trident or shield: the weapon leaves your hand and joins your swarm. Up to **6** weapons (the
-  `arsenal_legion:swarm_capacity` attribute; any attribute modifier, e.g. on armour, raises it to 24). Sneak-use the
-  altar empty-handed to get them all back. **G** stows / redeploys the swarm anywhere.
-* **Formations (H):** HALO (a ring round you), CROWN (tip-up above your head), WINGS (fanned behind your shoulders,
-  beating) and VANGUARD (an arc in front, pointing where you look). The swarm is computed every frame from your
-  smoothed position, so it stays glued to you walking, sprinting or flying. Each blade rides a spinning three-ring
-  gyroscope harness with a rune halo, drags an afterimage ribbon in its own colour (by material; enchanted blades run
-  rose) and a wavering tether back to your chest, over a turning rune sigil at your feet. A low hum follows you.
-* **Strike:** hit something, or get hit, and a third of the swarm whips out of orbit and dashes straight through the
-  target, dealing that weapon's own damage with its enchantments (Sharpness, Smite, Fire Aspect, Knockback...), any
-  potion effects in its NBT and any on-hit behaviour of modded weapons, leaving a bright energy streak, crossed crescent
-  slashes and sparks - then glides back into formation. **Sneak-attack** for a focus volley: every ready blade, one
-  after another. A kill is an **Execution**: shock rings, a pillar of light, a sharper sound.
-* **Fury and Blade Storm (V):** strikes, parries and executions fill the Fury gauge on the HUD. When it is full, V
-  hurls the whole swarm into a 3.5-second vortex that widens to ~6.5 blocks round you, cutting everything it passes
-  (several hits a second), with spiral ribbons, ground shock rings and the sigil swelling beneath it.
-* **Defend:** with a shield or a heavy weapon (axe, trident, or anything hitting for 7+) in the swarm, arrows aimed
-  at you are batted back and fireballs and other shots are destroyed in mid-air.
-* Weapons wear as they fight (Unbreaking applies) and break like any other; bound weapons drop when you die (unless
-  keepInventory) and are saved with you otherwise.
-* Extra items can join the swarm through the item tag `arsenal_legion:swarm_weapons`.
+* **Projectiles:** arrows, tridents, ghast and blaze fireballs, wither skulls, crossbow firework rockets, llama spit,
+  shulker rounds, a **KRL missile** diving on you, a **railgun beam** about to fire through you, a **warden's sonic
+  boom**. While you hold the sword, a threat meter in the bottom-left corner fills as the nearest one closes in (with
+  what it is and how many), and alarm pips quicken. About three blocks out **time slows hard** - the whole world,
+  not just the projectile - and the threat hangs in the air, creeping in. Press **Parry (R)** or right-click before
+  the ring round the crosshair runs out: a slow-motion cutscene swings round you as you set into the parry stance,
+  then time snaps back, it hits the blade with a deep, heavy impact, **REFLECTED** impact frames slam across the screen,
+  and it flies straight back to where it came from at **twice the force** (arrows at double speed, fireballs with
+  double thrust, a missile flies home and lands on its launcher with double the blast, the railgun's shot comes back
+  down its own line at double damage and blows up at its muzzle, the sonic boom goes back into the warden for 20).
+  Miss the window and it lands.
+* **Melee:** with nothing incoming, Parry raises a short guard. A blow that lands in it (a mob, a player, an
+  explosion) does nothing to you and is **countered**: twice the damage back, the attacker thrown away and staggered,
+  a brief hit-stop and COUNTER frames. An arrow caught in a guard is batted straight back.
+* Netherite-class sword (10 attack damage), fireproof, enchantable. Recipe: an echo shard at the tip over two
+  netherite ingots, a blaze rod grip.
+* Slow motion really slows the server's tick, so in multiplayer everyone sees time slow while a parry plays out.
 
-Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Arsenal Legion**.
+Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Handhelds**.
 
 ## Asset pipeline
 | Tool | Produces |
 |---|---|
 | `tools/blender/build_models.py` | The railgun (~380 cubes: an octagonal drop pod whose armour quarters, telescoping struts, decks, clamps, turret and telescoping 20-block barrel all fold out of it) and the two-handed tablet as box geometry under bone Empties, with Mirror/Array modifiers; Cycles-baked base materials plus a per-face paint pass (panel seams, rivets, bevels, concrete cracks, brushed steel, vent slats, hazard stripes, grime); the glowmask; Blender Actions exported as GeckoLib animations; Cycles renders and the icon. |
 | `tools/blender/build_ship.py` | The ARES Kestrel starship: lofted superellipse fuselage and engine boom, airfoil wings, lathed engine pods and nozzles, cabin and cockpit interiors; baked albedo + glow atlases; exported as a `krl_mesh` with movable parts (pods, gear, ramp, glass). |
-| `tools/blender/build_legion.py` | Arsenal Legion: the floating weapons' telekinetic harness (`arsenal_legion:models/entity/floating_blade`) and the Legion Altar, same pipeline. |
-| `tools/textures/legion_textures.py` | The `kinetic_gaze` particle sprites (distortion ripples, energy streak). |
-| `tools/sfx/legion_sounds.py` | 5 Arsenal Legion sounds synthesised from scratch (swarm hum loop, weapon launch, pierce, parry, altar bind). |
+| `tools/blender/build_hangeki.py` | HANGEKI: the curved sci-fi katana (lofted blade with polished bevels and a hamon, plasma edge, amber reactor fuller, hex tsuba, wrapped grip, floating parry ring), same pipeline. |
+| `tools/sfx/hangeki_sounds.py` | 8 HANGEKI sounds synthesised from scratch (threat pip, time slowing, stance draw, the impact, the reflection, time resuming, counter, guard). |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |
 

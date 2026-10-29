@@ -45,6 +45,4 @@ public interface RailgunClientBridge {
     /** Opens the starship navigation terminal. */
     default void openShip(com.creedpdf.orbitalrailgun.entity.ShipEntity ship) {}
 
-    /** Arsenal Legion: a flying weapon's kinetic_gaze trail, emitted each client tick. */
-    default void legionTrail(com.creedpdf.orbitalrailgun.legion.entity.AutonomousWeaponEntity weapon) {}
 }

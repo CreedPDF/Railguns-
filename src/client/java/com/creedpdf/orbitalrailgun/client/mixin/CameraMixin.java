@@ -35,6 +35,15 @@ public abstract class CameraMixin {
     @Inject(method = "update", at = @At("TAIL"))
     private void orbitalRailgun$panelZoom(BlockView area, Entity focusedEntity, boolean thirdPersonView,
                                          boolean inverseView, float tickDelta, CallbackInfo ci) {
+        double[] parry = com.creedpdf.orbitalrailgun.client.hangeki.HangekiCine.camera(tickDelta);
+        if (parry != null) {
+            setRotation((float) parry[3], (float) parry[4]);
+            setPos(new Vec3d(parry[0], parry[1], parry[2]));
+            this.thirdPerson = true;
+            return;
+        }
+        Vec3d hk = com.creedpdf.orbitalrailgun.client.hangeki.HangekiCine.shake();
+        if (hk.lengthSquared() > 1e-8) setPos(getPos().add(hk));
         double[] krl = com.creedpdf.orbitalrailgun.client.krl.KrlCine.camera(tickDelta);
         if (krl != null) {
             setRotation((float) krl[3], (float) krl[4]);

@@ -73,7 +73,6 @@ jobs:
             src/main/resources/assets/orbital_railgun/animations/
             src/main/resources/assets/orbital_railgun/textures/
             src/main/resources/assets/orbital_railgun/models/
-            src/main/resources/assets/arsenal_legion/
             src/main/resources/assets/orbital_railgun/icon.png
 
       # Keep the repo's assets in sync with what Blender produced (main branch only).
@@ -82,7 +81,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
-          git add src/main/resources/assets/orbital_railgun src/main/resources/assets/arsenal_legion src/main/resources/orbital_railgun_collision.json docs/renders
+          git add src/main/resources/assets/orbital_railgun src/main/resources/orbital_railgun_collision.json docs/renders
           if git diff --cached --quiet; then echo "Assets unchanged"; else
             git commit -m "Regenerate models from Blender [skip ci]"
             git push

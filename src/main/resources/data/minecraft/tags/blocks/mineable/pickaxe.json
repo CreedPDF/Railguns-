@@ -6,7 +6,6 @@
     "orbital_railgun:krl_console_part",
     "orbital_railgun:krl_station",
     "orbital_railgun:krl_magazine",
-    "orbital_railgun:krl_magazine_part",
-    "arsenal_legion:legion_altar"
+    "orbital_railgun:krl_magazine_part"
   ]
 }

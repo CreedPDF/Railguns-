@@ -228,5 +228,20 @@
   "subtitles.orbital_railgun.krl.mag": "Interceptor racked",
   "subtitles.orbital_railgun.krl.refit": "Missile refitted",
   "itemGroup.orbital_railgun.military": "Deluxs Armory: Military",
-  "itemGroup.orbital_railgun.arsenal_legion": "Deluxs Armory: Arsenal Legion"
+  "itemGroup.orbital_railgun.handhelds": "Deluxs Armory: Handhelds",
+  "item.orbital_railgun.hangeki": "HANGEKI // Reversal Edge",
+  "item.orbital_railgun.hangeki.desc1": "Parries anything that comes at you.",
+  "item.orbital_railgun.hangeki.desc2": "Projectiles, missiles, railgun beams, sonic booms: time slows as they close in. Parry and they go back at twice the force.",
+  "item.orbital_railgun.hangeki.desc3": "Nothing incoming? Parry raises a guard that counters the next blow.",
+  "item.orbital_railgun.hangeki.desc4": "Parry: R or right-click",
+  "key.orbital_railgun.parry": "HANGEKI: Parry",
+  "key.categories.orbital_railgun.hangeki": "Deluxs Armory: Handhelds",
+  "subtitles.orbital_railgun.hangeki.warn": "Threat alarm",
+  "subtitles.orbital_railgun.hangeki.slow": "Time slows",
+  "subtitles.orbital_railgun.hangeki.stance": "Blade drawn",
+  "subtitles.orbital_railgun.hangeki.impact": "REFLECTED",
+  "subtitles.orbital_railgun.hangeki.reflect": "Something flies back",
+  "subtitles.orbital_railgun.hangeki.resume": "Time resumes",
+  "subtitles.orbital_railgun.hangeki.counter": "Counter",
+  "subtitles.orbital_railgun.hangeki.guard": "Guard raised"
 }

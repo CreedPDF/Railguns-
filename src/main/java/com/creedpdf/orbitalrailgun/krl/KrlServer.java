@@ -69,6 +69,31 @@ public final class KrlServer {
         public KrlFlight path() {
             return path;
         }
+
+        public Vec3d launch() {
+            return launch;
+        }
+
+        public boolean lifted() {
+            return lifted;
+        }
+    }
+
+    /**
+     * HANGEKI: the missile has been caught in a parry. It is taken out of flight (no impact, no follow-ups; clients
+     * drop it) and ParryServer flies it from here on. Returns the flight, or null if it is gone.
+     */
+    @Nullable
+    public static Flight intercept(int id) {
+        Flight f = FLIGHTS.remove(id);
+        if (f == null) return null;
+        MinecraftServer s = server();
+        ServerWorld w = s == null ? null : s.getWorld(f.world);
+        if (w != null) {
+            KrlNet.sendFlightEnd(w, id);
+            if (f.rider != null && w.getPlayerByUuid(f.rider) instanceof ServerPlayerEntity p) release(p);
+        }
+        return f;
     }
 
     private static final class Ride {
