@@ -9,31 +9,52 @@ import net.minecraft.util.math.Vec3d;
 import java.util.Random;
 
 /**
- * The parry cutscene. While the local player's stance plays out (in slow motion) the camera leaves their eyes,
- * swings out to their right side and slowly orbits them, framing the bearer settling into the stance and the threat
- * hanging in the air in front of them; in the last moments it pushes back in over the shoulder. When the stance ends
- * (time snaps back, the hit lands) it cuts straight back to first person, on the impact frames, and shakes.
+ * The parry cutscene, shot by shot. Nothing is rushed; everything is on screen before it happens.
+ * <ol>
+ *   <li><b>The side shot</b> (time slows): the camera eases out of the bearer's eyes to a wide side-on angle,
+ *   perpendicular to the line of attack and far enough out to hold both the bearer and the threat, and drifts slowly
+ *   along that line as the arrow / fireball / missile / railgun bolt closes in.</li>
+ *   <li><b>The stance</b> (parry pressed): from the side shot the camera swings round low to a front three-quarter
+ *   hero angle on the bearer as they sink into the stance and the ward snaps up in front of the blade, and pushes in
+ *   slowly.</li>
+ *   <li><b>The hit</b>: it swings behind the bearer's shoulder and looks straight down the line at the threat as it
+ *   reaches the blade; at the hit it cuts back to first person on the impact frames, with a shake.</li>
+ * </ol>
+ * Shots blend into one another (eased), framed on the live position of the threat.
  */
 public final class HangekiCine {
     private HangekiCine() {}
 
     private static boolean active;
+    private static byte phase;
     private static Vec3d focus = Vec3d.ZERO;
+    private static long slowAt, stanceAt;
     private static float shake;
     private static final Random RNG = new Random();
+    /** The last shot's camera, held while the stance waits for the hit to arrive. */
+    private static double[] last;
 
-    static void beginStance(Vec3d f) {
+    static void begin(byte ph, Vec3d f) {
+        long now = System.currentTimeMillis();
+        if (ph == HangekiNet.PH_SLOW && !(active && phase == HangekiNet.PH_SLOW)) slowAt = now;
+        if (ph == HangekiNet.PH_STANCE) {
+            stanceAt = now;
+            if (!active) slowAt = now - 2000;
+        }
         active = true;
+        phase = ph;
         focus = f;
     }
 
     static void endStance() {
         active = false;
+        last = null;
     }
 
     static void reset() {
         active = false;
         shake = 0;
+        last = null;
     }
 
     public static void kick(float s) {
@@ -41,26 +62,36 @@ public final class HangekiCine {
     }
 
     public static boolean active() {
-        return active && MinecraftClient.getInstance().player != null;
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (!active || mc.player == null) return false;
+        ParryClient.Stance s = ParryClient.stance(mc.player.getId());
+        if (s == null || (s.phase() != HangekiNet.PH_SLOW && s.phase() != HangekiNet.PH_STANCE)) {
+            active = false;
+            return false;
+        }
+        return true;
     }
 
-    /** Each client tick: the bearer turns to face what they are parrying; the shake dies away. */
+    /** Each client tick: the bearer turns to face what is coming; the shake dies away. */
     static void tick(MinecraftClient mc) {
         shake *= 0.8f;
         if (shake < 0.002f) shake = 0;
         ClientPlayerEntity p = mc.player;
-        if (p == null) return;
+        if (p == null || !active()) return;
         ParryClient.Stance s = ParryClient.stance(p.getId());
-        if (s == null || (s.phase() != HangekiNet.PH_STANCE && s.phase() != HangekiNet.PH_SLOW)) return;
-        if (s.phase() == HangekiNet.PH_SLOW) return;
-        Vec3d d = s.focus().subtract(p.getEyePos());
+        Vec3d d = ParryClient.threat(1f, s.focus()).subtract(p.getEyePos());
         if (d.lengthSquared() < 1e-4) return;
         float yaw = (float) Math.toDegrees(Math.atan2(-d.x, d.z));
         float pitch = (float) Math.toDegrees(-Math.atan2(d.y, Math.hypot(d.x, d.z)));
-        p.setYaw(p.getYaw() + MathHelper.wrapDegrees(yaw - p.getYaw()) * 0.45f);
-        p.setPitch(p.getPitch() + (pitch - p.getPitch()) * 0.45f);
+        float k = s.phase() == HangekiNet.PH_STANCE ? 0.4f : 0.15f;
+        p.setYaw(p.getYaw() + MathHelper.wrapDegrees(yaw - p.getYaw()) * k);
+        p.setPitch(p.getPitch() + (pitch - p.getPitch()) * k);
         p.setHeadYaw(p.getYaw());
         p.setBodyYaw(p.getYaw());
+    }
+
+    private static float ease(float x) {
+        return ParryClient.smooth(MathHelper.clamp(x, 0f, 1f));
     }
 
     /** {x, y, z, yaw, pitch} for the camera this frame, or null to leave it alone. */
@@ -69,33 +100,55 @@ public final class HangekiCine {
         MinecraftClient mc = MinecraftClient.getInstance();
         ClientPlayerEntity p = mc.player;
         ParryClient.Stance s = ParryClient.stance(p.getId());
-        if (s == null || s.phase() != HangekiNet.PH_STANCE) return null;
-        float u = ParryClient.progress(s, pt);
+        long now = System.currentTimeMillis();
         Vec3d eye = p.getCameraPosVec(pt);
-        Vec3d f = focus.subtract(eye);
-        Vec3d h = new Vec3d(f.x, 0, f.z);
+        Vec3d body = p.getLerpedPos(pt).add(0, p.getHeight() * 0.55, 0);
+        Vec3d threat = ParryClient.threat(pt, s.focus());
+        Vec3d line = threat.subtract(body);
+        double dist = Math.max(1.5, line.length());
+        Vec3d h = new Vec3d(line.x, 0, line.z);
         h = h.lengthSquared() < 1e-6 ? p.getRotationVec(pt).multiply(1, 0, 1).normalize() : h.normalize();
         Vec3d side = new Vec3d(-h.z, 0, h.x);
-        float e = ParryClient.smooth(Math.min(1f, u / 0.3f));
-        double a = Math.toRadians(-18 + 42 * u);
-        // orbit: out to the right, a little ahead, slightly low (a heroic angle), drifting round the front
-        Vec3d off = side.multiply(2.8 * Math.cos(a)).add(h.multiply(2.8 * Math.sin(a) + 0.3)).add(0, -0.15, 0);
-        Vec3d pos = eye.add(off.multiply(e));
-        Vec3d look = eye.add(h.multiply(1.0)).add(0, -0.2, 0).lerp(focus, 0.3);
-        if (u > 0.84f) {
-            // push in over the shoulder for the hit
-            float k = ParryClient.smooth((u - 0.84f) / 0.16f);
-            Vec3d shoulder = eye.add(side.multiply(0.55)).add(h.multiply(-0.7)).add(0, 0.12, 0);
-            pos = pos.lerp(shoulder, k);
-            look = look.lerp(focus, k * 0.7);
+
+        // shot A - the side shot: square to the line of attack, wide enough for both ends, drifting slowly
+        float drift = (now - slowAt) / 1000f;
+        Vec3d mid = body.lerp(threat, 0.42);
+        double out = 3.2 + Math.min(dist, 14) * 0.72;
+        Vec3d camA = mid.add(side.multiply(out)).add(0, 0.45 + 0.04 * drift, 0).add(h.multiply(-0.35 - 0.12 * drift));
+        Vec3d lookA = mid.add(0, -0.1, 0);
+
+        // shot B - the hero angle: low, front three-quarter on the bearer and the ward
+        Vec3d heroDir = h.multiply(Math.cos(Math.toRadians(38))).add(side.multiply(Math.sin(Math.toRadians(38))));
+        Vec3d camB = body.add(heroDir.multiply(3.4)).add(0, -0.45, 0);
+        Vec3d lookB = body.add(h.multiply(0.9)).add(0, 0.15, 0);
+
+        // shot C - over the shoulder, straight down the line at what is about to hit
+        Vec3d camC = eye.add(h.multiply(-1.35)).add(side.multiply(0.75)).add(0, 0.25, 0);
+        Vec3d lookC = threat;
+
+        Vec3d pos, look;
+        if (s.phase() == HangekiNet.PH_SLOW) {
+            float e = ease((now - slowAt) / 900f);
+            pos = eye.lerp(camA, e);
+            look = eye.add(p.getRotationVec(pt).multiply(5)).lerp(lookA, e);
+        } else {
+            float u = (now - stanceAt) / 1000f;   // seconds into the stance (real time)
+            float ab = ease(u / 0.9f);
+            pos = camA.lerp(camB, ab);
+            look = lookA.lerp(lookB, ab);
+            // a slow push in on the hero angle
+            float push = ease((u - 0.9f) / 1.0f);
+            pos = pos.lerp(body.add(heroDir.multiply(2.5)).add(0, -0.3, 0), push * 0.6);
+            // then round behind the shoulder for the hit
+            float bc = ease((u - 1.7f) / 0.6f);
+            pos = pos.lerp(camC, bc);
+            look = look.lerp(lookC, bc);
         }
         Vec3d v = look.subtract(pos);
         float yaw = (float) Math.toDegrees(Math.atan2(-v.x, v.z));
         float pitch = (float) Math.toDegrees(-Math.atan2(v.y, Math.hypot(v.x, v.z)));
-        float py = p.getYaw(pt), pp = p.getPitch(pt);
-        yaw = py + MathHelper.wrapDegrees(yaw - py) * e;
-        pitch = pp + (pitch - pp) * e;
-        return new double[]{pos.x, pos.y, pos.z, yaw, pitch};
+        last = new double[]{pos.x, pos.y, pos.z, yaw, pitch};
+        return last;
     }
 
     /** The impact shake, as a small camera offset. */

@@ -38,6 +38,6 @@ public abstract class PlayerEntityRendererMixin {
         float depth = com.creedpdf.orbitalrailgun.client.hangeki.ParryClient.guardPose(player) ? 0.45f * k : k;
         float side = player.getMainArm() == net.minecraft.util.Arm.RIGHT ? 1f : -1f;
         ms.translate(0, -0.3f * depth, 0);
-        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-38f * depth * side));
+        ms.multiply(net.minecraft.util.math.RotationAxis.POSITIVE_Y.rotationDegrees(-18f * depth * side));
     }
 }

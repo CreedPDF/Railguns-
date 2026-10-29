@@ -28,6 +28,32 @@ public final class ParryClient {
     static boolean slowed;
     /** Real-time millis the local player's slow motion began (for the HUD's fade-ins). */
     static long slowSince;
+    // what the local cutscene follows: an entity (projectile, warden), or a point from the bolt / missile packets
+    static int trackEntity = -1;
+    static Vec3d trackPos, trackPrev;
+    static long trackTick;
+
+    static void track(int entity, Vec3d focus) {
+        trackEntity = entity;
+        if (trackPos == null) trackPos = trackPrev = focus;
+    }
+
+    static void trackAt(Vec3d p) {
+        trackPrev = trackPos == null ? p : trackPos;
+        trackPos = p;
+    }
+
+    /** Where the threat the local player is facing is now (interpolated). */
+    static Vec3d threat(float pt, Vec3d fallback) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (trackEntity >= 0 && mc.world != null) {
+            var e = mc.world.getEntityById(trackEntity);
+            if (e != null) return e.getLerpedPos(pt).add(0, e.getHeight() * 0.5, 0);
+        }
+        if (trackPos != null) return trackPrev.lerp(trackPos, pt);
+        return fallback;
+    }
+
     /** Real-time millis of the local player's last reflection (the panel shows RETURN). */
     static long lastReturn;
 
@@ -44,6 +70,10 @@ public final class ParryClient {
         if (phase == HangekiNet.PH_IDLE) {
             Stance old = STANCES.remove(player);
             MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player != null && mc.player.getId() == player) {
+                trackEntity = -1;
+                trackPos = trackPrev = null;
+            }
             if (old != null && old.phase == HangekiNet.PH_STANCE) {
                 // the follow-through: the body stays low for a moment and unwinds out of the stance
                 STANCES.put(player, new Stance(HangekiNet.PH_RELEASE, start, 10, old.focus()));
@@ -52,7 +82,8 @@ public final class ParryClient {
         } else {
             STANCES.put(player, new Stance(phase, start, ticks, focus));
             MinecraftClient mc = MinecraftClient.getInstance();
-            if (phase == HangekiNet.PH_STANCE && mc.player != null && mc.player.getId() == player) HangekiCine.beginStance(focus);
+            if ((phase == HangekiNet.PH_STANCE || phase == HangekiNet.PH_SLOW) && mc.player != null && mc.player.getId() == player)
+                HangekiCine.begin(phase, focus);
         }
     }
 
@@ -62,6 +93,8 @@ public final class ParryClient {
     }
 
     static void clear() {
+        trackEntity = -1;
+        trackPos = trackPrev = null;
         STANCES.clear();
         meterKind = HangekiNet.K_NONE;
         slowed = false;

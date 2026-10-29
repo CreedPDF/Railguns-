@@ -242,16 +242,18 @@ rift, **recall ARES-9** (it packs itself up and launches back to orbit), and pic
 **fire ARES-0** or recall it. Arrow keys move through the tree.
 
 ## HANGEKI // Reversal Edge (Handhelds)
-A long black-and-silver nodachi with a white-hot edge and crimson reactor glow, whose one trick is to **parry anything**.
+A black-and-silver sci-fi **greatsword** (broad straight double edge, white-hot edges, a crimson reactor channel, a wide crossguard, a long two-handed grip) carried with the blade flat, whose one trick is to **parry anything**.
 
 * **Projectiles:** arrows, tridents, ghast and blaze fireballs, wither skulls, crossbow firework rockets, llama spit,
   shulker rounds, a **KRL missile** diving on you, a **railgun beam** about to fire through you, a **warden's sonic
   boom**. While you hold the sword, the threat panel in the bottom-left corner (threat, range, class, response) tracks
-  the nearest one as it closes in. About three blocks out **time slows hard** - the whole world - and it hangs in the
-  air, creeping in. Press **Parry (R)** or right-click before the ring round the crosshair runs out: the camera swings
-  round as your whole body drops into a low lunging parry stance, sword high across your face, and a small 3D samurai
-  ward (a laced lamellar shield with a turning three-tomoe crest) snaps up in front of the blade. Then time **surges**
-  back, the hit lands on the ward with a deep heavy impact, the screen cuts through real **impact frames** (the actual
+  the nearest one as it closes in. A railgun really fires: its round crosses the distance as a visible bolt. About nine
+  blocks out **time slows hard** - the whole world - and the camera cuts to a wide **side shot** square to the line of
+  attack as it keeps closing in, slowly. Press **Parry (R)** or right-click while it does: the camera swings round low
+  to a hero angle as your whole body drops into a low lunging stance, the greatsword laid flat across in front of your
+  face, and a small 3D samurai
+  ward (a laced lamellar shield with a turning three-tomoe crest) snaps up in front of the blade; then over your shoulder
+  as it comes the last of the way in. Time **surges** back as the hit lands on the ward with a deep heavy impact, the screen cuts through real **impact frames** (the actual
   scene burned to grainy monochrome, silhouettes and line art, black and crimson cards, speed lines tearing out of the
   hit, a wireframe globe) and it flies straight back where it came from at **twice the force**. Miss the window and it
   lands.

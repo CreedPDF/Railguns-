@@ -18,8 +18,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 /**
  * HANGEKI's parry stance on the player model - the whole body, not just the arms. The torso drops and leans into
  * the attack (a deep crouch: the same pivots vanilla moves to sneak, pushed further), the feet split into a long
- * lunge (lead leg forward, back leg driven back and out), the sword arm goes high with the blade laid across in front
- * of the face, the off hand braced flat on its spine, and the head tucks down behind the guard. PlayerEntityRendererMixin
+ * lunge (lead leg forward, back leg driven back and out), the greatsword is held out at head height laid flat and
+ * horizontal across the body, the off hand braced on the flat, and the head tucks down behind the guard. PlayerEntityRendererMixin
  * lowers the body and turns it side-on to the threat. A guard is a quick half-crouch; after a parry the body unwinds
  * out of the stance. Runs before PlayerEntityModel copies the parts onto the sleeves, trousers and jacket.
  */
@@ -74,12 +74,14 @@ public abstract class BipedEntityModelMixin<T extends LivingEntity> {
             off.pitch = MathHelper.lerp(k, off.pitch, -0.9f);
             off.yaw = MathHelper.lerp(k, off.yaw, 0.5f * m);
         } else {
-            sword.pitch = MathHelper.lerp(k, sword.pitch, -2.45f + breathe);
-            sword.yaw = MathHelper.lerp(k, sword.yaw, -0.32f * m);
-            sword.roll = MathHelper.lerp(k, sword.roll, -0.18f * m);
-            off.pitch = MathHelper.lerp(k, off.pitch, -2.15f + breathe);
-            off.yaw = MathHelper.lerp(k, off.yaw, 0.78f * m);
-            off.roll = MathHelper.lerp(k, off.roll, 0.1f * m);
+            // the greatsword laid flat across in front of the face: sword arm straight out at head height and rolled
+            // about its own axis so the blade lies horizontal across the body; the off hand braces the flat
+            sword.pitch = MathHelper.lerp(k, sword.pitch, -1.78f + breathe);
+            sword.yaw = MathHelper.lerp(k, sword.yaw, 0.12f * m);
+            sword.roll = MathHelper.lerp(k, sword.roll, 1.5f * m);
+            off.pitch = MathHelper.lerp(k, off.pitch, -1.82f + breathe);
+            off.yaw = MathHelper.lerp(k, off.yaw, 0.42f * m);
+            off.roll = MathHelper.lerp(k, off.roll, 0.35f * m);
         }
         hat.copyTransform(head);
     }

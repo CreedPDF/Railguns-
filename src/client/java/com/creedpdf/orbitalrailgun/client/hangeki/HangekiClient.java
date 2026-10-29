@@ -74,7 +74,11 @@ public final class HangekiClient {
             long start = buf.readLong();
             int ticks = buf.readVarInt();
             Vec3d focus = new Vec3d(buf.readDouble(), buf.readDouble(), buf.readDouble());
-            client.execute(() -> ParryClient.state(player, phase, start, ticks, focus));
+            int track = buf.readVarInt() - 1;
+            client.execute(() -> {
+                ParryClient.state(player, phase, start, ticks, focus);
+                if (client.player != null && client.player.getId() == player) ParryClient.track(track, focus);
+            });
         });
         ClientPlayNetworking.registerGlobalReceiver(HangekiNet.FX, (client, h, buf, s) -> {
             byte kind = buf.readByte();
@@ -93,6 +97,8 @@ public final class HangekiClient {
     private static void fx(MinecraftClient mc, byte kind, Vec3d at, Vec3d dir, Vec3d to, int player, int entity, float speed, int extra) {
         HangekiFx.add(kind, at, dir, to, player, entity, speed, extra);
         boolean mine = mc.player != null && mc.player.getId() == player;
+        if (mine && kind == HangekiNet.FX_BEAM_HOLD) ParryClient.trackAt(to);
+        if (mine && kind == HangekiNet.FX_MISSILE_HOLD) ParryClient.trackAt(at);
         long now = System.currentTimeMillis();
         switch (kind) {
             case HangekiNet.FX_REFLECT -> {
@@ -167,9 +173,12 @@ public final class HangekiClient {
         ms.translate(0.5, 0.5, 0.5);
         ms.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(-45));
         // grip where a vanilla sword sprite's grip is; the long blade runs out past the corner of the item box
-        float s = 0.8f;
+        float s = 0.66f;
         ms.scale(s, s, s);
-        ms.translate(0, -0.48, 0);
+        ms.translate(0, -0.45, 0);
+        // in the hand the blade is held flat (its faces up and down), not edge-up like a sprite
+        if (mode.isFirstPerson() || mode == ModelTransformationMode.THIRD_PERSON_RIGHT_HAND || mode == ModelTransformationMode.THIRD_PERSON_LEFT_HAND)
+            ms.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(90));
         float spin = time * (hot ? 0.45f : 0.06f);
         KrlMesh.Pose pose = (part, st) -> {
             if ("ring".equals(part)) st.multiply(RotationAxis.POSITIVE_Y.rotation(spin));

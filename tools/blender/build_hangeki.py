@@ -1,9 +1,10 @@
 """
 HANGEKI // Reversal Edge, modelled and baked in headless Blender (run by tools/blender/build.sh, ONLY=hangeki).
 
-  hangeki   orbital_railgun:models/hangeki/hangeki - a long, slightly curved sci-fi katana. Blender +Z is the blade
-            axis (Minecraft +Y), the flat of the blade faces Blender +-Y (Minecraft +-Z, like an item sprite), the
-            cutting edge is on +X. The grip's centre sits at the origin.
+  hangeki   orbital_railgun:models/hangeki/hangeki - a sci-fi greatsword: a broad, straight, double-edged blade
+            with a crimson reactor channel, a wide crossguard, a long two-handed grip and a heavy pommel. Blender +Z is
+            the blade axis (Minecraft +Y), the flats face Blender +-Y (Minecraft +-Z, like an item sprite), the edges
+            are at +-X. The top of the grip sits at the origin.
 
             parts  "body"  the blade (gunmetal flats, polished bevels, a dark spine), the reactor fuller (an amber
                            channel down each flat), the habaki collar, the hex tsuba, the wrapped grip and the pommel
@@ -34,16 +35,11 @@ import bpy  # noqa: E402
 RED, HOT, AMBER = S.RED, S.HOT, S.AMBER
 WARM = S.WARM
 
-# blade geometry
-Z0, Z1 = 0.08, 1.66          # collar top to the tip (a long nodachi blade)
-W0, W1 = 0.08, 0.058         # width at the collar and just before the kissaki
-T0, T1 = 0.032, 0.02         # spine thickness
-SORI = 0.11                  # how far the curve sweeps back (-X) at the tip
-
-
-def curve(z):
-    u = (z - Z0) / (Z1 - Z0)
-    return -SORI * u * u
+# blade geometry: a straight, broad greatsword
+Z0, Z1 = 0.1, 1.9            # top of the guard to the point
+W0, W1 = 0.25, 0.21          # width at the ricasso and where the point begins
+T0, T1 = 0.05, 0.034         # thickness at the centre ridge
+ZP = Z1 - 0.3                # where the point's taper begins
 
 
 def gold_mat(name):
@@ -137,36 +133,29 @@ class Build:
         return self.add(o, m, part, smooth=True)
 
 
-def section(z, scale=1.0):
-    """The blade's cross-section at height z: spine (back, -X) to edge (+X), symmetric about the flat (Y)."""
-    u = (z - Z0) / (Z1 - Z0)
-    w = (W0 + (W1 - W0) * u) * scale
-    t = (T0 + (T1 - T0) * u) * scale
-    c = curve(z)
-    return [(c - w / 2, t / 2), (c + w * 0.12, t * 0.44), (c + w / 2, 0.0), (c + w * 0.12, -t * 0.44), (c - w / 2, -t / 2)]
+def section(z):
+    """Cross-section at height z: a flattened hexagon - two edges at +-X, two flats, a central ridge (Y)."""
+    u = min(1.0, (z - Z0) / (ZP - Z0))
+    w = W0 + (W1 - W0) * u
+    t = T0 + (T1 - T0) * u
+    if z > ZP:
+        f = (z - ZP) / (Z1 - ZP)
+        w *= max(0.0, 1 - f) ** 0.9
+        t *= max(0.15, 1 - f * 0.85)
+    w = max(w, 0.002)
+    return [(-w / 2, 0.0), (-w * 0.22, t / 2), (w * 0.22, t / 2), (w / 2, 0.0), (w * 0.22, -t / 2), (-w * 0.22, -t / 2)]
 
 
 def blade_sections():
     secs = []
-    n = 26
-    zk = Z1 - 0.12                     # where the kissaki (the angled tip) begins
+    n = 30
     for i in range(n + 1):
-        z = Z0 + (zk - Z0) * i / n
+        z = Z0 + (ZP - Z0) * i / n
         secs.append((z, section(z)))
-    # the kissaki: the edge sweeps up to meet the spine at the point
-    for k, f in enumerate((0.25, 0.5, 0.72, 0.88, 0.97)):
-        z = zk + (Z1 - zk) * f
-        s = section(z)
-        c = curve(z)
-        shrink = 1 - f
-        pts = []
-        for (x, y) in s:
-            # pull every point toward the spine side and in from the flats
-            xs = c - (W1 / 2) + (x - (c - W1 / 2)) * shrink
-            pts.append((xs, y * (0.4 + 0.6 * shrink)))
-        secs.append((z, pts))
-    tip = (curve(Z1) - W1 * 0.42, 0.0)
-    secs.append((Z1, [tip] * 5))
+    for f in (0.2, 0.4, 0.6, 0.78, 0.92):
+        z = ZP + (Z1 - ZP) * f
+        secs.append((z, section(z)))
+    secs.append((Z1, [(0.0, 0.0)] * 6))
     return secs
 
 
@@ -175,66 +164,89 @@ def build(assets, out):
     M = mats()
     b = Build(["body", "edge", "ring"])
 
-    # ---- the blade: faces 0/3 the flats, 1/2 the polished bevels, 4 the spine
-    def blade_face(s, i, z):
-        return {0: 0, 1: 1, 2: 1, 3: 0, 4: 2}[i]
+    # ---- the blade: faces 0,2 bevels toward the edges, 1 and 4 the flats... (see section order)
+    def blade_face(s_, i, z):
+        # 0: left edge -> ridge top (bevel), 1: top flat, 2: top flat -> right edge (bevel),
+        # 3: right edge -> bottom (bevel), 4: bottom flat, 5: bottom -> left edge (bevel)
+        return {0: 1, 1: 0, 2: 1, 3: 1, 4: 0, 5: 1}[i]
 
     blade = K.loft("blade", blade_sections(), closed_caps=True, mat_of_face=blade_face)
     K.fix_normals(blade)
-    b.add(blade, [M["flat"], M["bevel"], M["spine"]], "body")
+    b.add(blade, [M["flat"], M["bevel"]], "body")
 
-    # ---- the edge: a hairline of plasma riding the cutting edge, collar to tip
-    secs = []
-    for (z, pts) in blade_sections()[:-1]:
-        ex, ey = pts[2]
-        secs.append((z, [(ex - 0.004, 0.0032), (ex + 0.0045, 0.0), (ex - 0.004, -0.0032)]))
-    tz, tp = blade_sections()[-1]
-    secs.append((tz + 0.004, [(tp[0][0] - 0.002, 0.0), (tp[0][0], 0.0), (tp[0][0] - 0.002, 0.0)]))
-    edge = K.loft("edge", secs, closed_caps=True)
-    K.fix_normals(edge)
-    b.add(edge, [M["hot"]], "edge")
+    # ---- both edges: hairlines of white-hot plasma from the guard to the point
+    for side in (0, 3):
+        secs = []
+        for (z, pts) in blade_sections()[:-1]:
+            ex, _ = pts[side]
+            sg = -1 if side == 0 else 1
+            secs.append((z, [(ex - sg * 0.006, 0.004), (ex + sg * 0.005, 0.0), (ex - sg * 0.006, -0.004)]))
+        secs.append((Z1 + 0.004, [(0.0, 0.0)] * 3))
+        edge = K.loft("edge", secs, closed_caps=True)
+        K.fix_normals(edge)
+        b.add(edge, [M["hot"]], "edge")
 
-    # ---- the reactor fuller: an amber channel down each flat, with three hot vents near the collar
+    # ---- the reactor channel down each flat: a crimson fuller with a white core line, and hex vents by the guard
     for sy in (-1, 1):
         fsecs = []
-        for i in range(19):
-            z = 0.13 + (1.3 - 0.13) * i / 18
-            c = curve(z)
-            u = (z - Z0) / (Z1 - Z0)
-            t = (T0 + (T1 - T0) * u)
-            y = sy * (t * 0.47 + 0.0012)
-            fsecs.append((z, [(c - 0.018, y), (c - 0.004, y), (c - 0.004, y + sy * 0.0016), (c - 0.018, y + sy * 0.0016)]))
+        for i in range(25):
+            z = 0.2 + (ZP - 0.12 - 0.2) * i / 24
+            pts = section(z)
+            y = sy * (pts[1][1] + 0.0014)
+            fsecs.append((z, [(-0.03, y), (0.03, y), (0.03, y + sy * 0.002), (-0.03, y + sy * 0.002)]))
         ful = K.loft("fuller", fsecs, closed_caps=True)
         K.fix_normals(ful)
-        b.add(ful, [M["amber"]], "body")
-        for k in range(3):
-            z = 0.16 + k * 0.05
-            b.add(K.box("vent", (curve(z) + 0.012, sy * (T0 * 0.47 + 0.001), z), (0.012, 0.0024, 0.022)), [M["red"]], "body")
+        b.add(ful, [M["red"]], "body")
+        core = []
+        for i in range(25):
+            z = 0.22 + (ZP - 0.16 - 0.22) * i / 24
+            y = sy * (section(z)[1][1] + 0.0036)
+            core.append((z, [(-0.006, y), (0.006, y), (0.006, y + sy * 0.0012), (-0.006, y + sy * 0.0012)]))
+        c = K.loft("core", core, closed_caps=True)
+        K.fix_normals(c)
+        b.add(c, [M["hot"]], "body")
+        for k in range(4):
+            z = 0.2 + k * 0.07
+            for sx in (-1, 1):
+                b.add(K.box("vent", (sx * 0.065, sy * (T0 * 0.5 + 0.001), z), (0.028, 0.004, 0.03)), [M["red"]], "body")
+        # a silver ricasso plate over the blade's root, each side
+        b.add(K.box("ricasso", (0.0, sy * (T0 * 0.5 + 0.003), 0.15), (0.2, 0.006, 0.09)), [M["gold"]], "body")
 
-    # ---- habaki collar
-    b.lathe("habaki", [(0.0, 0.025), (0.046, 0.025), (0.05, 0.035), (0.046, 0.085), (0.0, 0.09)], [M["gold"]], "body", segs=6)
-    # ---- tsuba: a hexagonal guard with a gold rim and six ember slots
-    b.lathe("tsuba", [(0.0, -0.005), (0.12, -0.005), (0.13, 0.005), (0.13, 0.02), (0.12, 0.03), (0.0, 0.03)], [M["obs"]], "body", segs=6)
-    b.lathe("tsuba_rim", [(0.128, 0.0), (0.142, 0.004), (0.142, 0.022), (0.128, 0.026)], [M["gold"]], "body", segs=6, closed=True)
-    for k in range(6):
-        a = k * math.tau / 6 + math.tau / 12
-        b.add(K.box("slot", (0.085 * math.cos(a), 0.085 * math.sin(a), 0.031), (0.03, 0.009, 0.004), rot_z=a), [M["red"]], "body")
-    # ---- grip: a wrapped tsuka with gold menuki and a hot core window
-    b.lathe("tsuka", [(0.0, -0.4), (0.034, -0.4), (0.038, -0.24), (0.036, -0.06), (0.04, -0.005), (0.0, -0.005)], [M["wrap"]], "body", segs=10)
-    for sz in (-0.14, -0.27):
-        b.add(K.box("menuki", (0.0, 0.037, sz), (0.022, 0.008, 0.03)), [M["gold"]], "body")
-        b.add(K.box("menuki", (0.0, -0.037, sz), (0.022, 0.008, 0.03)), [M["gold"]], "body")
-    b.lathe("fuchi", [(0.0, -0.03), (0.044, -0.03), (0.046, -0.005), (0.0, -0.005)], [M["gold"]], "body", segs=10)
-    # ---- pommel: a gold kashira and a red focus crystal
-    b.lathe("kashira", [(0.0, -0.45), (0.03, -0.45), (0.044, -0.425), (0.041, -0.4), (0.0, -0.4)], [M["gold"]], "body", segs=10)
-    b.lathe("crystal", [(0.0, -0.53), (0.018, -0.5), (0.022, -0.475), (0.012, -0.45), (0.0, -0.448)], [M["warm"]], "body", segs=6)
+    # ---- crossguard: a wide bar with up-swept silver quillons and a crimson core gem
+    b.add(K.box("guard", (0, 0, 0.05), (0.56, 0.085, 0.08), bevel=0.01), [M["obs"]], "body")
+    b.add(K.box("guard_trim", (0, 0, 0.095), (0.6, 0.095, 0.014)), [M["gold"]], "body")
+    b.add(K.box("guard_trim", (0, 0, 0.006), (0.6, 0.095, 0.014)), [M["gold"]], "body")
+    for sx in (-1, 1):
+        q = K.beam("quillon", (sx * 0.29, 0, 0.05), (sx * 0.38, 0, 0.17), 0.06, 0.07)
+        b.add(q, [M["gold"]], "body")
+        b.add(K.box("quillon_tip", (sx * 0.385, 0, 0.18), (0.045, 0.075, 0.045), bevel=0.01), [M["obs"]], "body")
+        b.add(K.box("guard_slot", (sx * 0.16, 0, 0.05), (0.08, 0.09, 0.016)), [M["red"]], "body")
+    b.lathe("gem", [(0.0, 0.02), (0.045, 0.045), (0.05, 0.06), (0.03, 0.085), (0.0, 0.09)], [M["warm"]], "body", segs=6)
+    for sy in (-1, 1):
+        g = K.lathe("gem_face", [(0.0, -0.004), (0.04, -0.004), (0.04, 0.004), (0.0, 0.004)], 6)
+        g.rotation_euler = (1.5708, 0, 0)
+        g.location = (0, sy * 0.046, 0.05)
+        K.active(g)
+        bpy.ops.object.transform_apply(location=True, rotation=True)
+        b.add(g, [M["red"]], "body")
 
-    # ---- the parry ring: gold hoop with red beads floating over the tsuba
-    o = K.lathe("hoop", [(0.17 + 0.006 * math.cos(a), 0.06 + 0.006 * math.sin(a)) for a in (k * math.tau / 8 for k in range(8))], 40, closed=True)
-    b.add(o, [M["gold"]], "ring", smooth=True)
+    # ---- a long two-handed grip: wrapped, with a silver centre ring, and a heavy pommel
+    b.lathe("grip", [(0.0, -0.52), (0.04, -0.52), (0.044, -0.3), (0.042, -0.08), (0.046, 0.0), (0.0, 0.0)], [M["wrap"]], "body", segs=10)
+    b.lathe("grip_ring", [(0.0, -0.27), (0.05, -0.27), (0.052, -0.25), (0.05, -0.23), (0.0, -0.23)], [M["gold"]], "body", segs=10)
+    b.lathe("ferrule", [(0.0, -0.03), (0.055, -0.03), (0.058, 0.0), (0.0, 0.0)], [M["gold"]], "body", segs=10)
+    b.lathe("pommel", [(0.0, -0.67), (0.05, -0.665), (0.085, -0.62), (0.09, -0.58), (0.07, -0.54), (0.045, -0.52), (0.0, -0.52)],
+            [M["gold"]], "body", segs=8)
+    b.lathe("pommel_gem", [(0.0, -0.7), (0.03, -0.672), (0.035, -0.66), (0.0, -0.655)], [M["warm"]], "body", segs=6)
     for k in range(8):
         a = k * math.tau / 8
-        b.add(K.box("bead", (0.17 * math.cos(a), 0.17 * math.sin(a), 0.06), (0.018, 0.018, 0.018), rot_z=a), [M["hot"] if k % 2 else M["amber"]], "ring")
+        b.add(K.box("pommel_stud", (0.088 * math.cos(a), 0.088 * math.sin(a), -0.6), (0.02, 0.02, 0.02), rot_z=a), [M["red"]], "body")
+
+    # ---- the parry ring: silver hoop with beads floating round the blade's root
+    o = K.lathe("hoop", [(0.24 + 0.007 * math.cos(a), 0.2 + 0.007 * math.sin(a)) for a in (k * math.tau / 8 for k in range(8))], 44, closed=True)
+    b.add(o, [M["gold"]], "ring", smooth=True)
+    for k in range(10):
+        a = k * math.tau / 10
+        b.add(K.box("bead", (0.24 * math.cos(a), 0.24 * math.sin(a), 0.2), (0.022, 0.022, 0.022), rot_z=a), [M["hot"] if k % 2 else M["amber"]], "ring")
 
     K.stamp(b.objs, b.parts)
     o = K.join(b.objs, "hangeki")
@@ -242,9 +254,9 @@ def build(assets, out):
     mlist = list(M.values())
     col = K.bake_one(o, mlist, 512, f"{assets}/textures/hangeki/hangeki.png")
     gl = K.bake_one(o, mlist, 256, f"{assets}/textures/hangeki/hangeki_glow.png", "glow")
-    K.export(o, b.parts, {"ring": (0, 0, 0.06)}, f"{assets}/models/hangeki/hangeki.json")
+    K.export(o, b.parts, {"ring": (0, 0, 0.2)}, f"{assets}/models/hangeki/hangeki.json")
     pm = K.preview_material("hk_prev", col, gl, 5.0)
-    K.preview(o, pm, f"{out}/hangeki.png", (2.0, -2.7, 1.1), (0, 0, 0.55), lens=50, bg=(0.012, 0.011, 0.012))
+    K.preview(o, pm, f"{out}/hangeki.png", (2.2, -2.9, 1.2), (0, 0, 0.6), lens=50, bg=(0.012, 0.011, 0.012))
 
 
 def tomoe(name, a0, R=0.092, hr=0.042, sweep=95.0, n=12, m=12):

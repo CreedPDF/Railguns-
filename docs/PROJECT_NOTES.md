@@ -65,6 +65,12 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
   crouch/lunge pivots + `PlayerEntityRendererMixin.setupTransforms` lower and side-on) with a follow-through
   (client phase PH_RELEASE). Longer blade (Z1 1.66), theme black/silver/white/crimson (no gold/amber). 3D ward shield
   `hangeki_ward` (Blender) drawn in `HangekiFx.wards`. Bottom-left panel restyled after the reference's lock readout.
+- v4.19.2: railguns really fire at the bearer (`ParryServer.fireRailguns`: emplacement held, a bolt at BEAM_SPEED homes
+  in, FX_BEAM_HOLD), time slows at TRIGGER 9 blocks and threats keep closing slowly (HOLD_DIST/HOLD_STOP), the stance
+  lasts until the threat reaches the blade (STANCE_TICKS..STANCE_MAX, ARRIVE). Cutscene `HangekiCine`: side shot in
+  slow motion (camera follows the live threat: STATE carries an entity to track, or bolt/missile packets), hero angle
+  in the stance, over-the-shoulder for the hit. The sword is now a greatsword, held flat in the hand (renderer turns
+  it 90 degrees about the blade in hand modes); the stance lays it horizontal across the face (arm roll).
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set

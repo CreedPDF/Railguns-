@@ -37,7 +37,7 @@ public final class HangekiHud {
         ImpactFrames.renderHud(ctx);
         if (mc.options.hudHidden) return;
         slowMotion(ctx, mc);
-        if (!HangekiCine.active() && ParryClient.holding()) meter(ctx, mc);
+        if (ParryClient.holding()) meter(ctx, mc);
     }
 
     // ------------------------------------------------------------------------------------------- primitives
@@ -202,8 +202,7 @@ public final class HangekiHud {
         // cinema bars for the stance
         ParryClient.Stance st = ParryClient.stance(mc.player.getId());
         if (cine && st != null) {
-            float u = ParryClient.progress(st, mc.getTickDelta());
-            float e = ParryClient.smooth(Math.min(1f, u / 0.2f));
+            float e = ParryClient.smooth(Math.max(k, st.phase() == HangekiNet.PH_STANCE ? 1f : 0f));
             float bar = h * 0.12f * e;
             rect(b, m, 0, 0, w, bar, argb(1f, BLACK));
             rect(b, m, 0, h - bar, w, h, argb(1f, BLACK));

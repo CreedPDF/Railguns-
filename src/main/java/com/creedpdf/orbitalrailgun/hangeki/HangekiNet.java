@@ -17,7 +17,7 @@ import net.minecraft.util.math.Vec3d;
  *  S2C  hangeki_scale   float                        how fast time runs (everyone)
  *  S2C  hangeki_meter   byte kind (-1 none), float closeness 0..1, string label, varint count, bool slowed
  *                                                    the threat meter of the sword-bearer
- *  S2C  hangeki_state   varint player, byte phase, long start (world time), varint ticks, vec3 focus
+ *  S2C  hangeki_state   varint player, byte phase, long start (world time), varint ticks, vec3 focus, varint track+1
  *                                                    a duelist's stance (for the cutscene and the pose others see)
  *  S2C  hangeki_fx      byte kind, vec3 at, vec3 dir, vec3 to, varint player, varint entity, float speed, varint extra
  *                                                    a burst to draw
@@ -32,7 +32,7 @@ public final class HangekiNet {
     public static final byte PH_IDLE = 0, PH_SLOW = 1, PH_STANCE = 2, PH_GUARD = 3, PH_RELEASE = 4;
     /** fx kinds */
     public static final byte FX_REFLECT = 0, FX_REFLECT_QUICK = 1, FX_COUNTER = 2, FX_BEAM = 3, FX_SONIC = 4, FX_MISSILE = 5,
-            FX_MISSILE_HOLD = 6, FX_GUARD = 7, FX_FAIL = 8;
+            FX_MISSILE_HOLD = 6, FX_GUARD = 7, FX_FAIL = 8, FX_BEAM_HOLD = 9;
     /** meter kinds */
     public static final byte K_NONE = -1, K_PROJECTILE = 0, K_MISSILE = 1, K_BEAM = 2, K_SONIC = 3;
 
@@ -58,7 +58,7 @@ public final class HangekiNet {
         ServerPlayNetworking.send(p, METER, b);
     }
 
-    public static void sendState(ServerPlayerEntity who, byte phase, int ticks, Vec3d focus) {
+    public static void sendState(ServerPlayerEntity who, byte phase, int ticks, Vec3d focus, int track) {
         ServerWorld w = who.getServerWorld();
         for (ServerPlayerEntity p : w.getPlayers()) {
             if (p != who && p.squaredDistanceTo(who) > 128 * 128) continue;
@@ -70,6 +70,7 @@ public final class HangekiNet {
             b.writeDouble(focus.x);
             b.writeDouble(focus.y);
             b.writeDouble(focus.z);
+            b.writeVarInt(track + 1);
             ServerPlayNetworking.send(p, STATE, b);
         }
     }

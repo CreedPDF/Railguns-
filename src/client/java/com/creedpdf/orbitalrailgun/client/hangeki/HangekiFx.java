@@ -67,6 +67,13 @@ public final class HangekiFx {
         boolean hot;
     }
 
+    private static final class Bolt {
+        Vec3d muzzle, head, prev;
+        long seen, born;
+    }
+
+    /** Railgun rounds in flight (by emplacement id): a lance from the muzzle to the bolt's head. */
+    private static final Map<Integer, Bolt> BOLTS = new HashMap<>();
     private static final List<Burst> BURSTS = new ArrayList<>();
     private static final Map<Integer, Trail> TRAILS = new HashMap<>();
     private static final Map<Integer, Held> HELD = new HashMap<>();
@@ -79,6 +86,7 @@ public final class HangekiFx {
 
     static void clear() {
         BURSTS.clear();
+        BOLTS.clear();
         TRAILS.clear();
         HELD.clear();
         SPARKS.clear();
@@ -94,6 +102,20 @@ public final class HangekiFx {
             h.seen = ticks;
             return;
         }
+        if (kind == HangekiNet.FX_BEAM_HOLD) {
+            Bolt b = BOLTS.get(entity);
+            if (b == null) {
+                b = new Bolt();
+                b.born = ticks;
+                b.prev = at;
+                BOLTS.put(entity, b);
+            } else b.prev = b.head;
+            b.muzzle = at;
+            b.head = to;
+            b.seen = ticks;
+            return;
+        }
+        if (kind == HangekiNet.FX_BEAM) BOLTS.remove(entity);
         if (kind == HangekiNet.FX_MISSILE) HELD.remove(entity);
         BURSTS.add(new Burst(kind, at, dir, to, player, entity, speed, extra, ticks, RNG.nextLong()));
         if ((kind == HangekiNet.FX_REFLECT || kind == HangekiNet.FX_REFLECT_QUICK) && entity > 0) {
@@ -133,6 +155,7 @@ public final class HangekiFx {
         ticks++;
         BURSTS.removeIf(b -> ticks - b.t0() > 80);
         HELD.values().removeIf(h -> ticks - h.seen > 4);
+        BOLTS.values().removeIf(b -> ticks - b.seen > 4);
         for (Iterator<Map.Entry<Integer, Trail>> it = TRAILS.entrySet().iterator(); it.hasNext(); ) {
             Map.Entry<Integer, Trail> en = it.next();
             Trail t = en.getValue();
@@ -158,7 +181,7 @@ public final class HangekiFx {
     static void render(WorldRenderContext ctx) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null || KrlCompat.shadowPass()) return;
-        if (BURSTS.isEmpty() && TRAILS.isEmpty() && HELD.isEmpty() && SPARKS.isEmpty() && ParryClient.STANCES.isEmpty()) return;
+        if (BURSTS.isEmpty() && TRAILS.isEmpty() && HELD.isEmpty() && SPARKS.isEmpty() && ParryClient.STANCES.isEmpty() && BOLTS.isEmpty()) return;
         float pt = ctx.tickDelta();
         Vec3d cam = ctx.camera().getPos();
         MatrixStack ms = ctx.matrixStack();
@@ -185,6 +208,7 @@ public final class HangekiFx {
         Matrix4f m = ms.peek().getPositionMatrix();
         VertexConsumer g = BUF.getBuffer(BeamRenderLayers.GLOW);
         for (float[] wd : wards) wardGlow(g, m, wd);
+        for (Bolt bo : BOLTS.values()) bolt(g, m, cam, bo, pt, time);
         for (Burst b : BURSTS) {
             float age = ticks - b.t0() + pt;
             switch (b.kind()) {
@@ -269,6 +293,32 @@ public final class HangekiFx {
             ms.pop();
         }
         return out;
+    }
+
+    /** A railgun round in flight: a white-cored crimson lance from the muzzle to a blazing head ringed with shock. */
+    private static void bolt(VertexConsumer g, Matrix4f m, Vec3d cam, Bolt b, float pt, float time) {
+        Vec3d headW = b.prev.lerp(b.head, pt);
+        Vector3f a = rel(b.muzzle, cam), z = rel(headW, cam);
+        float fl = 0.85f + 0.15f * MathHelper.sin(time * 5.1f);
+        float grow = MathHelper.clamp((ticks - b.born + pt) / 3f, 0, 1);
+        float w = 1.1f * fl * (0.4f + 0.6f * grow);
+        strip(g, m, a, z, w * 2.2f, w * 1.6f, RED, 0.22f, 0.4f);
+        strip(g, m, a, z, w, w * 0.9f, AMBER, 0.55f, 0.75f);
+        strip(g, m, a, z, w * 0.32f, w * 0.34f, WHITE, 0.95f, 1f);
+        Vector3f[] cb = camBasis(z);
+        ring(g, m, z, cb[0], cb[1], 0f, 1.3f * fl, 24, 0, MathHelper.TAU, WHITE, 1f, 0f);
+        ring(g, m, z, cb[0], cb[1], 0.6f, 2.6f * fl, 24, 0, MathHelper.TAU, RED, 0.6f, 0f);
+        Vector3f d = new Vector3f(z).sub(a);
+        float len = d.length();
+        if (len < 1e-3f) return;
+        d.div(len);
+        Vector3f[] uv = basis(d);
+        for (int i = 0; i < 4; i++) {
+            float ph = ((time * 0.35f + i * 0.25f) % 1f);
+            Vector3f c = new Vector3f(d).mul(-ph * 6f).add(z);
+            float r = 0.5f + ph * 1.4f;
+            ring(g, m, c, uv[0], uv[1], r, r + 0.15f, 28, 0, MathHelper.TAU, i % 2 == 0 ? WHITE : RED, 0.7f * (1 - ph), 0f);
+        }
     }
 
     /** A faint crimson barrier behind the ward, its rim, and on the hit a white ring blown outward. */

@@ -81,11 +81,19 @@ import java.util.UUID;
 public final class ParryServer {
     private ParryServer() {}
 
-    public static final double SCAN = 28, TRIGGER = 3.0, CRAWL = 0.028, HOLD_STOP = 1.9;
-    /** Slow motion while a threat hangs in the air; the stance runs a little quicker; after the hit time surges past normal. */
-    public static final float SLOW_SCALE = 0.16f, STANCE_SCALE = 0.26f, HITSTOP_SCALE = 0.3f, RUSH_SCALE = 1.4f;
-    /** Ticks (slowed) the bearer has to parry once time slows; the stance; the guard; protection after a parry. */
-    public static final int SLOW_WINDOW = 26, STANCE_TICKS = 5, RUSH = 8, GUARD_TICKS = 10, GUARD_COOLDOWN = 16, PROTECT = 20, HITSTOP = 4;
+    /**
+     * SCAN: how far out threats are tracked. TRIGGER: time slows when one gets this close, early enough for the side
+     * shot to show it coming in. It then keeps closing (slowly) to HOLD_DIST and creeps toward HOLD_STOP. During the
+     * stance it comes the rest of the way to the blade (ARRIVE), and the hit lands when it gets there.
+     */
+    public static final double SCAN = 44, TRIGGER = 9.0, HOLD_DIST = 2.8, CRAWL = 0.028, HOLD_STOP = 2.0, ARRIVE = 1.55;
+    /** A fired railgun round is a bolt of light that crosses the distance at this speed (blocks per tick) - visibly. */
+    public static final double BEAM_SPEED = 9.0;
+    /** Slow motion while a threat closes; the stance plays out a little slower still; after the hit time surges past normal. */
+    public static final float SLOW_SCALE = 0.16f, STANCE_SCALE = 0.18f, HITSTOP_SCALE = 0.3f, RUSH_SCALE = 1.4f;
+    /** Ticks (slowed) the bearer has to parry once time slows; the stance (at least / at most); the guard; protection. */
+    public static final int SLOW_WINDOW = 36, STANCE_TICKS = 9, STANCE_MAX = 24, RUSH = 8, GUARD_TICKS = 10, GUARD_COOLDOWN = 16, PROTECT = 20,
+            HITSTOP = 4;
     /** A warden's boom lands this long after its charge starts (SonicBoomTask.SOUND_DELAY). */
     public static final int SONIC_DELAY = 34;
 
@@ -117,7 +125,7 @@ public final class ParryServer {
 
         Vec3d pos() {
             if (kind == HangekiNet.K_MISSILE) return mPos != null ? mPos : origin;
-            if (kind == HangekiNet.K_BEAM && entity instanceof RailgunEntity r) return r.getMuzzlePos(1f);
+            if (kind == HangekiNet.K_BEAM) return mPos != null ? mPos : origin;
             if (kind == HangekiNet.K_SONIC && entity != null) return entity.getPos().add(0, 1.6, 0);
             return entity != null ? entity.getPos() : origin;
         }
@@ -133,6 +141,8 @@ public final class ParryServer {
         byte phase = HangekiNet.PH_IDLE;
         long phaseStart, guardUntil, protectUntil, cooldownUntil, hitstopUntil, rushUntil;
         final List<Threat> held = new ArrayList<>();
+        /** Railgun rounds fired at the bearer, still crossing the distance. */
+        final List<Threat> inbound = new ArrayList<>();
         final Map<UUID, Long> ignore = new HashMap<>();
         final Map<Integer, Long> sonicSeen = new HashMap<>();
         Vec3d focus = Vec3d.ZERO;
@@ -172,7 +182,10 @@ public final class ParryServer {
 
     public static void forget(ServerPlayerEntity p) {
         Duelist d = DUELISTS.remove(p.getUuid());
-        if (d != null) for (Threat t : d.held) release(p.getServerWorld(), p, t, false);
+        if (d != null) {
+            for (Threat t : d.held) release(p.getServerWorld(), p, t, false);
+            for (Threat t : d.inbound) release(p.getServerWorld(), p, t, false);
+        }
     }
 
     public static void clear() {
@@ -203,7 +216,9 @@ public final class ParryServer {
             if (d.world != null && d.world != w.getRegistryKey() && d.phase != HangekiNet.PH_IDLE) {
                 // changed dimension mid-parry: everything held is let go
                 for (Threat t : d.held) release(w, p, t, false);
+                for (Threat t : d.inbound) release(w, p, t, false);
                 d.held.clear();
+                d.inbound.clear();
                 d.phase = HangekiNet.PH_IDLE;
             }
             d.world = w.getRegistryKey();
@@ -212,8 +227,9 @@ public final class ParryServer {
             switch (d.phase) {
                 case HangekiNet.PH_SLOW -> tickSlow(w, p, d, armed, charging, now);
                 case HangekiNet.PH_STANCE -> {
-                    hold(w, p, d);
-                    if (now - d.phaseStart >= STANCE_TICKS) impact(w, p, d, now);
+                    boolean arrived = hold(w, p, d, true);
+                    long el = now - d.phaseStart;
+                    if ((el >= STANCE_TICKS && arrived) || el >= STANCE_MAX) impact(w, p, d, now);
                 }
                 default -> tickIdle(w, p, d, armed, charging, now);
             }
@@ -223,9 +239,13 @@ public final class ParryServer {
     private static void tickIdle(ServerWorld w, ServerPlayerEntity p, Duelist d, boolean armed, @Nullable List<? extends RailgunEntity> charging, long now) {
         if (d.phase == HangekiNet.PH_GUARD && now >= d.guardUntil) d.phase = HangekiNet.PH_IDLE;
         if (!armed) {
+            for (Threat t : d.inbound) release(w, p, t, true);
+            d.inbound.clear();
             meter(p, d, HangekiNet.K_NONE, 0, "", 0, false);
             return;
         }
+        fireRailguns(w, p, d, charging);
+        advanceInbound(w, p, d);
         List<Threat> seen = scan(w, p, d, charging, now);
         Threat best = null;
         for (Threat t : seen) if (best == null || t.closeness > best.closeness) best = t;
@@ -242,6 +262,8 @@ public final class ParryServer {
             return;
         }
         // anything else arriving joins the slow motion
+        fireRailguns(w, p, d, charging);
+        advanceInbound(w, p, d);
         for (Threat t : scan(w, p, d, charging, now)) {
             if (t.imminent && !d.holds(t) && capture(w, p, t)) d.held.add(t);
         }
@@ -250,16 +272,21 @@ public final class ParryServer {
             endSlow(w, p, d, now);
             return;
         }
-        hold(w, p, d);
+        hold(w, p, d, false);
         Threat first = d.held.get(0);
         meter(p, d, first.kind, 1f, first.label, d.held.size(), true);
         if (now - d.phaseStart > SLOW_WINDOW) fail(w, p, d, now);
     }
 
+    /** The entity the client's camera can follow for a threat (-1: it follows the bolt / missile packets instead). */
+    private static int trackId(Threat t) {
+        return (t.kind == HangekiNet.K_PROJECTILE || t.kind == HangekiNet.K_SONIC) && t.entity != null ? t.entity.getId() : -1;
+    }
+
     private static boolean gone(Threat t) {
         return switch (t.kind) {
             case HangekiNet.K_MISSILE -> false;
-            case HangekiNet.K_BEAM -> t.entity == null || t.entity.isRemoved() || ((RailgunEntity) t.entity).getState() != RailgunState.CHARGING;
+            case HangekiNet.K_BEAM -> t.entity == null || t.entity.isRemoved();
             default -> t.entity == null || t.entity.isRemoved() || !t.entity.isAlive();
         };
     }
@@ -344,33 +371,16 @@ public final class ParryServer {
             th.mDir = f.path().dir(t);
             th.dist = f.path().pos(t).distanceTo(chest);
             th.closeness = MathHelper.clamp(1 - eta / 140.0, 0, 1);
-            th.imminent = eta <= 2 || th.dist <= TRIGGER + th.speed;
+            th.imminent = eta <= 3 || th.dist <= TRIGGER + th.speed;
             th.origin = Vec3d.ofCenter(f.pad).add(0, 1.2, 0);
             out.add(th);
         }
-        // railguns about to fire through the bearer
-        if (charging != null) {
-            for (RailgunEntity r : charging) {
-                Vec3d m = r.getMuzzlePos(1f), tg = Vec3d.ofCenter(r.getTarget());
-                Vec3d ab = tg.subtract(m);
-                double len = ab.length();
-                if (len < 1) continue;
-                Vec3d dir = ab.multiply(1 / len);
-                double along = MathHelper.clamp(chest.subtract(m).dotProduct(dir), 0, len);
-                double off = chest.distanceTo(m.add(dir.multiply(along)));
-                double reach = RailgunConfig.BEAM_HIT_RADIUS * r.getLoadout().hitRadiusMul() + 1.5;
-                if (off > reach && chest.distanceTo(tg) > 10) continue;
-                Threat t = new Threat(HangekiNet.K_BEAM, "RAILGUN");
-                t.entity = r;
-                t.dist = chest.distanceTo(m);
-                t.speed = 40;
-                t.closeness = r.getCharge();
-                // about to fire: within a tick and a half of full charge (the rate depends on the loadout)
-                double step = 1.0 / Math.max(1, r.getLoadout().chargeTicks(RailgunConfig.CHARGE_TICKS));
-                t.imminent = r.getCharge() + step * 1.5 >= 1.0;
-                t.origin = m;
-                out.add(t);
-            }
+        // railgun rounds in flight toward the bearer
+        for (Threat t : d.inbound) {
+            t.dist = t.mPos.distanceTo(chest);
+            t.closeness = MathHelper.clamp(1 - (t.dist - TRIGGER) / (SCAN * 4 - TRIGGER), 0.35, 1);
+            t.imminent = t.dist <= TRIGGER + t.speed;
+            out.add(t);
         }
         // wardens charging a sonic boom at the bearer
         Set<Integer> live = new java.util.HashSet<>();
@@ -386,7 +396,7 @@ public final class ParryServer {
             t.dist = chest.distanceTo(wd.getEyePos());
             t.speed = 20;
             t.closeness = MathHelper.clamp(1 - eta / (double) SONIC_DELAY, 0, 1);
-            t.imminent = eta <= 4;
+            t.imminent = eta <= 6;
             t.origin = wd.getPos().add(0, 1.6, 0);
             out.add(t);
         }
@@ -416,9 +426,9 @@ public final class ParryServer {
         d.phaseStart = now;
         d.guardUntil = 0;
         d.focus = d.held.get(0).pos();
-        hold(w, p, d);
+        hold(w, p, d, false);
         w.playSound(null, p.getX(), p.getY(), p.getZ(), Hangeki.S_SLOW, SoundCategory.PLAYERS, 1.4f, 1f);
-        HangekiNet.sendState(p, HangekiNet.PH_SLOW, SLOW_WINDOW, d.focus);
+        HangekiNet.sendState(p, HangekiNet.PH_SLOW, SLOW_WINDOW, d.focus, trackId(d.held.get(0)));
         Threat first = d.held.get(0);
         meter(p, d, first.kind, 1f, first.label, d.held.size(), true);
     }
@@ -433,10 +443,10 @@ public final class ParryServer {
                 t.noGrav0 = e.hasNoGravity();
                 if (e instanceof ExplosiveProjectileEntity x) t.power0 = new double[]{x.powerX, x.powerY, x.powerZ};
                 if (e instanceof FireworkRocketEntity fw) t.life0 = ((FireworkRocketAccessor) fw).orbitalRailgun$life();
-                // it stops right where time caught it: no closer than TRIGGER
+                // a very fast one is pulled back to where the shot can still see it coming
                 Vec3d rel = e.getPos().subtract(chest);
-                if (rel.length() < TRIGGER - 0.2 && t.vel0.lengthSquared() > 1e-6) {
-                    Vec3d at = chest.subtract(t.vel0.normalize().multiply(TRIGGER));
+                if (rel.length() < HOLD_DIST + 1.5 && t.vel0.lengthSquared() > 1e-6) {
+                    Vec3d at = chest.subtract(t.vel0.normalize().multiply(HOLD_DIST + 1.5));
                     e.setPosition(at.x, at.y, at.z);
                 }
             }
@@ -447,28 +457,101 @@ public final class ParryServer {
                 t.missile = f.missile;
                 t.missileOwner = f.owner;
                 Vec3d in = pathDir.lengthSquared() > 1e-6 ? pathDir.normalize() : new Vec3d(0, -1, 0);
-                t.mPos = chest.subtract(in.multiply(TRIGGER + 0.8));
+                t.mPos = chest.subtract(in.multiply(TRIGGER));
                 t.mDir = chest.subtract(t.mPos).normalize();
             }
-            case HangekiNet.K_BEAM -> HELD_RAILGUNS.add((RailgunEntity) t.entity);
+            case HangekiNet.K_BEAM -> d(p).inbound.remove(t);
             default -> {
             }
         }
         return true;
     }
 
-    /** Keep every held threat hanging in front of the bearer, creeping in. */
-    private static void hold(ServerWorld w, ServerPlayerEntity p, Duelist d) {
+    private static Duelist d(ServerPlayerEntity p) {
+        return duelist(p);
+    }
+
+    /**
+     * A railgun with the bearer in its line of fire that is about to fire really fires: the rail discharges (sound,
+     * flash) and its round - held by us, the emplacement's own shot is withheld - crosses the distance as a visible
+     * bolt, homing on the bearer. Time only slows once it is close.
+     */
+    private static void fireRailguns(ServerWorld w, ServerPlayerEntity p, Duelist d, @Nullable List<? extends RailgunEntity> charging) {
+        if (charging == null) return;
         Vec3d chest = chest(p);
+        for (RailgunEntity r : charging) {
+            if (HELD_RAILGUNS.contains(r)) continue;
+            Vec3d m = r.getMuzzlePos(1f), tg = Vec3d.ofCenter(r.getTarget());
+            Vec3d ab = tg.subtract(m);
+            double len = ab.length();
+            if (len < 1) continue;
+            Vec3d dir = ab.multiply(1 / len);
+            double along = MathHelper.clamp(chest.subtract(m).dotProduct(dir), 0, len);
+            double off = chest.distanceTo(m.add(dir.multiply(along)));
+            double reach = RailgunConfig.BEAM_HIT_RADIUS * r.getLoadout().hitRadiusMul() + 1.5;
+            if (off > reach && chest.distanceTo(tg) > 10) continue;
+            double step = 1.0 / Math.max(1, r.getLoadout().chargeTicks(RailgunConfig.CHARGE_TICKS));
+            if (r.getCharge() + step * 1.5 < 1.0) continue;
+            HELD_RAILGUNS.add(r);
+            Threat t = new Threat(HangekiNet.K_BEAM, "RAILGUN");
+            t.entity = r;
+            t.origin = m;
+            t.mPos = m;
+            t.mDir = chest.subtract(m).normalize();
+            t.speed = BEAM_SPEED;
+            d.inbound.add(t);
+            w.playSound(null, m.x, m.y, m.z, ModSounds.RAILGUN_FIRE, SoundCategory.BLOCKS, 8f, 1f);
+            w.spawnParticles(ParticleTypes.FLASH, m.x, m.y, m.z, 2, 0.5, 0.5, 0.5, 0);
+            w.spawnParticles(ParticleTypes.EXPLOSION, m.x, m.y, m.z, 6, 1.2, 1.2, 1.2, 0);
+        }
+    }
+
+    /** Railgun rounds still crossing: the head moves on toward the bearer; everyone nearby sees the bolt. */
+    private static void advanceInbound(ServerWorld w, ServerPlayerEntity p, Duelist d) {
+        Vec3d chest = chest(p);
+        for (Iterator<Threat> it = d.inbound.iterator(); it.hasNext(); ) {
+            Threat t = it.next();
+            if (t.entity == null || t.entity.isRemoved()) {
+                HELD_RAILGUNS.remove((RailgunEntity) t.entity);
+                it.remove();
+                continue;
+            }
+            Vec3d to = chest.subtract(t.mPos);
+            double dist = to.length();
+            t.mDir = dist > 1e-4 ? to.multiply(1 / dist) : t.mDir;
+            double stepLen = Math.min(t.speed, Math.max(0, dist - TRIGGER + 0.5));
+            t.mPos = t.mPos.add(t.mDir.multiply(stepLen));
+            beamFx(w, p, t);
+        }
+    }
+
+    private static void beamFx(ServerWorld w, ServerPlayerEntity p, Threat t) {
+        HangekiNet.fx(w, HangekiNet.FX_BEAM_HOLD, t.origin, t.mDir, t.mPos, p.getId(), t.entity.getId(), (float) t.speed, 0);
+    }
+
+    /**
+     * Move every held threat in for the frame. In slow motion it keeps closing (at a fraction of its speed, so the
+     * side shot shows it coming) until HOLD_DIST, then creeps toward HOLD_STOP; in the stance it comes on to the blade.
+     * Returns true when everything has reached the blade (ARRIVE).
+     */
+    private static boolean hold(ServerWorld w, ServerPlayerEntity p, Duelist d, boolean stance) {
+        Vec3d chest = chest(p);
+        boolean all = true;
         for (Threat t : d.held) {
+            Vec3d at = t.kind == HangekiNet.K_PROJECTILE && t.entity != null ? t.entity.getPos() : t.pos();
+            double dist = at.distanceTo(chest);
+            double v;
+            if (stance) v = dist > ARRIVE ? MathHelper.clamp(t.speed * 0.1, 0.07, 0.45) : 0.002;
+            else v = dist > HOLD_DIST ? MathHelper.clamp(t.speed * 0.16, 0.09, 0.8) : dist > HOLD_STOP ? CRAWL : 0.002;
+            v = Math.min(v, Math.max(0.002, dist - (stance ? ARRIVE : HOLD_STOP) + 0.002));
+            if (t.kind != HangekiNet.K_SONIC && dist > ARRIVE + 0.1) all = false;
             switch (t.kind) {
                 case HangekiNet.K_PROJECTILE -> {
                     Entity e = t.entity;
                     if (e == null || e.isRemoved()) continue;
                     Vec3d to = chest.subtract(e.getPos());
-                    double dist = to.length();
                     Vec3d dir = dist > 1e-4 ? to.multiply(1 / dist) : t.vel0.normalize();
-                    e.setVelocity(dir.multiply(dist > HOLD_STOP ? CRAWL : 0.002));
+                    e.setVelocity(dir.multiply(v));
                     e.setNoGravity(true);
                     if (e instanceof ExplosiveProjectileEntity x) {
                         x.powerX = 0;
@@ -479,9 +562,14 @@ public final class ParryServer {
                     e.velocityDirty = true;
                 }
                 case HangekiNet.K_MISSILE -> {
-                    if (t.mPos.distanceTo(chest) > HOLD_STOP + 0.6) t.mPos = t.mPos.add(t.mDir.multiply(CRAWL));
                     t.mDir = chest.subtract(t.mPos).normalize();
+                    t.mPos = t.mPos.add(t.mDir.multiply(v));
                     HangekiNet.fx(w, HangekiNet.FX_MISSILE_HOLD, t.mPos, t.mDir, t.mPos, p.getId(), t.flightId, 0f, t.missile.livery());
+                }
+                case HangekiNet.K_BEAM -> {
+                    t.mDir = chest.subtract(t.mPos).normalize();
+                    t.mPos = t.mPos.add(t.mDir.multiply(v));
+                    beamFx(w, p, t);
                 }
                 case HangekiNet.K_SONIC -> {
                     if (t.entity instanceof WardenEntity wd)
@@ -491,16 +579,19 @@ public final class ParryServer {
                 }
             }
         }
+        return all;
     }
 
     private static void endSlow(ServerWorld w, ServerPlayerEntity p, Duelist d, long now) {
         d.phase = HangekiNet.PH_IDLE;
         d.held.clear();
-        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus);
+        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus, -1);
     }
 
     /** Too slow (or the sword was put away): everything held lands as it would have. */
     private static void fail(ServerWorld w, ServerPlayerEntity p, Duelist d, long now) {
+        for (Threat t : d.inbound) release(w, p, t, true);
+        d.inbound.clear();
         for (Threat t : d.held) {
             release(w, p, t, true);
             if (t.entity != null) d.ignore.put(t.entity.getUuid(), now + 80);
@@ -509,7 +600,7 @@ public final class ParryServer {
         d.phase = HangekiNet.PH_IDLE;
         d.cooldownUntil = now + 10;
         w.playSound(null, p.getX(), p.getY(), p.getZ(), Hangeki.S_RESUME, SoundCategory.PLAYERS, 1f, 0.8f);
-        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus);
+        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus, -1);
         HangekiNet.fx(w, HangekiNet.FX_FAIL, p.getEyePos(), Vec3d.ZERO, p.getEyePos(), p.getId(), 0, 0f, 0);
     }
 
@@ -549,9 +640,9 @@ public final class ParryServer {
             d.phase = HangekiNet.PH_STANCE;
             d.phaseStart = now;
             d.focus = d.held.get(0).pos();
-            d.protectUntil = now + STANCE_TICKS + PROTECT;
+            d.protectUntil = now + STANCE_MAX + PROTECT;
             w.playSound(null, p.getX(), p.getY(), p.getZ(), Hangeki.S_STANCE, SoundCategory.PLAYERS, 1.6f, 1f);
-            HangekiNet.sendState(p, HangekiNet.PH_STANCE, STANCE_TICKS, d.focus);
+            HangekiNet.sendState(p, HangekiNet.PH_STANCE, STANCE_TICKS, d.focus, trackId(d.held.get(0)));
             return;
         }
         if (d.phase == HangekiNet.PH_IDLE || d.phase == HangekiNet.PH_GUARD) {
@@ -560,7 +651,7 @@ public final class ParryServer {
             d.guardUntil = now + GUARD_TICKS;
             d.cooldownUntil = now + GUARD_COOLDOWN;
             w.playSound(null, p.getX(), p.getY(), p.getZ(), Hangeki.S_GUARD, SoundCategory.PLAYERS, 0.8f, 1f);
-            HangekiNet.sendState(p, HangekiNet.PH_GUARD, GUARD_TICKS, p.getEyePos().add(p.getRotationVector().multiply(3)));
+            HangekiNet.sendState(p, HangekiNet.PH_GUARD, GUARD_TICKS, p.getEyePos().add(p.getRotationVector().multiply(3)), -1);
         }
     }
 
@@ -585,7 +676,7 @@ public final class ParryServer {
         d.protectUntil = now + PROTECT;
         d.cooldownUntil = now + 6;
         d.rushUntil = now + RUSH;
-        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus);
+        HangekiNet.sendState(p, HangekiNet.PH_IDLE, 0, d.focus, -1);
         w.spawnParticles(ParticleTypes.FLASH, blade.x, blade.y, blade.z, 1, 0, 0, 0, 0);
         w.spawnParticles(ParticleTypes.CRIT, blade.x, blade.y, blade.z, 40, 0.3, 0.3, 0.3, 0.9);
     }
