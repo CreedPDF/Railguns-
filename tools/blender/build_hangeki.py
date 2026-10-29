@@ -247,27 +247,29 @@ def build(assets, out):
     K.preview(o, pm, f"{out}/hangeki.png", (2.0, -2.7, 1.1), (0, 0, 0.55), lens=50, bg=(0.012, 0.011, 0.012))
 
 
-def tomoe(name, a0, size=0.075, n=14):
-    """One comma of the three-tomoe crest, as an outline in the XZ plane (extruded along Y): a round head with a
-    tail that sweeps round the centre and tapers to a point."""
+def tomoe(name, a0, R=0.092, hr=0.042, sweep=95.0, n=12, m=12):
+    """One comma of the three-tomoe crest, as an outline in the XZ plane (extruded along Y): a round head on a circle
+    of radius R round the crest's centre, and a tail that follows that circle forward and tapers to a point."""
+    ur = (math.cos(a0), math.sin(a0))
+    ut = (-math.sin(a0), math.cos(a0))
+    hc = (R * ur[0], R * ur[1])
     pts = []
-    hc = (0.085 * math.cos(a0), 0.085 * math.sin(a0))
-    # head: the outer three-quarters of a circle
+    # head: the back half of the circle, from its outer point round to its inner point
     for i in range(n + 1):
-        t = a0 - math.pi * 0.5 + i * (math.pi * 1.5) / n
-        pts.append((hc[0] + size * math.cos(t), hc[1] + size * math.sin(t)))
-    # tail: sweeping back round the centre, tapering
-    m = 10
+        t = math.pi * i / n
+        pts.append((hc[0] + hr * (math.cos(t) * ur[0] - math.sin(t) * ut[0]), hc[1] + hr * (math.cos(t) * ur[1] - math.sin(t) * ut[1])))
+    # tail: the inner edge forward to the tip, then the outer edge back
+    sw = math.radians(sweep)
     for i in range(1, m + 1):
         f = i / m
-        ang = a0 + math.pi + f * math.pi * 0.85
-        r = 0.085 + size * (1 - f) * 0.9 + 0.02 * f
-        pts.append((r * math.cos(ang - math.pi) * (1 - 0.15 * f), r * math.sin(ang - math.pi) * (1 - 0.15 * f)))
-    for i in range(m, 0, -1):
+        r = R - hr * (1 - f) ** 1.3
+        th = a0 + f * sw
+        pts.append((r * math.cos(th), r * math.sin(th)))
+    for i in range(m - 1, 0, -1):
         f = i / m
-        ang = a0 + math.pi + f * math.pi * 0.85
-        r = 0.085 - size * (1 - f) * 0.6 + 0.02 * f
-        pts.append((max(0.01, r) * math.cos(ang - math.pi), max(0.01, r) * math.sin(ang - math.pi)))
+        r = R + hr * (1 - f) ** 1.3
+        th = a0 + f * sw
+        pts.append((r * math.cos(th), r * math.sin(th)))
     return K.extrude_outline(name, pts, 0.03, rim_mat=1, face_mat=0)
 
 
