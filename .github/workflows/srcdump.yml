@@ -2,6 +2,8 @@ name: Source dump
 on:
   push:
     branches: ['srcdump']
+permissions:
+  contents: write
 jobs:
   dump:
     runs-on: ubuntu-24.04
@@ -18,7 +20,9 @@ jobs:
           mkdir -p dump
           for j in $(find ~/.gradle .gradle -name "*minecraft*sources.jar" 2>/dev/null); do echo $j; unzip -o -q $j -d dump/src || true; done
           cd dump/src && zip -q -r ../mcsrc.zip net/minecraft com/mojang 2>/dev/null; ls -la ..
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mcsrc
-          path: dump/mcsrc.zip
+      - name: Commit
+        run: |
+          mkdir -p mcsrc && cp dump/mcsrc.zip mcsrc/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898099+github-actions[bot]@users.noreply.github.com"
+          git add mcsrc && git commit -m "mc sources [skip ci]" && git push
