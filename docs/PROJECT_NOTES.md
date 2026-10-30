@@ -15,7 +15,7 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
 ## Pipelines
 - `tools/blender/build.sh` runs `build_models.py` (railgun GeckoLib models), `build_krl.py` (KRL), `build_ship.py`
   (starship) and `build_hangeki.py` (HANGEKI). Dev branches build one set: `dev-krl*` -> ONLY=krl,
-  `dev-ship*` -> ONLY=ship, `dev-hangeki*` -> ONLY=hangeki; renders are committed to `docs/renders/`.
+  `dev-ship*` -> ONLY=ship, `dev-hangeki*` -> ONLY=hangeki, `dev-astraea*` -> ONLY=astraea; renders are committed to `docs/renders/`.
 - KRL meshes use the "krl_mesh" JSON format (`client/krl/KrlMesh.java`): named parts with pivots, Minecraft axes
   (Blender (x, y, z) -> (x, z, -y)), textures baked from procedural materials. `KrlMesh.prepare` builds distance LODs
   and glow-only subsets; `KrlCompat` detects Iris shadow passes.
@@ -71,6 +71,16 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
   slow motion (camera follows the live threat: STATE carries an entity to track, or bolt/missile packets), hero angle
   in the stance, over-the-shoulder for the hit. The sword is now a greatsword, held flat in the hand (renderer turns
   it 90 degrees about the blade in hand modes); the stance lays it horizontal across the face (arm roll).
+- v4.20.0 **ASTRAEA // The Worldsplitter** (`astraea/`, `client/astraea/`, Handhelds). Server: `AstraeaServer`
+  (ritual then strike sessions; `Timeline` holds every tick constant and the orbit maths), `SplitState`
+  (PersistentState, permanent: split time, strikes, normal in the Space frame, chasms), `ChasmCarver` (carves 2 slices
+  each way per tick). Client: `RitualFx` (sigils, rift, star, beam), `LanceFx` (item + flight), `SkyStrike`
+  (overworld sky: orbit, the other half over the horizon, from `OverworldSky`), `SplitEarthDraw` (hooked at the top of
+  `BodyDraw.draw` for Earth), `StrikeCine` (space cutscene drawn over the finished frame from `GameRendererMixin`,
+  own projection, SpaceSky with a virtual view), `AstraeaCine` (camera, skip/toggle; config file
+  `config/orbital_railgun_astraea.txt`), `AstraeaFrames` (+ `minecraft:shaders/program/astraea_frames.*`, Kind 0
+  ascension / 1 split), `AstraeaPose`, shake in `AstraeaClient`. In the overworld sky nothing writes depth
+  (translucent layers) so terrain always covers it.
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set
