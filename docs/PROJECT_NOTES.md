@@ -81,6 +81,9 @@ Fabric 1.20.1 mod, yarn mappings, mod id `orbital_railgun` (kept for world compa
   `config/orbital_railgun_astraea.txt`), `AstraeaFrames` (+ `minecraft:shaders/program/astraea_frames.*`, Kind 0
   ascension / 1 split), `AstraeaPose`, shake in `AstraeaClient`. In the overworld sky nothing writes depth
   (translucent layers) so terrain always covers it.
+- v4.20.1: fixed the crash at the moment Earth splits (SplitEarthDraw.gap kept drawing into the glow buffer after
+  the shared Immediate buffer had switched to the haze layer -> "Not building!"; same slip at the lance's catch in
+  LanceFx.flight). With a single-fallback Immediate, always re-fetch a layer's buffer after using another layer.
 
 ## Other ideas discussed
 - Military tab: a drivable mobile launcher truck for the KRL rails; a low-flying cruise missile; a bunker block set

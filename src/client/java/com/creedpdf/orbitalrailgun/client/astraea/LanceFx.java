@@ -158,6 +158,6 @@ public final class LanceFx {
         float size = (float) Math.max(2.5, dist * 0.03) * glare;
         sprite(st, m, p, size, (float) t * 0.03f, WHITE, Math.min(1f, glare));
         // the catch
-        if (t >= Timeline.S_CATCH - 1 && t <= Timeline.S_CATCH + 1) glowBall(g, m, p, 3f, WHITE, 1f);
+        if (t >= Timeline.S_CATCH - 1 && t <= Timeline.S_CATCH + 1) glowBall(buf.getBuffer(BeamRenderLayers.GLOW), m, p, 3f, WHITE, 1f);
     }
 }

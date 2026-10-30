@@ -203,6 +203,8 @@ public final class SplitEarthDraw {
         float ha = (0.15f + 0.6f * heat) * alpha;
         AstraeaDraw.quad(hz, m, c, u, w, r * 1.25f, time * 0.0004f, AstraeaDraw.EMBER, ha);
         AstraeaDraw.quad(hz, m, c, u, w, r * 1.05f, -time * 0.0007f, AstraeaDraw.GOLD, ha * 0.6f);
+        // (the haze took over the shared buffer: fetch the glow layer again before drawing into it)
+        g = cp.getBuffer(BeamRenderLayers.GLOW);
         AstraeaDraw.ring(g, m, c, u, w, r * 0.95f, r * 1.12f, 96, AstraeaDraw.EMBER, 0.35f * heat * alpha, 0f);
         // the shockwave and the flash
         if (since < 600) {
