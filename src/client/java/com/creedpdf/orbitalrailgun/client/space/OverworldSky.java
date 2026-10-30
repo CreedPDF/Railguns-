@@ -72,6 +72,7 @@ public final class OverworldSky {
         }
         meteorShower(world, time, pt);
         BUF.draw();
+        com.creedpdf.orbitalrailgun.client.astraea.SkyStrike.render(world, cam, time, pt, w.getSkyAngle(pt));
 
         matrices.push();
         matrices.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90f));

@@ -71,6 +71,7 @@ public final class SpaceSky {
 
     public static void render(Matrix4f m, Vec3d viewPos, Quaternionf toLocal, float time, float pt, float starAlpha, float bodyAlpha,
                               Body exclude, float sunScale, int slotBase) {
+        SplitEarthDraw.toLocal = new Quaternionf(toLocal);
         int slot = slotBase;
         float fogStart = RenderSystem.getShaderFogStart(), fogEnd = RenderSystem.getShaderFogEnd();
         RenderSystem.setShaderFogStart(Float.MAX_VALUE * 0.5f);

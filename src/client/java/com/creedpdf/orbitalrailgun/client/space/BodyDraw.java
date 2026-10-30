@@ -76,6 +76,10 @@ public final class BodyDraw {
      */
     public static void draw(VertexConsumerProvider cp, Matrix4f m, Body b, Vector3f c, float r, Vector3f L, float time,
                             float pt, float alpha, int segments, Vector3f impactOverride) {
+        if (b == Body.EARTH && SplitEarthDraw.active(pt)) {
+            SplitEarthDraw.draw(cp, m, c, r, L, time, pt, alpha, segments);
+            return;
+        }
         float e = ClientPlanets.elapsed(b, pt);
         if (e >= 0) {
             PlanetBlastFx.draw(cp, m, b, c, r, L, time, e, alpha, segments, impactOverride);
