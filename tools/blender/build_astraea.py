@@ -90,14 +90,21 @@ def crust_mat(name):
 
 
 def mantle_mat(name):
-    """Molten rock: convection streaks swirling round the centre, dark crusted plates floating on it."""
+    """Molten rock: dark, cooling rock torn through by bright seams of melt, in big flowing convection shapes; it runs
+    hotter toward the core (radius from the object centre)."""
     m = K.Mat(name)
-    n = m.noise(5.0, 7, 0.65, 2.5)
-    plates = m.voronoi_edge(12.0)
-    heat = m.math("ADD", m.math("MULTIPLY", n, 1.1), m.math("MULTIPLY", m.math("LESS_THAN", plates, 0.05), 0.35))
-    col = m.ramp(heat, [(0.2, (0.18, 0.03, 0.01)), (0.5, (0.6, 0.12, 0.02)), (0.8, (0.95, 0.42, 0.08))])
+    flow = m.noise(2.6, 7, 0.62, 3.5)
+    seams = m.voronoi_edge(7.0)
+    seam = m.math("LESS_THAN", seams, 0.045)
+    x = m.axis("X")
+    y = m.axis("Y")
+    r = m.math("SQRT", m.math("ADD", m.math("MULTIPLY", x, x), m.math("MULTIPLY", y, y)))
+    inward = m.math("SUBTRACT", 1.0, r)                 # 0 at the rim, ~0.45 at the mantle's inner edge
+    heat = m.math("ADD", m.math("MULTIPLY", flow, 0.55), m.math("MULTIPLY", inward, 0.7))
+    heat = m.math("ADD", heat, m.math("MULTIPLY", seam, 0.45), clamp=True)
+    col = m.ramp(heat, [(0.25, (0.07, 0.025, 0.02)), (0.55, (0.32, 0.06, 0.015)), (0.8, (0.78, 0.22, 0.03)), (1.0, (1.0, 0.55, 0.12))])
     m.color(col)
-    m.glow(m.ramp(heat, [(0.15, (0.12, 0.01, 0.0)), (0.5, (0.85, 0.18, 0.02)), (0.85, (1.0, 0.55, 0.12))]))
+    m.glow(m.ramp(heat, [(0.4, (0.0, 0.0, 0.0)), (0.6, (0.35, 0.05, 0.0)), (0.85, (0.85, 0.24, 0.03)), (1.0, (1.0, 0.6, 0.18))]))
     return m
 
 
@@ -105,9 +112,9 @@ def core_mat(name, inner=False):
     m = K.Mat(name)
     n = m.noise(8.0, 5, 0.5, 1.2)
     if inner:
-        stops = [(0.2, (1.0, 0.86, 0.6)), (0.8, (1.0, 0.98, 0.93))]
+        stops = [(0.2, (1.0, 0.9, 0.7)), (0.8, (1.0, 0.98, 0.94))]
     else:
-        stops = [(0.2, (1.0, 0.5, 0.1)), (0.8, (1.0, 0.8, 0.35))]
+        stops = [(0.2, (0.95, 0.38, 0.06)), (0.8, (1.0, 0.68, 0.22))]
     c = m.ramp(n, stops)
     m.color(c)
     m.glow(c)
@@ -195,7 +202,7 @@ def build_lance(assets, out):
     for sx in (-1, 1):
         for f in range(5):
             L = 0.36 - f * 0.045
-            spread = math.radians(18 + f * 13)
+            spread = -math.radians(24 + f * 12)     # swept up and out (negative: Blender's Y turns +X down)
             feather = S.prism("feather", [(0.0, -0.012), (L * 0.55, -0.026), (L, -0.004), (L * 0.97, 0.012), (L * 0.5, 0.022), (0.0, 0.012)],
                               "y", -0.006, 0.006, rim_mat=1)
             # lay it out along +X, then swing it down and back, mirror for the other side
@@ -314,7 +321,7 @@ def build_cut(assets, out):
     b = Build(["face"])
     b.add(o, M, "face", smooth=True)
     o, col, gl = b.finish("earth_cut", M, 2048, 1024, assets, {})
-    pm = K.preview_material("ec_prev", col, gl, 4.0)
+    pm = K.preview_material("ec_prev", col, gl, 1.6)
     K.preview(o, pm, f"{out}/earth_cut.png", (0.0, -1.7, 1.9), (0, 0, 0), lens=45, bg=(0.012, 0.011, 0.012))
 
 

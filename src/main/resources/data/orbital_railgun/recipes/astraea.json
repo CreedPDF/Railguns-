@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["  S", " N ", "E  "],
+  "key": {
+    "S": {"item": "minecraft:nether_star"},
+    "N": {"item": "minecraft:netherite_ingot"},
+    "E": {"item": "minecraft:end_rod"}
+  },
+  "result": {"item": "orbital_railgun:astraea"}
+}

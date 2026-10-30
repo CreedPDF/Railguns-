@@ -159,9 +159,10 @@ public final class RailgunMod implements ModInitializer {
         ModPackets.registerServerReceivers();
         com.creedpdf.orbitalrailgun.krl.Krl.init();
         com.creedpdf.orbitalrailgun.hangeki.Hangeki.init();
+        com.creedpdf.orbitalrailgun.astraea.Astraea.init();
 
         // Deluxs Armory has three creative tabs: Railguns (the orbital weapons, the ship, the EVA suit), Military (the KRL
-        // launcher system) and Handhelds (weapons you hold: HANGEKI, the parry sword).
+        // launcher system) and Handhelds (weapons you hold: HANGEKI, the parry sword; ASTRAEA, the Worldsplitter lance).
         Registry.register(Registries.ITEM_GROUP, id("main"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(RAILGUN_REMOTE))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.main"))
@@ -191,7 +192,10 @@ public final class RailgunMod implements ModInitializer {
         Registry.register(Registries.ITEM_GROUP, id("handhelds"), net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup.builder()
                 .icon(() -> new net.minecraft.item.ItemStack(com.creedpdf.orbitalrailgun.hangeki.Hangeki.SWORD))
                 .displayName(net.minecraft.text.Text.translatable("itemGroup.orbital_railgun.handhelds"))
-                .entries((context, entries) -> entries.add(com.creedpdf.orbitalrailgun.hangeki.Hangeki.SWORD))
+                .entries((context, entries) -> {
+                    entries.add(com.creedpdf.orbitalrailgun.hangeki.Hangeki.SWORD);
+                    entries.add(com.creedpdf.orbitalrailgun.astraea.Astraea.LANCE);
+                })
                 .build());
 
         ServerTickEvents.END_WORLD_TICK.register(DeploymentScheduler::tick);
