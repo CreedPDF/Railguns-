@@ -264,6 +264,31 @@ A black-and-silver sci-fi **greatsword** (broad straight double edge, white-hot 
   netherite ingots, a blaze rod grip.
 * Slow motion really slows the server's tick, so in multiplayer everyone sees time slow while a parry plays out.
 
+## ASTRAEA // The Worldsplitter (Handhelds)
+A lance of heaven: a white-and-gold divine spear (Blender model: a long faceted blade, swept wing guards, a turning
+halo and orbiting shards) wrapped in a crackling white lightning aura that turns fierce once it has ascended.
+
+* **Ascension** (ability key, default **V**, with the lance in hand): a cutscene. You lift the lance overhead, held
+  horizontal across both raised arms; sigil circles burn into the ground round you; far overhead a jagged **rift**
+  with a white-hot rim tears open in the sky, and a **white star** inside it pulses, flashing brighter each time; the
+  light comes down in a spiralling column and you **absorb** it; the screen cuts through impact frames (the scene as a
+  rugged ink outline of you, the column and the ritual circles, on bone, ink and gold cards) under a black band:
+  **ASCENSION / SUCCESSFULLY ABSORBED**. The lance is now ascended (glinting, gold lightning): good for **one throw**.
+* **The throw** (ability key again, in the overworld): you hurl the lance straight up into the sky. Cutscene from
+  space: a white star with a trail circling the Earth, faster and faster - each pass a rising *zoom* - until its trail
+  closes into a ring; the orbit sinks, it **drills into the side of the planet** and carves round it, and the **Earth
+  splits in half**: the halves part along the cut, molten mantle and glowing cores showing, chunks of world tumbling in
+  the gap, a shockwave, a flash, hard impact frames (the frame cracked along a fault and torn apart). Then: high over
+  the **chasm** ripping open across the land beside you, and the lance falling back into your hand.
+* **Permanent**: the land is really torn - a chasm (lava floor, basalt and blackstone walls, crumbling edges) 480
+  blocks long opens beside the thrower - and the Earth stays split: from the ground you see the other half hanging
+  over the horizon across the chasm (its glowing cut face toward you, a belt of debris across the sky); from space and
+  the other planets it is two halves. Mild screen shake while it drills and at the split, aftershocks for a while.
+  Another throw (after another Ascension) tears another chasm and pushes the halves further apart.
+* Skip a cutscene with the ability key; turn them off entirely with **ASTRAEA: toggle cutscenes** (unbound by
+  default). With them off you watch from your own eyes: look up and the star crosses the sky.
+* Recipe: a nether star over a netherite ingot over an end rod. Heavy attack damage, fireproof.
+
 Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **Deluxs Armory: Handhelds**.
 
 ## Asset pipeline
@@ -273,6 +298,9 @@ Creative tabs: **Deluxs Armory: Railguns**, **Deluxs Armory: Military** and **De
 | `tools/blender/build_ship.py` | The ARES Kestrel starship: lofted superellipse fuselage and engine boom, airfoil wings, lathed engine pods and nozzles, cabin and cockpit interiors; baked albedo + glow atlases; exported as a `krl_mesh` with movable parts (pods, gear, ramp, glass). |
 | `tools/blender/build_hangeki.py` | HANGEKI: the curved sci-fi katana (lofted blade with polished bevels and a hamon, plasma edge, amber reactor fuller, hex tsuba, wrapped grip, floating parry ring), same pipeline. |
 | `tools/sfx/hangeki_sounds.py` | 8 HANGEKI sounds synthesised from scratch (threat pip, time slowing, stance draw, the impact, the reflection, time resuming, counter, guard). |
+| `tools/blender/build_astraea.py` | ASTRAEA: the lance (faceted blade, wing guards, halo, shards), the Earth's cut face (crust, mantle, outer and inner core) and chunks of planet; baked albedo + glow. |
+| `tools/sfx/astraea_sounds.py` | 14 ASTRAEA sounds from scratch (aura, rift, star pulse, descent, absorption, ascension, throw, orbital pass, drill, the split with its rolling thunder, quake, tear, return). |
+| `tools/textures/astraea_textures.py` | The rift's void and rim, sigils, the star flare, trails, the Earth fracture map and ember haze. |
 | `tools/textures/build_textures.py` | Tileable beam textures (core, plasma, halo, helix, shockwave), animated particle sprites, fire-control and HUD panel art. |
 | `tools/sfx/build_sounds.py` | 18 sounds synthesized from scratch: layered sub kicks, modal (struck-metal) synthesis, detuned unison oscillators, FM, electric crackle, servo/hydraulic/latch machine parts timed to the animation, multiband saturation, a soft limiter and a synthetic room; encoded to Ogg Vorbis. |
 
