@@ -87,7 +87,10 @@ for extra in ("textures/entity/ares0_glowmask.png", "textures/armor/eva_suit_glo
 # Blender-built (krl_mesh) models: mesh and both baked textures must be present, and the glow must light something
 for mesh, tex, glow in (("models/ship/starship.json", "textures/ship/starship.png", "textures/ship/starship_glow.png"),
                         ("models/hangeki/hangeki.json", "textures/hangeki/hangeki.png", "textures/hangeki/hangeki_glow.png"),
-                        ("models/hangeki/hangeki_ward.json", "textures/hangeki/hangeki_ward.png", "textures/hangeki/hangeki_ward_glow.png")):
+                        ("models/hangeki/hangeki_ward.json", "textures/hangeki/hangeki_ward.png", "textures/hangeki/hangeki_ward_glow.png"),
+                        ("models/astraea/astraea.json", "textures/astraea/astraea.png", "textures/astraea/astraea_glow.png"),
+                        ("models/astraea/earth_cut.json", "textures/astraea/earth_cut.png", "textures/astraea/earth_cut_glow.png"),
+                        ("models/astraea/earth_chunks.json", "textures/astraea/earth_chunks.png", "textures/astraea/earth_chunks_glow.png")):
     for f in (mesh, tex, glow):
         if not (ASSETS / f).exists():
             errors.append(f"{f}: missing")

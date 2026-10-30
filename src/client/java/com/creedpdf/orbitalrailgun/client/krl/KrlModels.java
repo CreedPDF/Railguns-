@@ -25,6 +25,11 @@ public final class KrlModels {
     public static final Identifier SHIP_GLOW = RailgunMod.id("textures/ship/starship_glow.png");
     /** HANGEKI // Reversal Edge (tools/blender/build_hangeki.py). */
     public static KrlMesh HANGEKI, HANGEKI_WARD;
+    /** ASTRAEA (tools/blender/build_astraea.py): the lance, the Earth's cut face, torn chunks of planet. */
+    public static KrlMesh ASTRAEA, EARTH_CUT, EARTH_CHUNKS;
+    public static final Identifier ASTRAEA_TEX = RailgunMod.id("textures/astraea/astraea.png"), ASTRAEA_GLOW = RailgunMod.id("textures/astraea/astraea_glow.png"),
+            CUT_TEX = RailgunMod.id("textures/astraea/earth_cut.png"), CUT_GLOW = RailgunMod.id("textures/astraea/earth_cut_glow.png"),
+            CHUNK_TEX = RailgunMod.id("textures/astraea/earth_chunks.png"), CHUNK_GLOW = RailgunMod.id("textures/astraea/earth_chunks_glow.png");
     public static final Identifier HANGEKI_TEX = RailgunMod.id("textures/hangeki/hangeki.png"), HANGEKI_GLOW = RailgunMod.id("textures/hangeki/hangeki_glow.png"),
             WARD_TEX = RailgunMod.id("textures/hangeki/hangeki_ward.png"), WARD_GLOW = RailgunMod.id("textures/hangeki/hangeki_ward_glow.png");
     /** The spear's nose (the part the plasma sheath wraps): where it starts along the spear, and its tip. */
@@ -67,6 +72,9 @@ public final class KrlModels {
                 SHIP = load(rm, RailgunMod.id("models/ship/starship.json"), SHIP_GLOW);
                 HANGEKI = load(rm, RailgunMod.id("models/hangeki/hangeki.json"), HANGEKI_GLOW);
                 HANGEKI_WARD = load(rm, RailgunMod.id("models/hangeki/hangeki_ward.json"), WARD_GLOW);
+                ASTRAEA = load(rm, RailgunMod.id("models/astraea/astraea.json"), ASTRAEA_GLOW);
+                EARTH_CUT = load(rm, RailgunMod.id("models/astraea/earth_cut.json"), CUT_GLOW);
+                EARTH_CHUNKS = load(rm, RailgunMod.id("models/astraea/earth_chunks.json"), CHUNK_GLOW);
                 if (SPEAR != null && SPEAR.part("nose") != null) {
                     float[] r = SPEAR.yRange("nose");
                     NOSE_FROM = r[0];

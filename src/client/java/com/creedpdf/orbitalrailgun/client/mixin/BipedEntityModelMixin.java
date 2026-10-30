@@ -36,6 +36,7 @@ public abstract class BipedEntityModelMixin<T extends LivingEntity> {
     @Inject(method = "setAngles(Lnet/minecraft/entity/LivingEntity;FFFFF)V", at = @At("TAIL"))
     private void orbitalRailgun$parryStance(T entity, float limbAngle, float limbDistance, float age, float headYaw, float headPitch, CallbackInfo ci) {
         if (!(entity instanceof PlayerEntity p)) return;
+        com.creedpdf.orbitalrailgun.client.astraea.AstraeaPose.apply(p, MinecraftClient.getInstance().getTickDelta(), age, head, hat, body, rightArm, leftArm);
         float k = ParryClient.poseWeight(p, MinecraftClient.getInstance().getTickDelta());
         if (k <= 0.001f) return;
         boolean guard = ParryClient.guardPose(p);

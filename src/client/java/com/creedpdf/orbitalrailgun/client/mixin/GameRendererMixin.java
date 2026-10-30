@@ -13,19 +13,22 @@ public abstract class GameRendererMixin {
     @Inject(method = "renderHand", at = @At("HEAD"), cancellable = true, require = 0)
     private void orbitalRailgun$noHandInCinematic(net.minecraft.client.util.math.MatrixStack matrices, net.minecraft.client.render.Camera camera,
                                                   float tickDelta, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
-        if (com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.krl.KrlCine.active() || com.creedpdf.orbitalrailgun.client.hangeki.HangekiCine.active()) ci.cancel();
+        if (com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.active() || com.creedpdf.orbitalrailgun.client.krl.KrlCine.active() || com.creedpdf.orbitalrailgun.client.hangeki.HangekiCine.active() || com.creedpdf.orbitalrailgun.client.astraea.AstraeaCine.active()) ci.cancel();
     }
 
     @Inject(method = "getFarPlaneDistance", at = @At("RETURN"), cancellable = true, require = 0)
     private void orbitalRailgun$farBeam(CallbackInfoReturnable<Float> cir) {
         if (RemoteBeams.active() || com.creedpdf.orbitalrailgun.client.ship.ShipCinematic.active()
-                || com.creedpdf.orbitalrailgun.client.krl.KrlCine.active() || com.creedpdf.orbitalrailgun.client.krl.KrlClient.farFlight())
+                || com.creedpdf.orbitalrailgun.client.krl.KrlCine.active() || com.creedpdf.orbitalrailgun.client.krl.KrlClient.farFlight()
+                || com.creedpdf.orbitalrailgun.client.astraea.AstraeaCine.active())
             cir.setReturnValue(Math.max(cir.getReturnValueF(), 6144f));
     }
 
     /** HANGEKI's impact frames: a post pass over the finished world image, before the HUD is drawn on it. */
     @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;beginWrite(Z)V", ordinal = 0), require = 0)
     private void orbitalRailgun$impactFrames(float tickDelta, long startTime, boolean tick, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        com.creedpdf.orbitalrailgun.client.astraea.StrikeCine.renderScreen(tickDelta);
+        com.creedpdf.orbitalrailgun.client.astraea.AstraeaFrames.renderPost(tickDelta);
         com.creedpdf.orbitalrailgun.client.hangeki.ImpactFrames.renderPost(tickDelta);
     }
 }

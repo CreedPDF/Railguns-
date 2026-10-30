@@ -1051,5 +1051,145 @@
         "attenuation_distance": 12
       }
     ]
+  },
+  "astraea.aura": {
+    "subtitle": "subtitles.orbital_railgun.astraea.aura",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_aura",
+        "attenuation_distance": 10,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.stance": {
+    "subtitle": "subtitles.orbital_railgun.astraea.stance",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_stance",
+        "attenuation_distance": 24,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.rift": {
+    "subtitle": "subtitles.orbital_railgun.astraea.rift",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_rift",
+        "attenuation_distance": 128,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.pulse": {
+    "subtitle": "subtitles.orbital_railgun.astraea.pulse",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_pulse",
+        "attenuation_distance": 96,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.descend": {
+    "subtitle": "subtitles.orbital_railgun.astraea.descend",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_descend",
+        "attenuation_distance": 128,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.absorb": {
+    "subtitle": "subtitles.orbital_railgun.astraea.absorb",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_absorb",
+        "attenuation_distance": 64,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.ascension": {
+    "subtitle": "subtitles.orbital_railgun.astraea.ascension",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_ascension",
+        "attenuation_distance": 96,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.throw": {
+    "subtitle": "subtitles.orbital_railgun.astraea.throw",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_throw",
+        "attenuation_distance": 64,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.pass": {
+    "subtitle": "subtitles.orbital_railgun.astraea.pass",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_pass",
+        "attenuation_distance": 16,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.drill": {
+    "subtitle": "subtitles.orbital_railgun.astraea.drill",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_drill",
+        "attenuation_distance": 16,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.split": {
+    "subtitle": "subtitles.orbital_railgun.astraea.split",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_split",
+        "attenuation_distance": 16,
+        "stream": true
+      }
+    ]
+  },
+  "astraea.quake": {
+    "subtitle": "subtitles.orbital_railgun.astraea.quake",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_quake",
+        "attenuation_distance": 16,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.tear": {
+    "subtitle": "subtitles.orbital_railgun.astraea.tear",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_tear",
+        "attenuation_distance": 160,
+        "stream": false
+      }
+    ]
+  },
+  "astraea.return": {
+    "subtitle": "subtitles.orbital_railgun.astraea.return",
+    "sounds": [
+      {
+        "name": "orbital_railgun:astraea_return",
+        "attenuation_distance": 48,
+        "stream": false
+      }
+    ]
   }
 }

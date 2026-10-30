@@ -70,7 +70,7 @@ jobs:
       - name: Build models in Blender
         id: blender
         env:
-          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || startsWith(github.ref_name, 'dev-ship') && 'ship' || startsWith(github.ref_name, 'dev-hangeki') && 'hangeki' || '' }}
+          ONLY: ${{ startsWith(github.ref_name, 'dev-krl') && 'krl' || startsWith(github.ref_name, 'dev-ship') && 'ship' || startsWith(github.ref_name, 'dev-hangeki') && 'hangeki' || startsWith(github.ref_name, 'dev-astraea') && 'astraea' || '' }}
         run: |
           set -o pipefail
           tools/blender/build.sh ~/blender/blender 2>&1 | tee blender.log
