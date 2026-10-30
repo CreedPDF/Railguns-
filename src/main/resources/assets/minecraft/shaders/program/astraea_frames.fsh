@@ -194,12 +194,13 @@ void main() {
             col = mix(col, BONE, col1 * 0.85);
         } else if (mode == 3) {
             // gold card: posterised to three tones of gold, ink outline
-            float g = floor(clamp(L * 1.3 + grain * 0.15, 0.0, 0.999) * 3.0) / 2.0;
+            float g = floor(clamp(L * 1.3 + grain * 0.035, 0.0, 0.999) * 3.0) / 2.0;
+            col = vec3(0.0);
             col = mix(GOLD * 0.35, BONE, g) * (0.85 + 0.15 * vign);
             col = mix(col, INK, max(line, rit * 0.7));
         } else {
             // white-out: everything burned to white except a ragged ink silhouette and the column
-            float sil = 1.0 - step(0.35 + grain * 0.1, L);
+            float sil = 1.0 - smoothstep(0.3, 0.36, L + grain * 0.02);
             col = BONE;
             col = mix(col, INK, max(line * 0.9, sil * 0.92 * vign));
             col = mix(col, BONE, col1);
@@ -236,9 +237,9 @@ void main() {
             col = mix(col, BONE, max(gap, lip * 0.5));
         } else if (mode == 2) {
             // ember card: the scene burned to magma and ink silhouettes, black cracks, a white-hot fault
-            float g = clamp(L * 1.4 + grain * 0.15, 0.0, 1.0);
+            float g = clamp(L * 1.4 + grain * 0.05, 0.0, 1.0);
             col = mix(MAGMA, EMBER, g) * (0.75 + 0.25 * vign);
-            col = mix(col, INK, max(1.0 - step(0.3, L + grain * 0.1), line) * 0.9);
+            col = mix(col, INK, max(1.0 - smoothstep(0.27, 0.32, L + grain * 0.02), line) * 0.9);
             col = mix(col, INK, max(web, st * 0.6));
             col = mix(col, BONE, max(gap, lip * 0.8));
         } else if (mode == 3) {
